@@ -1,0 +1,71 @@
+import { createCaptureController } from '../core/capture-controller';
+import { cropAndCheck, jpegBytesToDataUrl } from '../core/crop';
+import type { BeginResult, SaveResult, ToBackground, ToContent } from '../core/messages';
+import { openOverlay } from '../core/overlay/overlay';
+import { createNetflixAdapter } from '../platforms/netflix/adapter';
+
+function isToContent(message: unknown): message is ToContent {
+  if (typeof message !== 'object' || message === null) return false;
+  const { type } = message as { type?: unknown };
+  if (type === 'scenenote/begin') return true;
+  if (type === 'scenenote/show') {
+    const { dataUrl } = message as { dataUrl?: unknown };
+    return dataUrl === null || typeof dataUrl === 'string';
+  }
+  if (type === 'scenenote/seek') {
+    return Number.isFinite((message as { timeMs?: unknown }).timeMs);
+  }
+  return false;
+}
+
+// Netflix is a single-page app: this script is injected on /browse too and lives on across
+// navigation to /watch/…, so everything is resolved when a message arrives, not at load.
+export default defineContentScript({
+  matches: ['https://www.netflix.com/*'],
+  main() {
+    const adapter = createNetflixAdapter(document);
+    const controller = createCaptureController({
+      adapter,
+      cropAndCheck,
+      jpegBytesToDataUrl,
+      openOverlay,
+      sendToBackground: (msg: ToBackground) =>
+        browser.runtime.sendMessage<ToBackground, SaveResult | void>(msg),
+      mount: () => document.fullscreenElement ?? document.body,
+      dpr: () => window.devicePixelRatio,
+      now: () => new Date(),
+      uuid: () => crypto.randomUUID(),
+    });
+
+    /** Seeks and then pauses (so the scene can be looked at); a failed seek leaves playback alone. */
+    const seekAndPause = async (timeMs: number): Promise<boolean> => {
+      const sought = await adapter.seek(timeMs);
+      if (sought) await adapter.pause();
+      return sought;
+    };
+
+    const handle = async (message: ToContent): Promise<unknown> => {
+      switch (message.type) {
+        case 'scenenote/begin':
+          return controller.begin();
+        case 'scenenote/show':
+          return controller.show(message.dataUrl);
+        case 'scenenote/seek':
+          return seekAndPause(message.timeMs);
+      }
+    };
+
+    browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+      if (!isToContent(message)) return;
+      handle(message).then(sendResponse, (error: unknown) => {
+        console.error('[scenenote] could not handle', message.type, error);
+        sendResponse(
+          message.type === 'scenenote/begin'
+            ? ({ status: 'no-video' } satisfies BeginResult)
+            : undefined,
+        );
+      });
+      return true;
+    });
+  },
+});
