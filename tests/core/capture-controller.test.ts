@@ -396,6 +396,22 @@ describe('saving', () => {
     expect(h.calls).toEqual(['pause', 'openOverlay', 'play']);
   });
 
+  it('trims trailing whitespace and newlines off the typed subtitle and body, keeping the start', async () => {
+    await capture();
+    h.overlay.press({ action: 'save', subtitle: '  你好嗎 \n', body: '  第一行\n\n第三行 \n\n  ' });
+    await vi.waitFor(() => expect(h.adapter.play).toHaveBeenCalledTimes(1));
+    expect(lastNote().subtitle).toBe('  你好嗎');
+    expect(lastNote().body).toBe('  第一行\n\n第三行');
+  });
+
+  it('turns a whitespace-only subtitle or body into an empty string', async () => {
+    await capture();
+    h.overlay.press({ action: 'save', subtitle: ' \n ', body: '\n\n' });
+    await vi.waitFor(() => expect(h.adapter.play).toHaveBeenCalledTimes(1));
+    expect(lastNote().subtitle).toBe('');
+    expect(lastNote().body).toBe('');
+  });
+
   it('keeps the overlay open and the video paused when saving fails, then saves on retry', async () => {
     h.sendToBackground.mockResolvedValueOnce({ ok: false, error: 'disk full' });
     await capture();
@@ -511,6 +527,19 @@ describe('with the real overlay', () => {
     await vi.waitFor(() => expect(h.adapter.play).toHaveBeenCalledTimes(1));
     expect(overlayHost()).toBeNull();
     expect(savedMessages().map((m) => m.note.body)).toEqual(['first try', 'second try']);
+    expect(await controller.begin()).toEqual({ status: 'ok' });
+    h.mountEl.remove();
+  });
+
+  it('is not busy for ever when the page throws the overlay away', async () => {
+    h.deps.openOverlay = realOpenOverlay;
+    document.body.appendChild(h.mountEl);
+    const controller = createCaptureController(h.deps);
+    await controller.begin();
+    await controller.show(SCREENSHOT);
+    expect(await controller.begin()).toEqual({ status: 'busy' });
+
+    h.mountEl.replaceChildren(); // the overlay's host disappears without a save or cancel
     expect(await controller.begin()).toEqual({ status: 'ok' });
     h.mountEl.remove();
   });

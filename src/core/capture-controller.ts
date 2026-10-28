@@ -164,8 +164,9 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         ...state.playback,
         id,
         platform: 'netflix',
-        subtitle: typed.subtitle,
-        body: typed.body,
+        // Trailing spaces and blank lines would show up as empty blocks in the exports.
+        subtitle: typed.subtitle.trimEnd(),
+        body: typed.body.trimEnd(),
         image: { source: picture.source, width: picture.width, height: picture.height },
         createdAt,
         updatedAt: createdAt,

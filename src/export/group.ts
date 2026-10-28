@@ -1,7 +1,7 @@
 import { noteHeading } from '../core/format';
 import type { Note } from '../core/types';
 
-export interface NoteGroup {
+export interface ExportGroup {
   heading: string;
   notes: Note[];
 }
@@ -10,7 +10,7 @@ export interface NoteGroup {
  * Groups notes by `noteHeading` (groups keep the order they first appear in) and sorts
  * each group by `timeMs`. Does not mutate the input.
  */
-export function groupByHeading(notes: Note[]): NoteGroup[] {
+export function groupByHeading(notes: Note[]): ExportGroup[] {
   const groups = new Map<string, Note[]>();
   for (const note of notes) {
     const heading = noteHeading(note);

@@ -72,8 +72,33 @@ function installNetflix(player: FakePlayer, metadata: Record<string, unknown> = 
   };
 }
 
+/** A fake `netflix` global with several player sessions, listed in the given order. */
+function installSessions(sessions: [id: string, player: FakePlayer][]) {
+  const byId = new Map(sessions);
+  (window as unknown as { netflix?: unknown }).netflix = {
+    appContext: {
+      state: {
+        playerApp: {
+          getAPI: () => ({
+            videoPlayer: {
+              getAllPlayerSessionIds: () => sessions.map(([id]) => id),
+              getVideoPlayerBySessionId: (id: string) => byId.get(id),
+            },
+          }),
+          getState: () => ({ videoPlayer: { videoMetadata: {} } }),
+        },
+      },
+    },
+  };
+}
+
 function removeNetflix() {
   delete (window as unknown as { netflix?: unknown }).netflix;
+}
+
+const HOME_URL = 'http://localhost:3000/';
+function setPageUrl(url: string) {
+  (window as unknown as { happyDOM: { setURL(u: string): void } }).happyDOM.setURL(url);
 }
 
 let bifCounter = 0;
@@ -93,6 +118,7 @@ function stubBif(url: string, buf: ArrayBuffer | null) {
 }
 
 afterEach(() => {
+  setPageUrl(HOME_URL);
   removeNetflix();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -287,5 +313,121 @@ describe('page bridge', () => {
     window.postMessage({ source: 'other-res', id: 'whatever', result: 'forged' }, origin);
     expect(await pending).toEqual({ videoId: '83053998', timeMs: 1003469, meta: { title: '造山者－世紀的賭注' } });
     expect(player.pause).not.toHaveBeenCalled();
+  });
+});
+
+describe('page bridge with several player sessions', () => {
+  // A /browse trailer or a preview can leave its own session in the list, even as the newest.
+  const WATCH_ID = 83053998;
+  const TRAILER_ID = 70143836;
+
+  function sessionsWithTrailerLast() {
+    const watch = makePlayer({ getMovieId: () => WATCH_ID, getCurrentTime: () => 600_000 });
+    const trailer = makePlayer({ getMovieId: () => TRAILER_ID, getCurrentTime: () => 4_000 });
+    installSessions([
+      ['watch-1', watch],
+      ['trailer-7', trailer],
+    ]);
+    return { watch, trailer };
+  }
+
+  it('uses the session that plays the title of the watch URL, not the newest one', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}?t=600`);
+    sessionsWithTrailerLast();
+    const playback = await callBridge<{ videoId: string; timeMs: number }>('playback');
+    expect(playback?.videoId).toBe(String(WATCH_ID));
+    expect(playback?.timeMs).toBe(600_000);
+  });
+
+  it('sends pause, play and seek to that session', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    const { watch, trailer } = sessionsWithTrailerLast();
+    expect(await callBridge('pause')).toBe(true);
+    expect(await callBridge('play')).toBe(true);
+    expect(await callBridge('seek', 123_000)).toBe(true);
+    expect(watch.pause).toHaveBeenCalledTimes(1);
+    expect(watch.play).toHaveBeenCalledTimes(1);
+    expect(watch.seek).toHaveBeenCalledWith(123_000);
+    expect(trailer.pause).not.toHaveBeenCalled();
+    expect(trailer.play).not.toHaveBeenCalled();
+    expect(trailer.seek).not.toHaveBeenCalled();
+  });
+
+  it('takes the trickplay frame from that session', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    const jpeg = new Uint8Array([0xff, 0xd8, 9, 9]);
+    const watch = makePlayer({
+      getMovieId: () => WATCH_ID,
+      getTrickPlayFrame: () => ({ image: jpeg }),
+    });
+    const trailer = makePlayer({
+      getMovieId: () => TRAILER_ID,
+      getTrickPlayFrame: () => ({ image: new Uint8Array([0xff, 0xd8, 1, 1]) }),
+    });
+    installSessions([
+      ['watch-1', watch],
+      ['trailer-7', trailer],
+    ]);
+    expect(Array.from((await callBridge<Uint8Array>('trickplay', 5000)) ?? [])).toEqual(Array.from(jpeg));
+  });
+
+  it('matches a movie id that is not the newest nor the first of several', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    const watch = makePlayer({ getMovieId: () => WATCH_ID, getCurrentTime: () => 42_000 });
+    installSessions([
+      ['trailer-1', makePlayer({ getMovieId: () => 1 })],
+      ['watch-2', watch],
+      ['trailer-3', makePlayer({ getMovieId: () => TRAILER_ID })],
+    ]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(42_000);
+  });
+
+  it('skips a session whose player throws while it is being compared', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    const broken = makePlayer({
+      getMovieId: () => {
+        throw new Error('gone');
+      },
+    });
+    const watch = makePlayer({ getMovieId: () => WATCH_ID, getCurrentTime: () => 7_000 });
+    installSessions([
+      ['watch-1', watch],
+      ['trailer-2', broken],
+    ]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(7_000);
+  });
+
+  it('falls back to the newest session whose id starts with "watch" when no movie id matches', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    installSessions([
+      ['watch-old', makePlayer({ getMovieId: () => 11, getCurrentTime: () => 1_000 })],
+      ['watch-new', makePlayer({ getMovieId: () => 22, getCurrentTime: () => 2_000 })],
+      ['trailer-9', makePlayer({ getMovieId: () => TRAILER_ID, getCurrentTime: () => 3_000 })],
+    ]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(2_000);
+  });
+
+  it('also prefers a "watch" session when the page is not a watch URL (no id to compare)', async () => {
+    setPageUrl('https://www.netflix.com/browse');
+    installSessions([
+      ['watch-1', makePlayer({ getMovieId: () => WATCH_ID, getCurrentTime: () => 9_000 })],
+      ['trailer-7', makePlayer({ getMovieId: () => TRAILER_ID, getCurrentTime: () => 4_000 })],
+    ]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(9_000);
+  });
+
+  it('uses the newest session when nothing matches and no id starts with "watch"', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    installSessions([
+      ['a', makePlayer({ getMovieId: () => 1, getCurrentTime: () => 1_000 })],
+      ['b', makePlayer({ getMovieId: () => 2, getCurrentTime: () => 2_000 })],
+    ]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(2_000);
+  });
+
+  it('still works with a single session', async () => {
+    setPageUrl(`https://www.netflix.com/watch/${WATCH_ID}`);
+    installSessions([['whatever', makePlayer({ getMovieId: () => WATCH_ID, getCurrentTime: () => 5_000 })]]);
+    expect((await callBridge<{ timeMs: number }>('playback'))?.timeMs).toBe(5_000);
   });
 });

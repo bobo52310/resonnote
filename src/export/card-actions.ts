@@ -1,6 +1,7 @@
 import { formatTime, noteHeading, safeFileName } from '../core/format';
 import type { Note } from '../core/types';
 import { createCanvasMeasure, layoutCard, renderCard } from './card';
+import { downloadBytes } from './download';
 
 export interface CardActionsDeps {
   getSelectedNotes: () => Note[];
@@ -11,7 +12,6 @@ export interface CardActionsDeps {
 const MSG_SELECT_FIRST = '先勾選要匯出的筆記';
 const MSG_ONE_AT_A_TIME = '複製圖卡一次只能選一則';
 const MSG_COPIED = '已複製，可以貼到 LINE';
-const REVOKE_DELAY_MS = 10_000;
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -58,18 +58,6 @@ async function renderNoteCard(
 
 function cardFileName(note: Note): string {
   return `${safeFileName(noteHeading(note))}-${formatTime(note.timeMs).replaceAll(':', '-')}.png`;
-}
-
-// Private on purpose: the shared downloadBytes helper lands separately and will replace this.
-function saveBlob(doc: Document, blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = doc.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  doc.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
 }
 
 /** Appends 「複製圖卡」 and 「下載圖卡」 buttons to the notebook toolbar. */
@@ -126,7 +114,7 @@ export function mountCardActions(toolbar: HTMLElement, deps: CardActionsDeps): v
       const measure = createCanvasMeasure();
       for (const note of notes) {
         const blob = await renderNoteCard(note, deps.getImage, measure);
-        saveBlob(doc, blob, cardFileName(note));
+        downloadBytes(cardFileName(note), blob, 'image/png');
       }
     } catch (err) {
       console.warn('[scenenote] download card failed', err);

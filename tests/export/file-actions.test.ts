@@ -32,21 +32,21 @@ let selected: Note[];
 let notify: ReturnType<typeof vi.fn<(msg: string) => void>>;
 let getImage: ReturnType<typeof vi.fn<(id: string) => Promise<ArrayBuffer | undefined>>>;
 
-function lastDownload(): { name: string; data: Uint8Array | string; mime: string } {
+function lastDownload(): { name: string; data: Uint8Array | string | Blob; mime: string } {
   const call = vi.mocked(downloadBytes).mock.calls.at(-1);
   if (!call) throw new Error('nothing was downloaded');
   return { name: call[0], data: call[1], mime: call[2] };
 }
 
-function zipEntry(zip: Uint8Array | string, path: string): Uint8Array {
-  if (typeof zip === 'string') throw new Error('expected zip bytes');
+function zipEntry(zip: Uint8Array | string | Blob, path: string): Uint8Array {
+  if (typeof zip === 'string' || zip instanceof Blob) throw new Error('expected zip bytes');
   const found = unzipSync(zip)[path];
   if (!found) throw new Error(`missing zip entry: ${path}`);
   return found;
 }
 
-function zipPaths(zip: Uint8Array | string): string[] {
-  if (typeof zip === 'string') throw new Error('expected zip bytes');
+function zipPaths(zip: Uint8Array | string | Blob): string[] {
+  if (typeof zip === 'string' || zip instanceof Blob) throw new Error('expected zip bytes');
   return Object.keys(unzipSync(zip)).sort();
 }
 

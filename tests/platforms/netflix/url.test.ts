@@ -20,6 +20,26 @@ describe('parseWatchVideoId', () => {
     expect(parseWatchVideoId('https://www.netflix.com/watch/83053998/?trackId=1#x')).toBe('83053998');
   });
 
+  it('reads the id from a locale-prefixed watch URL (/tw/watch/…, /br-en/watch/…)', () => {
+    expect(parseWatchVideoId('https://www.netflix.com/tw/watch/83053998')).toBe('83053998');
+    expect(parseWatchVideoId('https://www.netflix.com/tw/watch/83053998?t=5#x')).toBe('83053998');
+    expect(parseWatchVideoId('https://www.netflix.com/br-en/watch/83053998/')).toBe('83053998');
+    expect(parseWatchVideoId('https://www.netflix.com/zh-tw/watch/1')).toBe('1');
+  });
+
+  it('rejects locale-like prefixes that are not a locale and nested paths', () => {
+    expect(parseWatchVideoId('https://www.netflix.com/tw/browse')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/tw/watch/abc')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/tw/title/80100172')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/twn/watch/123')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/t/watch/123')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/tw-eng/watch/123')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/a/b/watch/123')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com/tw/watch/123/extra')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com//watch/123')).toBeNull();
+    expect(parseWatchVideoId('https://www.netflix.com.evil.example/tw/watch/123')).toBeNull();
+  });
+
   it('rejects everything that is not a numeric watch URL on www.netflix.com over https', () => {
     expect(parseWatchVideoId('https://www.netflix.com/browse')).toBeNull();
     expect(parseWatchVideoId('https://www.netflix.com/watch/abc')).toBeNull();

@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { mountCardActions } from '../../src/export/card-actions';
+import { downloadBytes } from '../../src/export/download';
 import type { Note } from '../../src/core/types';
+
+vi.mock('../../src/export/download', () => ({ downloadBytes: vi.fn() }));
+// Layout stays real; drawing the PNG needs a real canvas, so a stand-in Blob is returned.
+vi.mock('../../src/export/card', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/export/card')>();
+  return {
+    ...actual,
+    createCanvasMeasure: () => (text: string) => text.length * 10,
+    renderCard: vi.fn(async () => new Blob(['png-bytes'], { type: 'image/png' })),
+  };
+});
 
 function makeNote(id: string): Note {
   return {
@@ -41,6 +53,7 @@ function button(label: string): HTMLButtonElement {
 }
 
 beforeEach(() => {
+  vi.mocked(downloadBytes).mockReset();
   toolbar = document.createElement('div');
   selected = [];
   notify = vi.fn();
@@ -78,5 +91,31 @@ describe('mountCardActions', () => {
     await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('先勾選要匯出的筆記'));
     expect(notify).toHaveBeenCalledTimes(1);
     expect(getImage).not.toHaveBeenCalled();
+  });
+
+  it('downloads each selected card through the shared download helper, one PNG per note', async () => {
+    selected = [makeNote('a'), { ...makeNote('b'), timeMs: 61_000 }];
+    mount();
+    button('下載圖卡').click();
+    await vi.waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(2));
+
+    const [first, second] = vi.mocked(downloadBytes).mock.calls;
+    expect(first?.[0]).toBe('黑暗榮耀 第1季第3集-16-43.png');
+    expect(first?.[1]).toBeInstanceOf(Blob);
+    expect((first?.[1] as Blob).type).toBe('image/png');
+    expect(first?.[2]).toBe('image/png');
+    expect(second?.[0]).toBe('黑暗榮耀 第1季第3集-1-01.png');
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('says so when a download fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(downloadBytes).mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    selected = [makeNote('a')];
+    mount();
+    button('下載圖卡').click();
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('下載失敗：blocked'));
   });
 });

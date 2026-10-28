@@ -26,6 +26,8 @@ export interface NotebookDeps {
 
 const DAY_MS = 86_400_000;
 const CONFIRM_DELETE_MS = 3000;
+/** How long the typing has to pause before the body is saved (a tab can be closed at any time). */
+const SAVE_DEBOUNCE_MS = 500;
 const EMPTY_TEXT = '還沒有筆記。在 Netflix 播放時按 ⌥⇧N 記下第一則。';
 const MSG_NOT_A_BACKUP = '這不是 scenenote 的備份檔，或檔案已損壞';
 
@@ -41,6 +43,8 @@ interface ViewState {
   /** Body writes that have started but not finished. */
   pendingSaves: number;
   disposed: boolean;
+  /** Takes the page-level listeners (pagehide, visibilitychange) off again. */
+  removeListeners: () => void;
   groupsEl: HTMLElement;
   backupBar: HTMLElement;
   backupStatus: HTMLElement;
@@ -85,6 +89,7 @@ function localDateStamp(date: Date): string {
 
 function disposeState(state: ViewState): void {
   state.disposed = true;
+  state.removeListeners();
   for (const timer of state.timers) clearTimeout(timer);
   state.timers.clear();
   releaseThumbs(state);
@@ -221,13 +226,17 @@ async function saveBody(
   textarea: HTMLTextAreaElement,
 ): Promise<void> {
   const current = state.notes.get(id);
-  if (!current || textarea.value === current.body) return;
+  if (!current) return;
+  // Trailing spaces and blank lines would show up as empty blocks in the exports, so they are
+  // never stored, and adding or removing only those is not a change.
+  const body = textarea.value.trimEnd();
+  if (body === current.body.trimEnd()) return;
 
   // Update the on-screen copy first: the export buttons must see what is on screen even while
   // the write is still running.
   const updated: Note = {
     ...current,
-    body: textarea.value,
+    body,
     updatedAt: state.deps.now().toISOString(),
   };
   state.notes.set(id, updated);
@@ -241,6 +250,14 @@ async function saveBody(
     state.notify(`儲存失敗：${errorMessage(error)}`);
   } finally {
     state.pendingSaves--;
+  }
+}
+
+/** Saves every box whose text differs from what is stored; the others are left alone. */
+function flushDirtyBodies(state: ViewState): void {
+  for (const textarea of state.groupsEl.querySelectorAll<HTMLTextAreaElement>('textarea.body')) {
+    const id = textarea.closest<HTMLElement>('.note')?.dataset['noteId'];
+    if (id !== undefined) void saveBody(state, id, textarea);
   }
 }
 
@@ -299,6 +316,10 @@ function buildNote(
   const thumb = create(doc, 'div', 'thumb');
   if (note.image.source === 'none') showNoImage(thumb);
   else loads.push(loadThumb(state, seq, note, thumb));
+  // The label sits beside the picture box: the box's content is replaced when the picture loads.
+  const thumbColumn = create(doc, 'div', 'thumb-column');
+  thumbColumn.append(thumb);
+  if (note.image.source === 'trickplay') thumbColumn.append(create(doc, 'span', 'lowres', '低解析度'));
 
   const timeButton = create(doc, 'button', 'time', time);
   timeButton.type = 'button';
@@ -316,7 +337,27 @@ function buildNote(
   body.rows = 3;
   body.placeholder = '寫下你的心得';
   body.setAttribute('aria-label', `${time} 的心得`);
+  // Save shortly after typing stops, not only on blur: closing the tab, reloading or quitting
+  // Chrome never blurs the box.
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelSave = () => {
+    if (saveTimer === undefined) return;
+    clearTimeout(saveTimer);
+    state.timers.delete(saveTimer);
+    saveTimer = undefined;
+  };
+  body.addEventListener('input', () => {
+    cancelSave();
+    const timer = setTimeout(() => {
+      state.timers.delete(timer);
+      if (saveTimer === timer) saveTimer = undefined;
+      void saveBody(state, note.id, body);
+    }, SAVE_DEBOUNCE_MS);
+    saveTimer = timer;
+    state.timers.add(timer);
+  });
   body.addEventListener('blur', () => {
+    cancelSave();
     void saveBody(state, note.id, body);
   });
   main.append(body);
@@ -346,7 +387,7 @@ function buildNote(
   actions.append(remove);
   main.append(actions);
 
-  article.append(select, thumb, main);
+  article.append(select, thumbColumn, main);
   return article;
 }
 
@@ -475,6 +516,7 @@ export async function renderNotebook(
     loadSeq: 0,
     pendingSaves: 0,
     disposed: false,
+    removeListeners: () => {},
     groupsEl,
     backupBar,
     backupStatus,
@@ -485,6 +527,19 @@ export async function renderNotebook(
     },
   };
   states.set(root, state);
+
+  // A closing page gets no blur and no time for the debounce: write what is typed right away.
+  const win = doc.defaultView;
+  const onPageHide = () => flushDirtyBodies(state);
+  const onVisibilityChange = () => {
+    if (doc.visibilityState === 'hidden') flushDirtyBodies(state);
+  };
+  win?.addEventListener('pagehide', onPageHide);
+  doc.addEventListener('visibilitychange', onVisibilityChange);
+  state.removeListeners = () => {
+    win?.removeEventListener('pagehide', onPageHide);
+    doc.removeEventListener('visibilitychange', onVisibilityChange);
+  };
 
   backupButton.addEventListener('click', () => {
     void runBackup(state);
@@ -513,6 +568,17 @@ export async function renderNotebook(
     refreshBackupBar(state),
     loadAndPaint(state, new Set(options.selectedIds ?? [])),
   ]);
+}
+
+/**
+ * Shows `message` on the status line of the notebook drawn in `root`. `false` if `root` was never
+ * rendered.
+ */
+export function notifyNotebook(root: HTMLElement, message: string): boolean {
+  const state = states.get(root);
+  if (!state) return false;
+  state.notify(message);
+  return true;
 }
 
 /** The notes whose boxes are checked, in on-screen order, with any edits already applied. */
@@ -560,7 +626,7 @@ export function hasPendingEdits(root: HTMLElement): boolean {
   for (const textarea of root.querySelectorAll<HTMLTextAreaElement>('textarea.body')) {
     const id = textarea.closest<HTMLElement>('.note')?.dataset['noteId'];
     const note = id === undefined ? undefined : state.notes.get(id);
-    if (note && textarea.value !== note.body) return true;
+    if (note && textarea.value.trimEnd() !== note.body.trimEnd()) return true;
   }
   return false;
 }

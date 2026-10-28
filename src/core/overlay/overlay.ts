@@ -20,6 +20,7 @@ export interface OverlayHandle {
   /** After showError: a fresh promise resolved by the next save/cancel. */
   reopenResult(): Promise<OverlayResult>;
   close(): void;
+  /** False once closed, or once the page has taken the overlay out of the document. */
   isOpen(): boolean;
 }
 
@@ -57,6 +58,9 @@ const OVERLAY_CSS = `
   border-radius: 12px;
   background: rgba(20, 20, 20, 0.92);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.panel:focus {
+  outline: none;
 }
 .top {
   display: flex;
@@ -196,6 +200,10 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   root.appendChild(style);
 
   const panel = create('div', 'panel');
+  // Focusable by mouse and script, not by Tab: a click on a non-input part of the panel (heading,
+  // time, thumbnail, hints) then focuses the panel instead of dropping focus to <body>, where
+  // Space and F would reach Netflix.
+  panel.setAttribute('tabindex', '-1');
   const top = create('div', 'top');
 
   if (opts.thumbUrl !== null) {
@@ -341,6 +349,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
       open = false;
       host.remove();
     },
-    isOpen: () => open,
+    // A host the page removed (without a save or cancel) must not keep the capture "busy" for ever.
+    isOpen: () => open && host.isConnected,
   };
 }
