@@ -58,6 +58,9 @@ const OVERLAY_CSS = `
   background: rgba(20, 20, 20, 0.92);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
+.panel:focus {
+  outline: none;
+}
 .top {
   display: flex;
   gap: 16px;
@@ -196,6 +199,10 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   root.appendChild(style);
 
   const panel = create('div', 'panel');
+  // Focusable by mouse and script, not by Tab: a click on a non-input part of the panel (heading,
+  // time, thumbnail, hints) then focuses the panel instead of dropping focus to <body>, where
+  // Space and F would reach Netflix.
+  panel.setAttribute('tabindex', '-1');
   const top = create('div', 'top');
 
   if (opts.thumbUrl !== null) {

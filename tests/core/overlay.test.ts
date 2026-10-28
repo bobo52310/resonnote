@@ -354,6 +354,80 @@ describe('mousedown focus handling (shadow DOM retargeting)', () => {
   });
 });
 
+describe('focus stays inside the overlay after clicking its non-input parts', () => {
+  /** The element a key press would go to: the deepest active element, through shadow roots. */
+  function keyTarget(): Element {
+    let active: Element | null = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    return active ?? document.body;
+  }
+
+  /**
+   * What a browser does for a left click: fire mousedown and, unless it was prevented, focus the
+   * nearest focusable ancestor of the clicked element; with none, focus goes to <body>.
+   * (happy-dom dispatches events but does not move focus by itself.)
+   */
+  function clickLikeABrowser(origin: Element): void {
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true });
+    origin.dispatchEvent(down);
+    if (down.defaultPrevented) return;
+    let node: Element | null = origin;
+    while (node) {
+      const focusable =
+        node.hasAttribute('tabindex') || node.tagName === 'TEXTAREA' || node.tagName === 'BUTTON';
+      if (focusable) {
+        (node as HTMLElement).focus();
+        return;
+      }
+      node = node.parentElement;
+    }
+    (keyTarget() as HTMLElement).blur();
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  it('makes the panel focusable by script and by mouse, but not by Tab', () => {
+    open();
+    const panel = el('.panel');
+    expect(panel.getAttribute('tabindex')).toBe('-1');
+    expect(shadow().querySelector('style')?.textContent).toMatch(/\.panel:focus\s*{[^}]*outline:\s*none/);
+  });
+
+  it.each([
+    ['the heading', '[data-role="heading"]'],
+    ['the time', '[data-role="time"]'],
+    ['the thumbnail', '[data-role="thumb"]'],
+    ['the key hints', '.hint'],
+    ['the list of missing things', '[data-role="missing"] li'],
+  ])('does not hand Space and F to the page after a click on %s', (_name, selector) => {
+    open({ missing: ['subtitle'] });
+    const onDocKey = vi.fn();
+    document.addEventListener('keydown', onDocKey);
+    try {
+      clickLikeABrowser(el(selector));
+      // focus did not fall out to <body> / the page
+      expect(keyTarget()).not.toBe(document.body);
+      for (const key of [' ', 'f']) press(keyTarget(), { key });
+      expect(onDocKey).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keydown', onDocKey);
+    }
+  });
+
+  it('still cancels on Esc when the panel itself has the focus', async () => {
+    const h = open();
+    clickLikeABrowser(el('[data-role="heading"]'));
+    press(keyTarget(), { key: 'Escape' });
+    await expect(h.result).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('does not save on Enter pressed on the panel itself (only the note box saves)', async () => {
+    const h = open();
+    clickLikeABrowser(el('[data-role="heading"]'));
+    press(keyTarget(), { key: 'Enter' });
+    expect(await isPending(h.result)).toBe(true);
+  });
+});
+
 describe('showError and reopenResult', () => {
   it('keeps the overlay open with the typed text and shows the error', async () => {
     const h = open();
