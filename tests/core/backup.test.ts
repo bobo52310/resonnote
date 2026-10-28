@@ -114,6 +114,80 @@ describe('createBackupZip / parseBackupZip', () => {
   });
 });
 
+describe('parseBackupZip note validation', () => {
+  /** Zips a notes.json whose single note is `makeNote('a')` with `patch` applied after serializing. */
+  function zipWithRawNote(patch: (raw: Record<string, unknown>) => void): Uint8Array {
+    const raw = JSON.parse(JSON.stringify(makeNote('a', { season: 1, episode: 2, episodeTitle: 'E' })));
+    patch(raw);
+    return zipSync({ 'notes.json': strToU8(JSON.stringify({ version: 1, notes: [raw] })) });
+  }
+
+  it('rejects a platform other than netflix', () => {
+    const zip = zipWithRawNote((raw) => (raw.platform = 'hulu'));
+    expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
+  });
+
+  it('rejects an image.source outside tab | trickplay | none', () => {
+    const zip = zipWithRawNote((raw) => ((raw.image as Record<string, unknown>).source = 'screen'));
+    expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
+  });
+
+  it('accepts every valid image.source', () => {
+    for (const source of ['tab', 'trickplay', 'none'] as const) {
+      const note = makeNote('a', { image: { source, width: 1, height: 1 } });
+      expect(parseBackupZip(createBackupZip([note], new Map())).notes).toEqual([note]);
+    }
+  });
+
+  it('rejects a non-numeric season or episode', () => {
+    const badSeason = zipWithRawNote((raw) => (raw.season = 'x'));
+    const badEpisode = zipWithRawNote((raw) => (raw.episode = '2'));
+    expect(() => parseBackupZip(badSeason)).toThrow(BackupFormatError);
+    expect(() => parseBackupZip(badEpisode)).toThrow(BackupFormatError);
+  });
+
+  it('rejects a non-string episodeTitle', () => {
+    const zip = zipWithRawNote((raw) => (raw.episodeTitle = 7));
+    expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
+  });
+
+  it('rejects a non-finite image width or height', () => {
+    // JSON.stringify turns NaN and Infinity into null, which is what a corrupt file would hold.
+    const nullWidth = zipWithRawNote((raw) => ((raw.image as Record<string, unknown>).width = null));
+    const stringHeight = zipWithRawNote(
+      (raw) => ((raw.image as Record<string, unknown>).height = '720'),
+    );
+    expect(() => parseBackupZip(nullWidth)).toThrow(BackupFormatError);
+    expect(() => parseBackupZip(stringHeight)).toThrow(BackupFormatError);
+    expect(() =>
+      parseBackupZip(createBackupZip([makeNote('a', { image: { source: 'tab', width: NaN, height: 720 } })], new Map())),
+    ).toThrow(BackupFormatError);
+  });
+
+  it('accepts a note without the optional season, episode and episodeTitle', () => {
+    const note = makeNote('a');
+    expect(parseBackupZip(createBackupZip([note], new Map())).notes).toEqual([note]);
+  });
+
+  it('drops unknown keys from notes and from the image object', async () => {
+    const zip = zipWithRawNote((raw) => {
+      raw.evil = 'payload';
+      (raw.image as Record<string, unknown>).extra = true;
+    });
+
+    const [note] = parseBackupZip(zip).notes;
+
+    expect(note).toEqual(makeNote('a', { season: 1, episode: 2, episodeTitle: 'E' }));
+    expect(Object.keys(note!)).not.toContain('evil');
+    expect(Object.keys(note!.image)).toEqual(['source', 'width', 'height']);
+
+    await restoreBackup(zip);
+    const stored = (await getNote('a')) as unknown as Record<string, unknown>;
+    expect(stored.evil).toBeUndefined();
+    expect('evil' in stored).toBe(false);
+  });
+});
+
 describe('mergeNotes', () => {
   const older = '2026-10-28T10:00:00.000Z';
   const newer = '2026-10-28T11:00:00.000Z';

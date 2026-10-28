@@ -1,7 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { browser } from 'wxt/browser';
 import { getImage, listNotes, putImage, putNote } from './db';
-import type { Note } from './types';
+import type { ImageSource, Note } from './types';
 
 const BACKUP_VERSION = 1;
 const NOTES_FILE = 'notes.json';
@@ -43,26 +43,66 @@ function isIsoDate(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value));
 }
 
-function isNote(value: unknown): value is Note {
-  if (!isRecord(value)) return false;
+const IMAGE_SOURCES: readonly ImageSource[] = ['tab', 'trickplay', 'none'];
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/** Absent, or a value that passes `check`. Anything else (including null) is invalid. */
+function isOptional<T>(value: unknown, check: (v: unknown) => v is T): value is T | undefined {
+  return value === undefined || check(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+/**
+ * Validates one entry of `notes.json` against the Note type and rebuilds it from
+ * known fields only, so unknown keys never reach IndexedDB. Returns null if invalid.
+ */
+function toNote(value: unknown): Note | null {
+  if (!isRecord(value)) return null;
   const image = value.image;
-  return (
-    typeof value.id === 'string' &&
-    value.id !== '' &&
-    typeof value.platform === 'string' &&
-    typeof value.videoId === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.timeMs === 'number' &&
-    Number.isFinite(value.timeMs) &&
-    typeof value.subtitle === 'string' &&
-    typeof value.body === 'string' &&
-    isRecord(image) &&
-    typeof image.source === 'string' &&
-    typeof image.width === 'number' &&
-    typeof image.height === 'number' &&
-    isIsoDate(value.createdAt) &&
-    isIsoDate(value.updatedAt)
-  );
+  if (
+    !isString(value.id) ||
+    value.id === '' ||
+    value.platform !== 'netflix' ||
+    !isString(value.videoId) ||
+    !isString(value.title) ||
+    !isOptional(value.season, isFiniteNumber) ||
+    !isOptional(value.episode, isFiniteNumber) ||
+    !isOptional(value.episodeTitle, isString) ||
+    !isFiniteNumber(value.timeMs) ||
+    !isString(value.subtitle) ||
+    !isString(value.body) ||
+    !isRecord(image) ||
+    !IMAGE_SOURCES.includes(image.source as ImageSource) ||
+    !isFiniteNumber(image.width) ||
+    !isFiniteNumber(image.height) ||
+    !isIsoDate(value.createdAt) ||
+    !isIsoDate(value.updatedAt)
+  ) {
+    return null;
+  }
+
+  const note: Note = {
+    id: value.id,
+    platform: value.platform,
+    videoId: value.videoId,
+    title: value.title,
+    timeMs: value.timeMs,
+    subtitle: value.subtitle,
+    body: value.body,
+    image: { source: image.source as ImageSource, width: image.width, height: image.height },
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+  if (value.season !== undefined) note.season = value.season;
+  if (value.episode !== undefined) note.episode = value.episode;
+  if (value.episodeTitle !== undefined) note.episodeTitle = value.episodeTitle;
+  return note;
 }
 
 /** Reads a backup zip. Throws {@link BackupFormatError} if it is not a valid scenenote backup. */
@@ -89,10 +129,15 @@ export function parseBackupZip(data: Uint8Array): {
   if (!isRecord(parsed) || parsed.version !== BACKUP_VERSION) {
     throw new BackupFormatError(`Unsupported backup version (expected ${BACKUP_VERSION})`);
   }
-  if (!Array.isArray(parsed.notes) || !parsed.notes.every(isNote)) {
+  if (!Array.isArray(parsed.notes)) {
     throw new BackupFormatError(`${NOTES_FILE} has a malformed notes list`);
   }
-  const notes: Note[] = parsed.notes;
+  const notes: Note[] = [];
+  for (const [index, raw] of parsed.notes.entries()) {
+    const note = toNote(raw);
+    if (!note) throw new BackupFormatError(`${NOTES_FILE} has an invalid note at index ${index}`);
+    notes.push(note);
+  }
 
   const images = new Map<string, Uint8Array>();
   for (const [path, bytes] of Object.entries(files)) {
