@@ -37,6 +37,11 @@ export default defineBackground(() => {
     captureVisibleTab: (windowId) =>
       browser.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 90 }),
     openNotebook: () => browser.runtime.openOptionsPage(),
+    // action.setBadgeText / setTitle need no permission of their own.
+    setBadge: async (tabId, text, title) => {
+      await browser.action.setBadgeText({ tabId, text });
+      await browser.action.setTitle({ tabId, title });
+    },
   };
 
   const jumpDeps: JumpDeps = {

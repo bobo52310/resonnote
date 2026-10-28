@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToContent } from '../../src/core/messages';
-import { handleTrigger } from '../../src/background/trigger';
+import {
+  DEFAULT_ACTION_TITLE,
+  RELOAD_BADGE,
+  RELOAD_TITLE,
+  handleTrigger,
+} from '../../src/background/trigger';
+import config from '../../wxt.config';
 
 const WATCH_URL = 'https://www.netflix.com/watch/83053998?t=600';
 const SCREENSHOT = 'data:image/jpeg;base64,U0hPVA==';
@@ -18,8 +24,9 @@ function setup(overrides: Partial<Deps> = {}) {
     return SCREENSHOT;
   });
   const openNotebook = vi.fn<Deps['openNotebook']>(async () => {});
-  const deps: Deps = { sendToTab, captureVisibleTab, openNotebook, ...overrides };
-  return { deps, sendToTab, captureVisibleTab, openNotebook, calls };
+  const setBadge = vi.fn<Deps['setBadge']>(async () => {});
+  const deps: Deps = { sendToTab, captureVisibleTab, openNotebook, setBadge, ...overrides };
+  return { deps, sendToTab, captureVisibleTab, openNotebook, setBadge, calls };
 }
 
 beforeEach(() => {
@@ -117,5 +124,66 @@ describe('handleTrigger', () => {
       .mockResolvedValueOnce({ status: 'ok' })
       .mockRejectedValueOnce(new Error('The message port closed'));
     expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('no-video');
+  });
+});
+
+describe('the reload badge (page opened before the extension was loaded)', () => {
+  it('shows ! with an explanation on the tab when the content script cannot be reached', async () => {
+    const t = setup();
+    t.sendToTab.mockRejectedValueOnce(new Error('Could not establish connection.'));
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('no-video');
+    expect(t.setBadge).toHaveBeenCalledTimes(1);
+    expect(t.setBadge).toHaveBeenCalledWith(7, '!', '請重新整理這個 Netflix 分頁後再按一次');
+    expect(RELOAD_BADGE).toBe('!');
+    expect(RELOAD_TITLE).toBe('請重新整理這個 Netflix 分頁後再按一次');
+  });
+
+  it.each([[undefined], [null], ['ok']])('also when the answer is not a status object (%j)', async (answer) => {
+    const t = setup();
+    t.sendToTab.mockResolvedValueOnce(answer);
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('no-video');
+    expect(t.setBadge).toHaveBeenCalledWith(7, RELOAD_BADGE, RELOAD_TITLE);
+  });
+
+  it('clears the badge and restores the title the next time begin succeeds on that tab', async () => {
+    const t = setup();
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('shown');
+    expect(t.setBadge).toHaveBeenCalledTimes(1);
+    expect(t.setBadge).toHaveBeenCalledWith(7, '', DEFAULT_ACTION_TITLE);
+  });
+
+  it.each([['busy'], ['no-video']])('also clears it when the page answers %s (it can be reached)', async (status) => {
+    const t = setup();
+    t.sendToTab.mockResolvedValueOnce({ status });
+    await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps);
+    expect(t.setBadge).toHaveBeenCalledTimes(1);
+    expect(t.setBadge).toHaveBeenCalledWith(7, '', DEFAULT_ACTION_TITLE);
+  });
+
+  it('clears the badge without holding up the screenshot', async () => {
+    const t = setup();
+    t.setBadge.mockImplementation(() => new Promise<void>(() => {})); // never settles
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('shown');
+    expect(t.calls).toEqual(['scenenote/begin', 'capture', 'scenenote/show']);
+  });
+
+  it('does not touch the badge on pages that open the notebook', async () => {
+    const t = setup();
+    await handleTrigger({ id: 7, windowId: 1, url: 'https://www.netflix.com/browse' }, t.deps);
+    await handleTrigger({ windowId: 1, url: WATCH_URL }, t.deps);
+    expect(t.setBadge).not.toHaveBeenCalled();
+  });
+
+  it('keeps the outcome when setting or clearing the badge fails', async () => {
+    const t = setup();
+    t.setBadge.mockRejectedValue(new Error('tab closed'));
+    t.sendToTab.mockRejectedValueOnce(new Error('Could not establish connection.'));
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('no-video');
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('shown');
+  });
+
+  it('restores the same title as the manifest default', () => {
+    const manifest = (config as { manifest?: { action?: { default_title?: string } } }).manifest;
+    expect(manifest?.action?.default_title).toBe(DEFAULT_ACTION_TITLE);
   });
 });
