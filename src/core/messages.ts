@@ -12,9 +12,13 @@ export type ToContent =
 /** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
 export type ToBackground =
   | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
-  | { type: 'scenenote/open-notebook' };
+  | { type: 'scenenote/open-notebook' }
+  | { type: 'scenenote/jump'; videoId: string; timeMs: number };
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
+
+/** Answer to `scenenote/jump`: which way the user was taken back to the moment. */
+export type JumpResult = { ok: true; result: 'existing' | 'new' } | { ok: false; error: string };
 
 const DATA_URL_BASE64 = /^data:[^,;]*(?:;[^,;]*)*;base64,/i;
 const ENCODE_CHUNK = 0x8000;
