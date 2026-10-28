@@ -46,7 +46,10 @@ export default defineBackground(() => {
 
   const jumpDeps: JumpDeps = {
     queryNetflixTabs: async () => {
-      const tabs = await browser.tabs.query({ url: 'https://www.netflix.com/watch/*' });
+      // The second pattern covers locale-prefixed watch pages (/tw/watch/…); jumpTo checks the id.
+      const tabs = await browser.tabs.query({
+        url: ['https://www.netflix.com/watch/*', 'https://www.netflix.com/*/watch/*'],
+      });
       return tabs.flatMap((tab) =>
         tab.id === undefined ? [] : [{ id: tab.id, windowId: tab.windowId, url: tab.url }],
       );
