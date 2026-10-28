@@ -12,6 +12,7 @@ import {
   type BridgeResponse,
 } from './bridge-protocol';
 import { mapNetflixMetadata } from './metadata';
+import { parseWatchVideoId } from './url';
 
 const INSTALLED = Symbol.for('scenenote.page-bridge');
 const BIF_URL = /\.bif(\?|$)/;
@@ -37,13 +38,52 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-/** The newest player session, or `null` when Netflix has none (yet). */
+/** The player of one session, or `null` when Netflix has none for that id (or it throws). */
+function sessionPlayer(videoPlayer: unknown, id: unknown): unknown {
+  try {
+    return call(videoPlayer, 'getVideoPlayerBySessionId', id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether `player` is playing the title with this video id; a player that throws counts as no. */
+function plays(player: unknown, videoId: string): boolean {
+  try {
+    return String(call(player, 'getMovieId')) === videoId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The player that plays what the page shows, or `null` when Netflix has none (yet). A trailer or
+ * preview started on /browse can leave its own session in the list (even as the newest), so the
+ * newest session is only the last resort. In order of preference:
+ *   1. the session whose movie id is the one in the watch URL;
+ *   2. the newest session whose id starts with `watch` (Netflix names the real player's that way);
+ *   3. the newest session.
+ */
 function getPlayer(win: Window): unknown {
   const playerApp = dig(win, 'netflix', 'appContext', 'state', 'playerApp');
   if (!playerApp) return null;
   const videoPlayer = dig(call(playerApp, 'getAPI'), 'videoPlayer');
-  const ids = call(videoPlayer, 'getAllPlayerSessionIds');
+  const ids: unknown = call(videoPlayer, 'getAllPlayerSessionIds');
   if (!Array.isArray(ids) || ids.length === 0) return null;
+
+  const watchId = parseWatchVideoId(win.location.href);
+  if (watchId !== null) {
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const player = sessionPlayer(videoPlayer, ids[i]);
+      if (player && plays(player, watchId)) return player;
+    }
+  }
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const id: unknown = ids[i];
+    if (typeof id !== 'string' || !id.startsWith('watch')) continue;
+    const player = sessionPlayer(videoPlayer, id);
+    if (player) return player;
+  }
   return call(videoPlayer, 'getVideoPlayerBySessionId', ids[ids.length - 1]) ?? null;
 }
 
