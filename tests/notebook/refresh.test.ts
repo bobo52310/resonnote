@@ -1,5 +1,5 @@
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { createBackupZip } from '../../src/core/backup';
 import {
@@ -11,7 +11,7 @@ import {
   putNote,
 } from '../../src/core/db';
 import type { Note } from '../../src/core/types';
-import { notesSignature, refreshIfChanged } from '../../src/notebook/refresh';
+import { notesSignature, refreshIfChanged, refreshOnReturn } from '../../src/notebook/refresh';
 import { getSelectedNotes, renderNotebook, type NotebookDeps } from '../../src/notebook/view';
 
 vi.mock('../../src/export/download', () => ({ downloadBytes: vi.fn() }));
@@ -298,5 +298,145 @@ describe('refreshIfChanged: never while the user is writing', () => {
     expect(await refreshIfChanged(root, deps)).toBe(true);
     expect(textareaOf('a').value).toBe('正在存');
     expect(root.querySelector('[data-note-id="c"]')).not.toBeNull();
+  });
+});
+
+describe('refreshOnReturn', () => {
+  let stop: (() => void) | undefined;
+
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+    vi.restoreAllMocks();
+  });
+
+  function visibility(state: 'visible' | 'hidden') {
+    return vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(state);
+  }
+
+  it('catches up when the window gets focus (notebook shown side by side with Netflix)', async () => {
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+
+    await putNote(makeNote('c', { videoId: '999', title: '另一部' }));
+    window.dispatchEvent(new Event('focus'));
+
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="c"]')).not.toBeNull());
+  });
+
+  it('catches up when the tab becomes visible', async () => {
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+    visibility('visible');
+
+    await putNote(makeNote('c', { videoId: '999', title: '另一部' }));
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="c"]')).not.toBeNull());
+  });
+
+  it('does not read anything when the tab becomes hidden', async () => {
+    await putNote(makeNote('a'));
+    const listNotesSpy = vi.fn(listNotes);
+    const deps = realDeps({ listNotes: listNotesSpy });
+    await renderNotebook(root, deps);
+    listNotesSpy.mockClear();
+    stop = refreshOnReturn(root, deps);
+    visibility('hidden');
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flush();
+    expect(listNotesSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the same guards on focus: not while the user is writing', async () => {
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+    const textarea = textareaOf('a');
+    textarea.value = '打到一半';
+    await putNote(makeNote('c', { videoId: '999' }));
+
+    window.dispatchEvent(new Event('focus'));
+    await flush();
+    await flush();
+
+    expect(textarea.isConnected).toBe(true);
+    expect(textarea.value).toBe('打到一半');
+    expect(root.querySelector('[data-note-id="c"]')).toBeNull();
+  });
+
+  it('runs one check and keeps the selection when focus and visibility fire together', async () => {
+    await putNote(makeNote('a', { timeMs: 1 }));
+    const listNotesSpy = vi.fn(listNotes);
+    const deps = realDeps({ listNotes: listNotesSpy });
+    await renderNotebook(root, deps);
+    setChecked(checkbox('a'), true);
+    listNotesSpy.mockClear();
+    stop = refreshOnReturn(root, deps);
+    visibility('visible');
+
+    await putNote(makeNote('c', { videoId: '999', title: '另一部' }));
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="c"]')).not.toBeNull());
+    await flush();
+    // one read for the check and one for the redraw it triggered; a second check would add two more
+    expect(listNotesSpy).toHaveBeenCalledTimes(2);
+    expect(getSelectedNotes(root).map((n) => n.id)).toEqual(['a']);
+  });
+
+  it('can check again after an earlier check has finished', async () => {
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+
+    await putNote(makeNote('c', { videoId: '999', title: '另一部' }));
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="c"]')).not.toBeNull());
+    await flush();
+
+    await putNote(makeNote('d', { videoId: '888', title: '第三部' }));
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="d"]')).not.toBeNull());
+  });
+
+  it('stops listening once the returned function is called', async () => {
+    await putNote(makeNote('a'));
+    const listNotesSpy = vi.fn(listNotes);
+    const deps = realDeps({ listNotes: listNotesSpy });
+    await renderNotebook(root, deps);
+    listNotesSpy.mockClear();
+    refreshOnReturn(root, deps)();
+    visibility('visible');
+
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flush();
+    expect(listNotesSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs a failed read with the [scenenote] prefix instead of throwing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, {
+      ...deps,
+      listNotes: async () => {
+        throw new Error('db gone');
+      },
+    });
+
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
   });
 });

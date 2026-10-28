@@ -35,3 +35,38 @@ export async function refreshIfChanged(root: HTMLElement, deps: NotebookDeps): P
   win?.scrollTo(0, scrollY);
   return true;
 }
+
+/**
+ * Runs `refreshIfChanged` whenever the user comes back to the page: the tab becoming visible, or
+ * the window getting focus. The second matters when the notebook sits beside the Netflix window,
+ * where the page is never hidden and `visibilitychange` alone would not fire. Returns a function
+ * that stops listening.
+ *
+ * Both events can arrive together; a check that is still running is not joined by a second one
+ * (two redraws in a row would drop the checked notes the first one restored).
+ */
+export function refreshOnReturn(root: HTMLElement, deps: NotebookDeps): () => void {
+  const doc = root.ownerDocument;
+  const win = doc.defaultView;
+  let running = false;
+
+  const check = () => {
+    if (running) return;
+    running = true;
+    refreshIfChanged(root, deps)
+      .catch((error: unknown) => console.warn('[scenenote] could not refresh the notebook', error))
+      .finally(() => {
+        running = false;
+      });
+  };
+  const onVisibility = () => {
+    if (doc.visibilityState === 'visible') check();
+  };
+
+  doc.addEventListener('visibilitychange', onVisibility);
+  win?.addEventListener('focus', check);
+  return () => {
+    doc.removeEventListener('visibilitychange', onVisibility);
+    win?.removeEventListener('focus', check);
+  };
+}
