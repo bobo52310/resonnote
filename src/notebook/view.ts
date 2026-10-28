@@ -316,6 +316,10 @@ function buildNote(
   const thumb = create(doc, 'div', 'thumb');
   if (note.image.source === 'none') showNoImage(thumb);
   else loads.push(loadThumb(state, seq, note, thumb));
+  // The label sits beside the picture box: the box's content is replaced when the picture loads.
+  const thumbColumn = create(doc, 'div', 'thumb-column');
+  thumbColumn.append(thumb);
+  if (note.image.source === 'trickplay') thumbColumn.append(create(doc, 'span', 'lowres', '低解析度'));
 
   const timeButton = create(doc, 'button', 'time', time);
   timeButton.type = 'button';
@@ -383,7 +387,7 @@ function buildNote(
   actions.append(remove);
   main.append(actions);
 
-  article.append(select, thumb, main);
+  article.append(select, thumbColumn, main);
   return article;
 }
 

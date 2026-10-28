@@ -269,6 +269,32 @@ describe('thumbnails', () => {
     expect(noteEl('a').querySelector('img')).toBeNull();
   });
 
+  it('marks a scrubber-image note with 低解析度 next to its thumbnail', async () => {
+    const note = makeNote('a', { image: { source: 'trickplay', width: 320, height: 180 } });
+    await renderNotebook(root, mockDeps([note], { getImage: vi.fn(async () => jpegBuffer()) }));
+    const label = noteEl('a').querySelector('.lowres');
+    expect(label?.textContent).toBe('低解析度');
+    // beside the picture, not inside the box the picture replaces itself in
+    const thumb = noteEl('a').querySelector('.thumb')!;
+    expect(label?.parentElement).toBe(thumb.parentElement);
+    expect(thumb.contains(label)).toBe(false);
+    expect(thumb.querySelector('img')).not.toBeNull();
+  });
+
+  it('keeps the 低解析度 label when the scrubber image itself is missing from storage', async () => {
+    const note = makeNote('a', { image: { source: 'trickplay', width: 320, height: 180 } });
+    await renderNotebook(root, mockDeps([note]));
+    expect(noteEl('a').querySelector('.thumb-empty')?.textContent).toBe('沒有圖');
+    expect(noteEl('a').querySelector('.lowres')?.textContent).toBe('低解析度');
+  });
+
+  it.each([['tab'], ['none']] as const)('has no 低解析度 label for a %s note', async (source) => {
+    const note = makeNote('a', { image: { source, width: 1280, height: 720 } });
+    await renderNotebook(root, mockDeps([note], { getImage: vi.fn(async () => jpegBuffer()) }));
+    expect(noteEl('a').querySelector('.lowres')).toBeNull();
+    expect(root.textContent).not.toContain('低解析度');
+  });
+
   it('revokes the old object URLs when the page is rendered again', async () => {
     const deps = mockDeps([makeNote('a')], { getImage: vi.fn(async () => jpegBuffer()) });
     await renderNotebook(root, deps);
