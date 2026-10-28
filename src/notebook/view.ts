@@ -38,6 +38,8 @@ interface ViewState {
   timers: Set<ReturnType<typeof setTimeout>>;
   /** Bumped by every (re)load of the list, so slow thumbnail reads of an older list are dropped. */
   loadSeq: number;
+  /** Body writes that have started but not finished. */
+  pendingSaves: number;
   disposed: boolean;
   groupsEl: HTMLElement;
   backupBar: HTMLElement;
@@ -161,7 +163,7 @@ async function runRestore(state: ViewState, file: File): Promise<void> {
     // After a failure some notes may still have been written, so the list is reloaded either way.
     // A successful restore is announced first so that a failing reload can still speak up.
     if (!failed) state.notify(message);
-    await loadAndPaint(state);
+    await loadAndPaint(state, checkedIds(state));
     if (failed) state.notify(message);
   } finally {
     setBusy(state, false);
@@ -229,6 +231,7 @@ async function saveBody(
     updatedAt: state.deps.now().toISOString(),
   };
   state.notes.set(id, updated);
+  state.pendingSaves++;
   try {
     await state.deps.putNote(updated);
   } catch (error) {
@@ -236,6 +239,8 @@ async function saveBody(
     // Roll back, so the next blur tries again.
     if (state.notes.get(id) === updated) state.notes.set(id, current);
     state.notify(`儲存失敗：${errorMessage(error)}`);
+  } finally {
+    state.pendingSaves--;
   }
 }
 
@@ -374,8 +379,25 @@ function buildGroup(
   return section;
 }
 
-/** (Re)reads the notes and redraws the groups; resolves once all thumbnails are in. */
-async function loadAndPaint(state: ViewState): Promise<void> {
+/** The ids of the notes whose boxes are checked right now. */
+function checkedIds(state: ViewState): Set<string> {
+  const ids = new Set<string>();
+  const boxes = state.groupsEl.querySelectorAll<HTMLInputElement>('input.note-select:checked');
+  for (const box of boxes) {
+    const id = box.dataset['noteId'];
+    if (id !== undefined) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * (Re)reads the notes and redraws the groups; resolves once all thumbnails are in. Notes whose id
+ * is in `keepChecked` come back with their box checked.
+ */
+async function loadAndPaint(
+  state: ViewState,
+  keepChecked: ReadonlySet<string> = new Set(),
+): Promise<void> {
   const seq = ++state.loadSeq;
   let notes: Note[];
   try {
@@ -396,7 +418,14 @@ async function loadAndPaint(state: ViewState): Promise<void> {
   }
   // Draw the whole list first and let the pictures arrive as they are read.
   const loads: Promise<void>[] = [];
-  state.groupsEl.replaceChildren(...groups.map((group) => buildGroup(state, seq, group, loads)));
+  const sections = groups.map((group) => buildGroup(state, seq, group, loads));
+  state.groupsEl.replaceChildren(...sections);
+  if (keepChecked.size > 0) {
+    for (const box of state.groupsEl.querySelectorAll<HTMLInputElement>('input.note-select')) {
+      box.checked = keepChecked.has(box.dataset['noteId'] ?? '');
+    }
+    for (const section of sections) syncGroupSelect(section);
+  }
   await Promise.all(loads);
 }
 
@@ -405,9 +434,14 @@ async function loadAndPaint(state: ViewState): Promise<void> {
 /**
  * Builds the notebook page inside `root` (the previous content of `root` is discarded): backup
  * bar, status line, export toolbar, then the notes grouped by video. Resolves once the list and
- * the thumbnails are on screen.
+ * the thumbnails are on screen. `options.selectedIds` come back checked (a redraw keeps the
+ * user's selection).
  */
-export async function renderNotebook(root: HTMLElement, deps: NotebookDeps): Promise<void> {
+export async function renderNotebook(
+  root: HTMLElement,
+  deps: NotebookDeps,
+  options: { selectedIds?: Iterable<string> } = {},
+): Promise<void> {
   const previous = states.get(root);
   if (previous) disposeState(previous);
 
@@ -439,6 +473,7 @@ export async function renderNotebook(root: HTMLElement, deps: NotebookDeps): Pro
     thumbUrls: new Map(),
     timers: new Set(),
     loadSeq: 0,
+    pendingSaves: 0,
     disposed: false,
     groupsEl,
     backupBar,
@@ -474,7 +509,10 @@ export async function renderNotebook(root: HTMLElement, deps: NotebookDeps): Pro
   mountExportFileActions(toolbar, exportDeps);
   mountCardActions(toolbar, exportDeps);
 
-  await Promise.all([refreshBackupBar(state), loadAndPaint(state)]);
+  await Promise.all([
+    refreshBackupBar(state),
+    loadAndPaint(state, new Set(options.selectedIds ?? [])),
+  ]);
 }
 
 /** The notes whose boxes are checked, in on-screen order, with any edits already applied. */
@@ -487,4 +525,42 @@ export function getSelectedNotes(root: HTMLElement): Note[] {
     if (note) selected.push(note);
   }
   return selected;
+}
+
+/**
+ * `id@updatedAt` of every note, sorted: changes when a note is added, removed or edited, and
+ * only then.
+ */
+export function notesSignature(notes: Iterable<Pick<Note, 'id' | 'updatedAt'>>): string {
+  return Array.from(notes, (note) => `${note.id}@${note.updatedAt}`)
+    .sort()
+    .join('|');
+}
+
+/**
+ * The signature of what `root` shows right now. It follows the view's own state, so edits,
+ * deletes and restores made in the page are already part of it. `null` if `root` was never
+ * rendered.
+ */
+export function shownSignature(root: HTMLElement): string | null {
+  const state = states.get(root);
+  return state ? notesSignature(state.notes.values()) : null;
+}
+
+/**
+ * True while the user is in the middle of writing: a body write is still running, a textarea has
+ * focus, or a textarea holds text that has not been saved yet. A redraw would lose that text.
+ */
+export function hasPendingEdits(root: HTMLElement): boolean {
+  const state = states.get(root);
+  if (!state) return false;
+  if (state.pendingSaves > 0) return true;
+  const active = root.ownerDocument.activeElement;
+  if (active?.tagName === 'TEXTAREA' && root.contains(active)) return true;
+  for (const textarea of root.querySelectorAll<HTMLTextAreaElement>('textarea.body')) {
+    const id = textarea.closest<HTMLElement>('.note')?.dataset['noteId'];
+    const note = id === undefined ? undefined : state.notes.get(id);
+    if (note && textarea.value !== note.body) return true;
+  }
+  return false;
 }

@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import { deleteNote, getImage, listNotes, putNote } from '../../core/db';
 import type { JumpResult, ToBackground } from '../../core/messages';
 import type { Note } from '../../core/types';
+import { refreshIfChanged } from '../../notebook/refresh';
 import { renderNotebook, type NotebookDeps } from '../../notebook/view';
 
 const root = document.getElementById('notebook');
@@ -28,29 +29,16 @@ const deps: NotebookDeps = {
   now: () => new Date(),
 };
 
-/** Changes whenever a note is added, edited or removed. */
-async function snapshot(): Promise<string> {
-  const notes = await listNotes();
-  return notes
-    .map((note) => `${note.id}@${note.updatedAt}`)
-    .sort()
-    .join('|');
-}
-
-let shown = '';
-
-async function render(): Promise<void> {
-  shown = await snapshot();
-  await renderNotebook(root as HTMLElement, deps);
-}
-
-render().catch((error: unknown) => console.error('[scenenote] could not draw the notebook', error));
+renderNotebook(root, deps).catch((error: unknown) =>
+  console.error('[scenenote] could not draw the notebook', error),
+);
 
 // Notes are saved from Netflix tabs while this page may sit open in the background (the toolbar
 // button focuses the existing tab instead of reloading it), so catch up when the tab is shown.
+// Changes made in the page itself, and a note being typed, are left alone.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  snapshot()
-    .then((current) => (current === shown ? undefined : render()))
-    .catch((error: unknown) => console.warn('[scenenote] could not refresh the notebook', error));
+  refreshIfChanged(root, deps).catch((error: unknown) =>
+    console.warn('[scenenote] could not refresh the notebook', error),
+  );
 });
