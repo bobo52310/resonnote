@@ -570,6 +570,17 @@ export async function renderNotebook(
   ]);
 }
 
+/**
+ * Shows `message` on the status line of the notebook drawn in `root`. `false` if `root` was never
+ * rendered.
+ */
+export function notifyNotebook(root: HTMLElement, message: string): boolean {
+  const state = states.get(root);
+  if (!state) return false;
+  state.notify(message);
+  return true;
+}
+
 /** The notes whose boxes are checked, in on-screen order, with any edits already applied. */
 export function getSelectedNotes(root: HTMLElement): Note[] {
   const state = states.get(root);

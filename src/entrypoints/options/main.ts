@@ -1,31 +1,24 @@
 import { browser } from 'wxt/browser';
 import { deleteNote, getImage, listNotes, putNote } from '../../core/db';
-import type { JumpResult, ToBackground } from '../../core/messages';
-import type { Note } from '../../core/types';
+import type { ToBackground } from '../../core/messages';
+import { createJump } from '../../notebook/jump-client';
 import { refreshOnReturn } from '../../notebook/refresh';
-import { renderNotebook, type NotebookDeps } from '../../notebook/view';
+import { notifyNotebook, renderNotebook, type NotebookDeps } from '../../notebook/view';
 
 const root = document.getElementById('notebook');
 if (!root) throw new Error('[scenenote] #notebook is missing from the options page');
-
-async function jump(note: Note): Promise<void> {
-  const message: ToBackground = {
-    type: 'scenenote/jump',
-    videoId: note.videoId,
-    timeMs: note.timeMs,
-  };
-  const reply = (await browser.runtime.sendMessage(message)) as JumpResult | undefined;
-  if (reply && !reply.ok) console.warn('[scenenote] could not jump back', reply.error);
-}
 
 const deps: NotebookDeps = {
   listNotes,
   putNote,
   deleteNote,
   getImage,
-  jump: (note) => {
-    jump(note).catch((error: unknown) => console.warn('[scenenote] could not jump back', error));
-  },
+  jump: createJump(
+    (message: ToBackground) => browser.runtime.sendMessage(message),
+    (message) => {
+      notifyNotebook(root, message);
+    },
+  ),
   now: () => new Date(),
 };
 

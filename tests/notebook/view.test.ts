@@ -17,6 +17,7 @@ import { downloadBytes } from '../../src/export/download';
 import {
   getSelectedNotes,
   hasPendingEdits,
+  notifyNotebook,
   renderNotebook,
   type NotebookDeps,
 } from '../../src/notebook/view';
@@ -127,6 +128,27 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('notifyNotebook', () => {
+  it('shows a message on the status line of a rendered notebook', async () => {
+    await renderNotebook(root, mockDeps([makeNote('a')]));
+    expect(notifyNotebook(root, '跳回失敗：x')).toBe(true);
+    expect(status()).toBe('跳回失敗：x');
+  });
+
+  it('follows a redraw of the notebook into its new status line', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    await renderNotebook(root, deps);
+    expect(notifyNotebook(root, '之後的訊息')).toBe(true);
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(status()).toBe('之後的訊息');
+  });
+
+  it('reports false for an element that was never rendered', () => {
+    expect(notifyNotebook(document.createElement('div'), 'x')).toBe(false);
+  });
 });
 
 describe('page structure', () => {
