@@ -1,0 +1,39 @@
+import type { Note } from './types';
+
+/** Answer to `scenenote/begin`: whether a capture may go ahead. */
+export type BeginResult = { status: 'ok' } | { status: 'busy' } | { status: 'no-video' };
+
+/** Background -> content script. */
+export type ToContent =
+  | { type: 'scenenote/begin' }
+  | { type: 'scenenote/show'; dataUrl: string | null }
+  | { type: 'scenenote/seek'; timeMs: number };
+
+/** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
+export type ToBackground =
+  | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
+  | { type: 'scenenote/open-notebook' };
+
+export type SaveResult = { ok: true } | { ok: false; error: string };
+
+const DATA_URL_BASE64 = /^data:[^,;]*(?:;[^,;]*)*;base64,/i;
+const ENCODE_CHUNK = 0x8000;
+
+/** Decodes a `data:<type>;base64,<payload>` URL. Throws when the string is not one. */
+export function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
+  const header = DATA_URL_BASE64.exec(dataUrl)?.[0];
+  if (header === undefined) throw new Error('not a base64 data URL');
+  const binary = atob(dataUrl.slice(header.length));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Encodes bytes as a `data:<mime>;base64,…` URL (the form images take inside messages). */
+export function bytesToDataUrl(bytes: Uint8Array, mime = 'image/jpeg'): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += ENCODE_CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + ENCODE_CHUNK));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
