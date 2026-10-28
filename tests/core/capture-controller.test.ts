@@ -531,6 +531,19 @@ describe('with the real overlay', () => {
     h.mountEl.remove();
   });
 
+  it('is not busy for ever when the page throws the overlay away', async () => {
+    h.deps.openOverlay = realOpenOverlay;
+    document.body.appendChild(h.mountEl);
+    const controller = createCaptureController(h.deps);
+    await controller.begin();
+    await controller.show(SCREENSHOT);
+    expect(await controller.begin()).toEqual({ status: 'busy' });
+
+    h.mountEl.replaceChildren(); // the overlay's host disappears without a save or cancel
+    expect(await controller.begin()).toEqual({ status: 'ok' });
+    h.mountEl.remove();
+  });
+
   it('cancels on Escape', async () => {
     h.deps.openOverlay = realOpenOverlay;
     document.body.appendChild(h.mountEl);

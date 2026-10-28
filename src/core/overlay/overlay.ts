@@ -20,6 +20,7 @@ export interface OverlayHandle {
   /** After showError: a fresh promise resolved by the next save/cancel. */
   reopenResult(): Promise<OverlayResult>;
   close(): void;
+  /** False once closed, or once the page has taken the overlay out of the document. */
   isOpen(): boolean;
 }
 
@@ -348,6 +349,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
       open = false;
       host.remove();
     },
-    isOpen: () => open,
+    // A host the page removed (without a save or cancel) must not keep the capture "busy" for ever.
+    isOpen: () => open && host.isConnected,
   };
 }

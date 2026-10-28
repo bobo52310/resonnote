@@ -538,6 +538,19 @@ describe('notebook link and close', () => {
     expect(h.isOpen()).toBe(false);
   });
 
+  it('isOpen turns false when the page removes the host from the document', () => {
+    const h = open();
+    expect(h.isOpen()).toBe(true);
+    mount.replaceChildren(); // e.g. Netflix re-rendering the player container
+    expect(h.isOpen()).toBe(false);
+  });
+
+  it('isOpen turns false when the whole mount is taken out of the document', () => {
+    const h = open();
+    mount.remove();
+    expect(h.isOpen()).toBe(false);
+  });
+
   it('close is idempotent and showError after close does not throw', () => {
     const h = open();
     h.close();
