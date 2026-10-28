@@ -280,20 +280,63 @@ describe('thumbnails', () => {
 });
 
 describe('editing the body', () => {
-  it('saves a changed body on blur with a fresh updatedAt, keeping the text as typed', async () => {
+  it('saves a changed body on blur with a fresh updatedAt, keeping the start as typed', async () => {
     const note = makeNote('a');
     const deps = mockDeps([note]);
     await renderNotebook(root, deps);
     const textarea = noteEl('a').querySelector('textarea')!;
-    textarea.value = '  新的心得\n第二行  ';
+    textarea.value = '  新的心得\n第二行';
     textarea.dispatchEvent(new Event('blur'));
     await flush();
     expect(deps.putNote).toHaveBeenCalledTimes(1);
     expect(deps.putNote).toHaveBeenCalledWith({
       ...note,
-      body: '  新的心得\n第二行  ',
+      body: '  新的心得\n第二行',
       updatedAt: '2026-10-28T12:00:00.000Z',
     });
+  });
+
+  it('trims trailing spaces and blank lines off the body it saves', async () => {
+    const note = makeNote('a');
+    const deps = mockDeps([note]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    textarea.value = '新的心得  \n第二行 \n\n\n';
+    textarea.dispatchEvent(new Event('blur'));
+    await flush();
+    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('新的心得  \n第二行');
+    expect(getSelectedNotes(root)).toEqual([]);
+    setChecked(checkbox('a'), true);
+    expect(getSelectedNotes(root).map((n) => n.body)).toEqual(['新的心得  \n第二行']);
+  });
+
+  it('does not write when only trailing whitespace was added', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    textarea.value = '原本的心得  \n\n';
+    textarea.dispatchEvent(new Event('blur'));
+    await flush();
+    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(hasPendingEdits(root)).toBe(false);
+  });
+
+  it('does not rewrite an old note whose stored body has trailing whitespace just because its box was left', async () => {
+    const deps = mockDeps([makeNote('a', { body: '舊心得 \n\n' })]);
+    await renderNotebook(root, deps);
+    noteEl('a').querySelector('textarea')!.dispatchEvent(new Event('blur'));
+    await flush();
+    expect(deps.putNote).not.toHaveBeenCalled();
+  });
+
+  it('saves an empty body when the text was cleared down to whitespace', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    textarea.value = ' \n ';
+    textarea.dispatchEvent(new Event('blur'));
+    await flush();
+    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('');
   });
 
   it('does not save when the body did not change', async () => {

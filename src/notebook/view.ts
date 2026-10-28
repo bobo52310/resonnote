@@ -226,13 +226,17 @@ async function saveBody(
   textarea: HTMLTextAreaElement,
 ): Promise<void> {
   const current = state.notes.get(id);
-  if (!current || textarea.value === current.body) return;
+  if (!current) return;
+  // Trailing spaces and blank lines would show up as empty blocks in the exports, so they are
+  // never stored, and adding or removing only those is not a change.
+  const body = textarea.value.trimEnd();
+  if (body === current.body.trimEnd()) return;
 
   // Update the on-screen copy first: the export buttons must see what is on screen even while
   // the write is still running.
   const updated: Note = {
     ...current,
-    body: textarea.value,
+    body,
     updatedAt: state.deps.now().toISOString(),
   };
   state.notes.set(id, updated);
@@ -607,7 +611,7 @@ export function hasPendingEdits(root: HTMLElement): boolean {
   for (const textarea of root.querySelectorAll<HTMLTextAreaElement>('textarea.body')) {
     const id = textarea.closest<HTMLElement>('.note')?.dataset['noteId'];
     const note = id === undefined ? undefined : state.notes.get(id);
-    if (note && textarea.value !== note.body) return true;
+    if (note && textarea.value.trimEnd() !== note.body.trimEnd()) return true;
   }
   return false;
 }
