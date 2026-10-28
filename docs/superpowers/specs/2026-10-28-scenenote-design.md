@@ -35,25 +35,32 @@
 | 進度條預覽小圖（BIF 檔） | 播放時頁面會載入 `https://occ-*.nflxso.net/tp/…/*.bif`，從頁面內 `fetch` 回 200、無加密。整部片一個檔：106 分鐘片共 638 張、5.85 MB；每 10 秒一張、320×180 JPEG |
 | BIF 格式 | 前 8 bytes 為 `89 42 49 46 0d 0a 1a 0a`；offset 12 為 uint32 LE 圖片張數；offset 16 為 uint32 LE 間隔毫秒（10000）；offset 64 起為索引表，每筆 8 bytes＝(第幾張, 圖片起始 offset)，第 i 張圖＝`[offset_i, offset_{i+1})` |
 | 頁面上的 `<video>` | 讀得到 `currentTime`、`duration`、`videoWidth/Height`（1920×1080）；`video.pause()` 可暫停 |
-| Netflix 播放器內部介面 | `netflix.appContext.state.playerApp.getAPI().videoPlayer` 存在；`getAllPlayerSessionIds()` → `getVideoPlayerBySessionId(id)` 取得 player，有 `seek(ms)`、`getCurrentTime()`（毫秒）、`getMovieId()`。實測 `seek` 往回跳 10 秒成功、無錯誤畫面。此介面在頁面自己的 JS 環境（main world），擴充功能要用 main world script 才碰得到 |
+| Netflix 播放器內部介面 | `netflix.appContext.state.playerApp.getAPI().videoPlayer` 存在；`getAllPlayerSessionIds()` → `getVideoPlayerBySessionId(id)` 取得 player，有 `seek(ms)`、`getCurrentTime()`（毫秒）、`getMovieId()`、`pause()`、`isPaused()`、`getTrickPlayFrame(ms)`。實測 `seek` 往回跳 10 秒成功、無錯誤畫面；`pause()` 後 `isPaused()` 與 `<video>.paused` 皆為 true。此介面在頁面自己的 JS 環境（main world），擴充功能要用 main world script 才碰得到 |
+| `player.getTrickPlayFrame(ms)` | 回傳 `{ image: Uint8Array, time, width, height, … }`——播放器自己就能給那一秒的進度條小圖，不必自己解析 BIF（BIF 解析留作退路） |
+| 片名 metadata | `netflix.appContext.state.playerApp.getState().videoPlayer.videoMetadata[<movieId>]._metadata.video` 有 `title`、`type`（電影為 `'movie'`）、`id`。影集的季、集欄位尚未實測（見 §10） |
+| 網址帶秒數 | 開 `https://www.netflix.com/watch/83053998?t=600` 會從第 600 秒開始播（實測 4 秒後在 603.7 秒） |
+| 字幕 DOM | Language Reactor 開著時，Netflix 原生的 `.player-timedtext` 是空的且被隱藏；畫面上的台詞在 `#lln-main-subs .lln-subs-text`，拼音在其中的 `.translit` 元素，去掉拼音後文字形如 `... 而 ... 二 樓 ... 則 ...`（字之間有空白與 `...`） |
+| 播放器控制列 | 滑鼠不動時控制列元素根本不在 DOM 裡（只剩 `data-uia` 為 `watch-video`、`player`、`video-canvas` 的容器） |
 
 ## 4. 記錄流程
 
-**觸發**：快捷鍵 ⌥⇧N（`chrome.commands`，使用者可在 `chrome://extensions/shortcuts` 改），或點工具列圖示。兩者都會給 `activeTab`，`captureVisibleTab` 靠這個權限。
+**觸發**：快捷鍵 ⌥⇧N（`chrome.commands`，使用者可在 `chrome://extensions/shortcuts` 改），或點工具列圖示。兩者都會給 `activeTab`，`captureVisibleTab` 靠這個權限。**在 Netflix 播放頁（`/watch/<數字>`）觸發＝記錄；在其他任何頁面觸發＝開啟筆記本頁面**（筆記本頁面也設為擴充功能的選項頁）。
 
 **按下去後依序：**
 
 1. **先截圖、後暫停**——Netflix 暫停幾秒後會蓋上片名介紹層，所以截圖要在暫停之前。
-   - 背景程式立即呼叫 `captureVisibleTab`（JPEG，quality 90）。
-   - 同時請內容腳本記下當下秒數（以截圖觸發那一刻為準）。
-   - 截圖前先加一個 CSS class 盡量隱藏 Netflix 控制列（盡力而為；選擇器失效就照原樣截）。
+   - 背景程式先通知內容腳本「開始」：內容腳本記下當下的播放資訊、台詞與影片位置；若小視窗已開著就回覆「忙碌中」，這次觸發直接忽略。
+   - 接著背景程式呼叫 `captureVisibleTab`（JPEG，quality 90），再把截圖交給內容腳本。
+   - 不另外隱藏控制列：滑鼠不動時控制列不在畫面上（§3）；若剛好露出來就照原樣截。
 2. **裁切**：依 `<video>` 的 `getBoundingClientRect()` × `devicePixelRatio`，再依 `videoWidth/videoHeight` 算出 object-fit: contain 的實際畫面範圍，裁掉左右（或上下）黑邊與側邊按鈕。字幕照原樣保留（含 Language Reactor 的拼音）。
-3. **黑畫面判斷**：裁切後取畫面中上方區塊（寬 20–80%、高 15–60%），亮度 < 16 的像素比例 > 95% 視為被擋 → 改用進度條小圖（取 `floor(秒數×1000 / 間隔)` 那一張），筆記標記為「低解析度」。截圖 API 失敗也走同一條退路。
-4. **暫停並收集資料**：暫停影片；記下平台、片子編號、片名（影集加季、集）、秒數（毫秒）、當下字幕文字（沒開字幕則空字串）。
+3. **黑畫面判斷**：裁切後取畫面中上方區塊（寬 20–80%、高 15–60%），亮度 < 16 的像素比例 > 95% 視為被擋 → 改用進度條小圖，筆記標記為「低解析度」。進度條小圖先用 `player.getTrickPlayFrame(ms)`（回傳的位元組要以 JPEG 檔頭 `FF D8` 開頭才算數），取不到再自己抓 BIF 解析（取 `floor(毫秒 / 間隔)` 那一張）。截圖 API 失敗也走同一條退路。
+4. **暫停並收集資料**：暫停影片；記下平台、片子編號、片名（影集加季、集）、秒數（毫秒）、當下字幕文字（沒開字幕則空字串）。字幕來源依序：Netflix 原生 `.player-timedtext` 的文字 → Language Reactor 的 `#lln-main-subs .lln-subs-text`（去掉 `.translit` 拼音、去掉 `...`、中日韓文字之間的空白拿掉、其他字之間保留一個空白）→ 空字串。
 5. **小視窗**（Shadow DOM 隔離樣式；掛在 `document.fullscreenElement` 或播放器容器上，全螢幕也看得到）：
    - 左：截圖縮圖；右：片名、時間（如 16:43）、台詞（可編輯）。
    - 下：心得輸入框（單一欄位）。**Enter 存檔並繼續播放**；Shift+Enter 換行；Esc 取消並繼續播放。心得空白也能存（先標記、事後補）。
    - 輸入時攔下按鍵事件，不讓 Netflix 的快捷鍵（空白鍵、F 等）觸發。
+   - 中文輸入法選字時按的 Enter（`isComposing` 為 true）只用來選字，不算存檔。
+   - 存檔失敗時小視窗不關、已打的字保留，顯示錯誤訊息，影片維持暫停。
    - 這次若有任何一項取不到（見 §7），在小視窗上直接列出缺了什麼。
 
 ## 5. 資料與儲存
@@ -73,7 +80,7 @@
 | `image` | `{ source: 'tab' \| 'trickplay' \| 'none', width, height }` | 圖檔本身另存 |
 | `createdAt` / `updatedAt` | ISO 字串 | |
 
-**儲存位置**：擴充功能自己的 IndexedDB，兩個 store——`notes`（上表）與 `images`（以 note id 為鍵，存 JPEG Blob）。申請 `unlimitedStorage`。不上傳、不同步。
+**儲存位置**：擴充功能自己的 IndexedDB，兩個 store——`notes`（上表）與 `images`（以 note id 為鍵，存 JPEG 的 `ArrayBuffer`）。申請 `unlimitedStorage`。不上傳、不同步。內容腳本跑在 netflix.com 的來源底下，它的 IndexedDB 是 Netflix 網域的，所以**內容腳本不直接寫資料庫**：把筆記與 JPEG（data URL 字串）傳給背景程式，由背景程式寫入；筆記本頁面與背景程式同屬擴充功能來源，直接讀寫同一個資料庫。
 
 **兩個陷阱與對策：**
 
@@ -88,14 +95,11 @@
 ### 6.1 跳回那一秒（筆記本頁面點一則筆記）
 
 - 已有開著同一部片（同 `videoId`）的 Netflix 分頁：切過去 → `seek(timeMs)` → 暫停。
-- 沒有：開新分頁到 `https://www.netflix.com/watch/<videoId>`，等播放器就緒後 `seek`。
+- 沒有：開新分頁到 `https://www.netflix.com/watch/<videoId>?t=<秒>`（§3 已實測會從該秒開始播）。
 
 ### 6.2 Netflix 連結（附在匯出內容裡）
 
-實作時先驗證 `https://www.netflix.com/watch/<videoId>?t=<秒>` 是否會從該秒開始播：
-
-- 可以 → 用這個網址。
-- 不行 → 用 `https://www.netflix.com/watch/<videoId>`，旁邊加註「從 16:43 開始看」。
+`https://www.netflix.com/watch/<videoId>?t=<秒，無條件捨去>`，連結文字為「在 Netflix 從 16:43 開始看」。
 
 ### 6.3 三種匯出
 
@@ -141,7 +145,7 @@ main world 與內容腳本之間用 `window.postMessage`（帶固定的訊息前
 
 **技術選擇**：TypeScript、WXT、Vitest；zip 用 fflate；IndexedDB 用 idb；套件一律裝當下最新穩定版。
 
-**權限**：`activeTab`、`unlimitedStorage`、`storage`（設定值）；host 權限只要 `https://www.netflix.com/*`。BIF 由內容腳本在 Netflix 頁面內抓，不需要 `nflxso.net` 的 host 權限。
+**權限**：`activeTab`、`unlimitedStorage`、`storage`（設定值）；host 權限只要 `https://www.netflix.com/*`。進度條小圖（含 BIF 退路）由 main world script 在 Netflix 頁面內取得，不需要 `nflxso.net` 的 host 權限。
 
 ## 8. Netflix 改版時的退路
 
@@ -181,13 +185,13 @@ main world 與內容腳本之間用 `window.postMessage`（帶固定的訊息前
 9. Markdown zip 解開後圖片連結正確
 10. 備份→移除擴充功能→重裝→還原，筆記與圖片都回來
 11. 搬動擴充功能資料夾後重新載入，筆記仍在（固定 `key` 生效）
-12. Netflix 連結 `?t=` 是否從該秒開始播（決定 §6.2 用哪個網址）
+12. 開著 Language Reactor 與關掉 Language Reactor 各記一則，台詞都正確且沒有拼音
+13. 中文輸入法打心得時，選字的 Enter 不會提早存檔
 
 需要真人操作的（載入擴充功能、按快捷鍵、LINE 手機版）列清單給使用者；其餘由 Claude in Chrome 檢查。
 
-## 10. 實作時要先確認的事
+## 10. 尚未實測、留到實機驗收確認的事
 
-- 片名、季、集從哪裡讀最穩（候選：播放器內部的影片 metadata、播放頁 DOM、分頁標題），依 §8 的順序退。
-- Language Reactor 開著時，Netflix 原生字幕的 DOM 是否仍在（實測截圖中同時看得到 Language Reactor 兩行與 Netflix 原生一行）。
-- 播放器內部介面的 `pause()` / `play()` 是否可用；不行就用 `<video>`。
-- 截圖前隱藏 Netflix 控制列的 CSS 選擇器。
+2026-10-28 已確認並寫回 §3／§4／§6 的：網址 `?t=`、`pause()`、`getTrickPlayFrame`、電影 metadata、Language Reactor 字幕 DOM、控制列不需隱藏。
+
+還沒確認的只剩一項：**影集的季、集**在 metadata 裡的結構。實作先假設 `type === 'show'` 時有 `seasons[].seq`、`seasons[].episodes[].{id, seq, title}`，以目前播放的 `movieId` 對到集；對不到就只記劇名。由驗收清單第 3 項確認。
