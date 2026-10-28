@@ -311,9 +311,14 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     host.addEventListener(type, (e) => e.stopPropagation());
   }
   // Clicking the dimmed backdrop must not move focus to <body>, where
-  // keystrokes would reach Netflix again.
+  // keystrokes would reach Netflix again. A listener on the shadow host sees
+  // `e.target` retargeted to the host for events that started inside the
+  // shadow tree, so `e.target === host` would also be true for the textareas
+  // and buttons and would block focus, caret and selection there. The first
+  // entry of the composed path is the real origin.
   host.addEventListener('mousedown', (e) => {
-    if (e.target === host) e.preventDefault();
+    const origin = e.composedPath()[0];
+    if (!(origin instanceof Node) || !panel.contains(origin)) e.preventDefault();
   });
 
   opts.mount.appendChild(host);

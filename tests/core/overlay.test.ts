@@ -296,6 +296,64 @@ describe('keyboard isolation', () => {
   });
 });
 
+describe('mousedown focus handling (shadow DOM retargeting)', () => {
+  const host = () => mount.querySelector('[data-scenenote-overlay]') as HTMLElement;
+
+  /**
+   * Dispatches a mousedown from `origin` the way a real browser presents it to
+   * a listener on the shadow host: `event.target` is retargeted to the host
+   * while `composedPath()[0]` stays the real origin. happy-dom does not
+   * retarget, so the host's view is simulated by overriding `target`.
+   */
+  function mousedownFrom(origin: Element, { retarget }: { retarget: boolean }): MouseEvent {
+    const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true });
+    if (retarget) Object.defineProperty(ev, 'target', { get: () => host() });
+    origin.dispatchEvent(ev);
+    return ev;
+  }
+
+  it('simulation check: a host listener sees target === host but the real origin in composedPath', () => {
+    open();
+    const seen: { target: EventTarget | null; origin: EventTarget | undefined }[] = [];
+    host().addEventListener('mousedown', (e) =>
+      seen.push({ target: e.target, origin: e.composedPath()[0] }),
+    );
+    mousedownFrom(note(), { retarget: true });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.target).toBe(host());
+    expect(seen[0]?.origin).toBe(note());
+  });
+
+  it.each([
+    ['the note textarea', () => note()],
+    ['the subtitle field', () => subtitle()],
+    ['the notebook link', () => el('[data-role="open-notebook"]')],
+  ])('does not prevent default for a mousedown on %s (retargeted to the host)', (_name, getOrigin) => {
+    open();
+    const ev = mousedownFrom(getOrigin(), { retarget: true });
+    expect(ev.defaultPrevented).toBe(false);
+  });
+
+  it('prevents default for a mousedown on the dimmed backdrop (the host itself)', () => {
+    open();
+    const ev = mousedownFrom(host(), { retarget: false });
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it('still keeps the mousedown from reaching document listeners', () => {
+    open();
+    const onDocMouseDown = vi.fn();
+    document.addEventListener('mousedown', onDocMouseDown);
+    try {
+      mousedownFrom(note(), { retarget: true });
+      mousedownFrom(host(), { retarget: false });
+      expect(onDocMouseDown).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('mousedown', onDocMouseDown);
+    }
+  });
+});
+
 describe('showError and reopenResult', () => {
   it('keeps the overlay open with the typed text and shows the error', async () => {
     const h = open();
