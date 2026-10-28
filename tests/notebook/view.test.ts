@@ -14,7 +14,12 @@ import {
 } from '../../src/core/db';
 import type { Note } from '../../src/core/types';
 import { downloadBytes } from '../../src/export/download';
-import { getSelectedNotes, renderNotebook, type NotebookDeps } from '../../src/notebook/view';
+import {
+  getSelectedNotes,
+  hasPendingEdits,
+  renderNotebook,
+  type NotebookDeps,
+} from '../../src/notebook/view';
 
 vi.mock('../../src/export/download', () => ({ downloadBytes: vi.fn() }));
 
@@ -334,6 +339,149 @@ describe('editing the body', () => {
     textarea.dispatchEvent(new Event('blur'));
     await flush();
     expect(deps.putNote).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('autosave while typing', () => {
+  beforeEach(() => {
+    // Only the timers the view uses: fake-indexeddb and promises keep running for real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  function type(textarea: HTMLTextAreaElement, value: string): void {
+    textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  it('saves about half a second after the last keystroke, without waiting for blur', async () => {
+    const note = makeNote('a');
+    const deps = mockDeps([note]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    type(textarea, '打到一半的心得');
+
+    vi.advanceTimersByTime(499);
+    await flush();
+    expect(deps.putNote).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(deps.putNote).toHaveBeenCalledWith({
+      ...note,
+      body: '打到一半的心得',
+      updatedAt: '2026-10-28T12:00:00.000Z',
+    });
+  });
+
+  it('waits again after every keystroke and saves only the final text', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    type(textarea, '一');
+    vi.advanceTimersByTime(400);
+    type(textarea, '一二');
+    vi.advanceTimersByTime(400);
+    await flush();
+    expect(deps.putNote).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(100);
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('一二');
+  });
+
+  it('does not save the same text again when the box is left after the autosave', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    type(textarea, '改了');
+    vi.advanceTimersByTime(500);
+    await flush();
+    textarea.dispatchEvent(new Event('blur'));
+    await flush();
+    vi.advanceTimersByTime(1000);
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves on blur at once and drops the waiting autosave', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    const textarea = noteEl('a').querySelector('textarea')!;
+    type(textarea, '馬上存');
+    textarea.dispatchEvent(new Event('blur'));
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1000);
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('flushes every dirty box at once when the page is hidden (pagehide)', async () => {
+    const deps = mockDeps([makeNote('a', { timeMs: 1 }), makeNote('b', { timeMs: 2 }), makeNote('c', { timeMs: 3 })]);
+    await renderNotebook(root, deps);
+    type(noteEl('a').querySelector('textarea')!, 'A 的新心得');
+    type(noteEl('c').querySelector('textarea')!, 'C 的新心得');
+    expect(deps.putNote).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event('pagehide'));
+    await flush();
+
+    const saved = vi.mocked(deps.putNote).mock.calls.map(([n]) => [n.id, n.body]);
+    expect(saved).toEqual([
+      ['a', 'A 的新心得'],
+      ['c', 'C 的新心得'],
+    ]);
+    // the timers that were still waiting find nothing left to do
+    vi.advanceTimersByTime(1000);
+    await flush();
+    expect(deps.putNote).toHaveBeenCalledTimes(2);
+  });
+
+  it('flushes a dirty box when the tab becomes hidden (visibilitychange)', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    type(noteEl('a').querySelector('textarea')!, '切走之前');
+
+    const state = vi.spyOn(document, 'visibilityState', 'get');
+    try {
+      state.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(deps.putNote).not.toHaveBeenCalled();
+
+      state.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(deps.putNote).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('切走之前');
+    } finally {
+      state.mockRestore();
+    }
+  });
+
+  it('stops listening for pagehide of an older drawing once the page is rendered again', async () => {
+    const oldDeps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, oldDeps);
+    type(noteEl('a').querySelector('textarea')!, '舊畫面裡的字');
+
+    const newDeps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, newDeps);
+    window.dispatchEvent(new Event('pagehide'));
+    await flush();
+    expect(oldDeps.putNote).not.toHaveBeenCalled();
+    expect(newDeps.putNote).not.toHaveBeenCalled();
+  });
+
+  it('counts a box with unsaved text as pending edits until the autosave lands', async () => {
+    const deps = mockDeps([makeNote('a')]);
+    await renderNotebook(root, deps);
+    type(noteEl('a').querySelector('textarea')!, '還沒存');
+    expect(hasPendingEdits(root)).toBe(true);
+    vi.advanceTimersByTime(500);
+    await flush();
+    expect(hasPendingEdits(root)).toBe(false);
   });
 });
 
