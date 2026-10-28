@@ -1,0 +1,186 @@
+/**
+ * Runs in the page's own JS world (MAIN), the only place Netflix's player API exists.
+ * Answers `callBridge` requests that the isolated-world content script posts to this window.
+ */
+import { bifFrame, parseBif, type BifIndex } from './bif';
+import {
+  RESPONSE_SOURCE,
+  isBridgeRequest,
+  selfOrigin,
+  warnOnce,
+  type BridgeRequest,
+  type BridgeResponse,
+} from './bridge-protocol';
+import { mapNetflixMetadata } from './metadata';
+
+const INSTALLED = Symbol.for('scenenote.page-bridge');
+const BIF_URL = /\.bif(\?|$)/;
+
+/** Reads `keys` down from `root`; `undefined` as soon as a step is missing. */
+function dig(root: unknown, ...keys: string[]): unknown {
+  let node: unknown = root;
+  for (const key of keys) {
+    if (typeof node !== 'object' || node === null) return undefined;
+    node = (node as Record<string, unknown>)[key];
+  }
+  return node;
+}
+
+/** Calls `target[method](...args)`; throws when `target` has no such function. */
+function call(target: unknown, method: string, ...args: unknown[]): unknown {
+  const fn = dig(target, method);
+  if (typeof fn !== 'function') throw new Error(`${method} is not available`);
+  return (fn as (...a: unknown[]) => unknown).apply(target, args);
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/** The newest player session, or `null` when Netflix has none (yet). */
+function getPlayer(win: Window): unknown {
+  const playerApp = dig(win, 'netflix', 'appContext', 'state', 'playerApp');
+  if (!playerApp) return null;
+  const videoPlayer = dig(call(playerApp, 'getAPI'), 'videoPlayer');
+  const ids = call(videoPlayer, 'getAllPlayerSessionIds');
+  if (!Array.isArray(ids) || ids.length === 0) return null;
+  return call(videoPlayer, 'getVideoPlayerBySessionId', ids[ids.length - 1]) ?? null;
+}
+
+function readMeta(win: Window, movieId: number) {
+  try {
+    const playerApp = dig(win, 'netflix', 'appContext', 'state', 'playerApp');
+    const state = call(playerApp, 'getState');
+    const video = dig(state, 'videoPlayer', 'videoMetadata', String(movieId), '_metadata', 'video');
+    return mapNetflixMetadata(video, movieId);
+  } catch (error) {
+    warnOnce('read title metadata', error);
+    return null;
+  }
+}
+
+function playback(win: Window) {
+  const player = getPlayer(win);
+  if (!player) return null;
+  const movieId = call(player, 'getMovieId');
+  const timeMs = call(player, 'getCurrentTime');
+  if (!finiteNumber(movieId) || !finiteNumber(timeMs)) return null;
+  return { videoId: String(movieId), timeMs, meta: readMeta(win, movieId) };
+}
+
+function control(win: Window, method: 'pause' | 'play' | 'seek', timeMs?: number): boolean {
+  const player = getPlayer(win);
+  if (!player) return false;
+  if (method === 'seek') {
+    if (!finiteNumber(timeMs)) return false;
+    call(player, 'seek', timeMs);
+  } else {
+    call(player, method);
+  }
+  return true;
+}
+
+/** The bytes when they look like a JPEG (start with FF D8), compacted so a postMessage copies only them. */
+function jpegBytes(value: unknown): Uint8Array | null {
+  if (!ArrayBuffer.isView(value)) return null;
+  const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (bytes.length < 2 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  return bytes.byteLength === bytes.buffer.byteLength ? bytes : bytes.slice();
+}
+
+interface LoadedBif {
+  buf: ArrayBuffer;
+  index: BifIndex;
+}
+
+/** Only the newest title's BIF is kept (several MB each); a failed load is dropped so it is retried. */
+let bifCache: { url: string; loaded: Promise<LoadedBif | null> } | null = null;
+
+function loadBif(win: Window, url: string): Promise<LoadedBif | null> {
+  if (bifCache?.url === url) return bifCache.loaded;
+  const loaded = (async (): Promise<LoadedBif | null> => {
+    const response = await win.fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buf = await response.arrayBuffer();
+    const index = parseBif(buf);
+    return index ? { buf, index } : null;
+  })().catch((error: unknown) => {
+    warnOnce('trickplay file download', error);
+    return null;
+  });
+  const entry = { url, loaded };
+  bifCache = entry;
+  void loaded.then((result) => {
+    if (result === null && bifCache === entry) bifCache = null;
+  });
+  return loaded;
+}
+
+function latestBifUrl(win: Window): string | null {
+  const entries = win.performance.getEntriesByType('resource');
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const name = entries[i]?.name;
+    if (name !== undefined && BIF_URL.test(name)) return name;
+  }
+  return null;
+}
+
+async function trickplay(win: Window, timeMs: number | undefined): Promise<Uint8Array | null> {
+  if (!finiteNumber(timeMs)) return null;
+
+  try {
+    const player = getPlayer(win);
+    if (player) {
+      const fromPlayer = jpegBytes(dig(call(player, 'getTrickPlayFrame', timeMs), 'image'));
+      if (fromPlayer) return fromPlayer;
+    }
+  } catch (error) {
+    warnOnce('player trickplay frame', error);
+  }
+
+  const url = latestBifUrl(win);
+  if (!url) return null;
+  const bif = await loadBif(win, url);
+  return bif ? bifFrame(bif.buf, bif.index, timeMs) : null;
+}
+
+async function handle(win: Window, request: BridgeRequest): Promise<unknown> {
+  switch (request.op) {
+    case 'playback':
+      return playback(win);
+    case 'pause':
+    case 'play':
+    case 'seek':
+      return control(win, request.op, request.timeMs);
+    case 'trickplay':
+      return trickplay(win, request.timeMs);
+  }
+}
+
+async function respond(win: Window, request: BridgeRequest): Promise<void> {
+  let result: unknown;
+  try {
+    result = await handle(win, request);
+  } catch (error) {
+    warnOnce(`player ${request.op}`, error);
+    result = request.op === 'pause' || request.op === 'play' || request.op === 'seek' ? false : null;
+  }
+  const response: BridgeResponse = { source: RESPONSE_SOURCE, id: request.id, result };
+  try {
+    win.postMessage(response, selfOrigin(win));
+  } catch (error) {
+    warnOnce('bridge response', error);
+  }
+}
+
+/** Starts answering bridge requests on `win`. Safe to call twice: later calls do nothing. */
+export function installPageBridge(win: Window): void {
+  const marked = win as unknown as Record<symbol, unknown>;
+  if (marked[INSTALLED]) return;
+  Object.defineProperty(win, INSTALLED, { value: true });
+
+  win.addEventListener('message', (event: MessageEvent) => {
+    const data: unknown = event.data;
+    if (isBridgeRequest(data)) void respond(win, data);
+  });
+}
