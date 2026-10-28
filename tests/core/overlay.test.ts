@@ -1,0 +1,416 @@
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import {
+  MISSING_LABELS,
+  openOverlay,
+  type OverlayHandle,
+  type OverlayResult,
+} from '../../src/core/overlay/overlay';
+import type { Missing } from '../../src/core/types';
+
+let mount: HTMLElement;
+let handle: OverlayHandle | null = null;
+let onOpenNotebook: Mock<() => void>;
+
+function open(overrides: Partial<Parameters<typeof openOverlay>[0]> = {}): OverlayHandle {
+  handle = openOverlay({
+    mount,
+    thumbUrl: 'blob:thumb-1',
+    heading: '黑暗榮耀 S1:E3',
+    time: '16:43',
+    subtitle: '你好嗎',
+    missing: [],
+    onOpenNotebook,
+    ...overrides,
+  });
+  return handle;
+}
+
+function shadow(): ShadowRoot {
+  const host = mount.querySelector('[data-scenenote-overlay]');
+  if (!host?.shadowRoot) throw new Error('overlay host / shadow root not found');
+  return host.shadowRoot;
+}
+
+function el<T extends HTMLElement>(selector: string): T {
+  const found = shadow().querySelector<T>(selector);
+  if (!found) throw new Error(`not found: ${selector}`);
+  return found;
+}
+
+const note = () => el<HTMLTextAreaElement>('[data-role="note"]');
+const subtitle = () => el<HTMLTextAreaElement>('[data-role="subtitle"]');
+
+function press(
+  target: Element,
+  init: KeyboardEventInit & { keyCode?: number },
+): KeyboardEvent {
+  const { keyCode, ...rest } = init;
+  const ev = new KeyboardEvent('keydown', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    ...rest,
+  });
+  if (keyCode !== undefined) Object.defineProperty(ev, 'keyCode', { value: keyCode });
+  target.dispatchEvent(ev);
+  return ev;
+}
+
+async function isPending(p: Promise<OverlayResult>): Promise<boolean> {
+  const sentinel = Symbol('pending');
+  return (await Promise.race([p, Promise.resolve(sentinel)])) === sentinel;
+}
+
+beforeEach(() => {
+  mount = document.createElement('div');
+  document.body.appendChild(mount);
+  onOpenNotebook = vi.fn<() => void>();
+});
+
+afterEach(() => {
+  handle?.close();
+  handle = null;
+  mount.remove();
+});
+
+describe('MISSING_LABELS', () => {
+  it('has the exact zh-TW strings for every Missing key', () => {
+    expect(MISSING_LABELS).toEqual({
+      fullFrame: '完整畫面截不到，改用進度條小圖',
+      image: '沒有截到圖',
+      subtitle: '沒抓到台詞',
+      title: '沒抓到片名',
+      playerApi: 'Netflix 播放器介面讀不到，秒數改從影片讀',
+    });
+  });
+});
+
+describe('rendering', () => {
+  it('mounts a host with a shadow root into the given mount element', () => {
+    open();
+    const host = mount.querySelector('[data-scenenote-overlay]');
+    expect(host).not.toBeNull();
+    expect(host?.parentElement).toBe(mount);
+    expect(host?.shadowRoot).not.toBeNull();
+    expect(handle?.isOpen()).toBe(true);
+  });
+
+  it('shows the heading, the time and an editable subtitle', () => {
+    open();
+    expect(el('[data-role="heading"]').textContent).toBe('黑暗榮耀 S1:E3');
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(subtitle().value).toBe('你好嗎');
+    subtitle().value = '改過的台詞';
+    expect(subtitle().value).toBe('改過的台詞');
+  });
+
+  it('shows the thumbnail on the left when thumbUrl is given', () => {
+    open({ thumbUrl: 'blob:thumb-1' });
+    expect(el<HTMLImageElement>('img[data-role="thumb"]').getAttribute('src')).toBe('blob:thumb-1');
+  });
+
+  it('omits the img element when thumbUrl is null', () => {
+    open({ thumbUrl: null });
+    expect(shadow().querySelector('img')).toBeNull();
+  });
+
+  it('lists a Chinese label for every missing item', () => {
+    const missing: Missing[] = ['subtitle', 'fullFrame', 'playerApi'];
+    open({ missing });
+    const text = shadow().querySelector('[data-role="missing"]')?.textContent ?? '';
+    for (const m of missing) expect(text).toContain(MISSING_LABELS[m]);
+    expect(text).not.toContain(MISSING_LABELS.title);
+    expect(shadow().querySelectorAll('[data-role="missing"] li')).toHaveLength(3);
+  });
+
+  it('renders no missing section when nothing is missing', () => {
+    open({ missing: [] });
+    expect(shadow().querySelector('[data-role="missing"]')).toBeNull();
+  });
+
+  it('treats heading text as text, never as HTML', () => {
+    open({ heading: '<b id="x">片名</b>', subtitle: '<i>台詞</i>' });
+    expect(shadow().querySelector('#x')).toBeNull();
+    expect(el('[data-role="heading"]').textContent).toBe('<b id="x">片名</b>');
+    expect(subtitle().value).toBe('<i>台詞</i>');
+  });
+
+  it('injects its own style element into the shadow root', () => {
+    open();
+    expect(shadow().querySelector('style')?.textContent?.length).toBeGreaterThan(0);
+  });
+
+  it('focuses the note textarea when it opens', () => {
+    open();
+    expect(shadow().activeElement).toBe(note());
+  });
+});
+
+describe('save and cancel', () => {
+  it('saves on Enter in the note box with the edited subtitle and body', async () => {
+    const h = open();
+    subtitle().value = '改過的台詞';
+    note().value = '這一幕的光影很讚';
+    const ev = press(note(), { key: 'Enter' });
+    expect(ev.defaultPrevented).toBe(true);
+    await expect(h.result).resolves.toEqual({
+      action: 'save',
+      subtitle: '改過的台詞',
+      body: '這一幕的光影很讚',
+    });
+  });
+
+  it('can save with an empty note', async () => {
+    const h = open();
+    press(note(), { key: 'Enter' });
+    await expect(h.result).resolves.toEqual({ action: 'save', subtitle: '你好嗎', body: '' });
+  });
+
+  it('does not save on Enter while composing (isComposing)', async () => {
+    const h = open();
+    note().value = '選字中';
+    const ev = press(note(), { key: 'Enter', isComposing: true });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('does not save on Enter with keyCode 229 even if isComposing is false', async () => {
+    const h = open();
+    press(note(), { key: 'Enter', isComposing: false, keyCode: 229 });
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('does not save on Shift+Enter and leaves the newline to the textarea', async () => {
+    const h = open();
+    const ev = press(note(), { key: 'Enter', shiftKey: true });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('cancels on Esc in the note box', async () => {
+    const h = open();
+    note().value = '不要了';
+    press(note(), { key: 'Escape' });
+    await expect(h.result).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('cancels on Esc from the subtitle field too', async () => {
+    const h = open();
+    press(subtitle(), { key: 'Escape' });
+    await expect(h.result).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('does not cancel on Esc while an IME composition is active', async () => {
+    const h = open();
+    press(note(), { key: 'Escape', isComposing: true });
+    press(note(), { key: 'Escape', keyCode: 229 });
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('moves focus to the note box on Enter in the subtitle field instead of saving', async () => {
+    const h = open();
+    subtitle().focus();
+    const ev = press(subtitle(), { key: 'Enter' });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(shadow().activeElement).toBe(note());
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('resolves result only once: later Enter/Esc are ignored until reopenResult', async () => {
+    const h = open();
+    note().value = '第一次';
+    press(note(), { key: 'Enter' });
+    note().value = '第二次';
+    press(note(), { key: 'Enter' });
+    press(note(), { key: 'Escape' });
+    await expect(h.result).resolves.toEqual({ action: 'save', subtitle: '你好嗎', body: '第一次' });
+    expect(await isPending(h.reopenResult())).toBe(true);
+  });
+
+  it('does not close the overlay by itself after save or cancel', async () => {
+    const h = open();
+    press(note(), { key: 'Enter' });
+    await h.result;
+    expect(h.isOpen()).toBe(true);
+    expect(mount.querySelector('[data-scenenote-overlay]')).not.toBeNull();
+  });
+});
+
+describe('keyboard isolation', () => {
+  it('does not let keydown bubble to document listeners', () => {
+    open();
+    const onDocKey = vi.fn();
+    document.addEventListener('keydown', onDocKey);
+    try {
+      for (const target of [note(), subtitle()]) {
+        for (const key of [' ', 'f', 'm', 'ArrowLeft', 'Enter', 'Escape']) {
+          press(target, { key });
+        }
+      }
+      expect(onDocKey).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keydown', onDocKey);
+    }
+  });
+
+  it('also keeps keyup and keypress away from the page', () => {
+    open();
+    const onDocKey = vi.fn();
+    document.addEventListener('keyup', onDocKey);
+    document.addEventListener('keypress', onDocKey);
+    try {
+      for (const type of ['keyup', 'keypress']) {
+        note().dispatchEvent(new KeyboardEvent(type, { key: ' ', bubbles: true, composed: true }));
+      }
+      expect(onDocKey).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keyup', onDocKey);
+      document.removeEventListener('keypress', onDocKey);
+    }
+  });
+
+  it('control: a composed event from inside the shadow DOM does reach document', () => {
+    open();
+    const onDoc = vi.fn();
+    document.addEventListener('probe', onDoc);
+    try {
+      note().dispatchEvent(new Event('probe', { bubbles: true, composed: true }));
+      expect(onDoc).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener('probe', onDoc);
+    }
+  });
+
+  it('does not let clicks inside or around the panel reach document listeners', () => {
+    open();
+    const onDocClick = vi.fn();
+    document.addEventListener('click', onDocClick);
+    try {
+      note().dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+      const host = mount.querySelector('[data-scenenote-overlay]')!;
+      host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+      expect(onDocClick).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('click', onDocClick);
+    }
+  });
+});
+
+describe('showError and reopenResult', () => {
+  it('keeps the overlay open with the typed text and shows the error', async () => {
+    const h = open();
+    subtitle().value = '改過的台詞';
+    note().value = '我打了很多字';
+    press(note(), { key: 'Enter' });
+    await h.result;
+
+    h.showError('存檔失敗：x');
+
+    expect(h.isOpen()).toBe(true);
+    expect(mount.querySelector('[data-scenenote-overlay]')).not.toBeNull();
+    expect(note().value).toBe('我打了很多字');
+    expect(subtitle().value).toBe('改過的台詞');
+    expect(el('[data-role="error"]').textContent).toBe('存檔失敗：x');
+  });
+
+  it('reopenResult resolves on the next Enter with the current text', async () => {
+    const h = open();
+    note().value = '第一版';
+    press(note(), { key: 'Enter' });
+    await h.result;
+    h.showError('存檔失敗：x');
+
+    const again = h.reopenResult();
+    expect(await isPending(again)).toBe(true);
+
+    note().value = '第二版';
+    press(note(), { key: 'Enter' });
+    await expect(again).resolves.toEqual({ action: 'save', subtitle: '你好嗎', body: '第二版' });
+  });
+
+  it('works when reopenResult is called before showError', async () => {
+    const h = open();
+    press(note(), { key: 'Enter' });
+    await h.result;
+    const again = h.reopenResult();
+    h.showError('存檔失敗：y');
+    press(note(), { key: 'Enter' });
+    await expect(again).resolves.toMatchObject({ action: 'save' });
+  });
+
+  it('does not lose an Enter pressed after showError but before reopenResult is called', async () => {
+    const h = open();
+    press(note(), { key: 'Enter' });
+    await h.result;
+    h.showError('存檔失敗：x');
+
+    note().value = '趕在 reopenResult 之前按的';
+    press(note(), { key: 'Enter' });
+
+    await expect(h.reopenResult()).resolves.toEqual({
+      action: 'save',
+      subtitle: '你好嗎',
+      body: '趕在 reopenResult 之前按的',
+    });
+  });
+
+  it('reopenResult resolves with cancel on Esc after an error', async () => {
+    const h = open();
+    press(note(), { key: 'Enter' });
+    await h.result;
+    h.showError('存檔失敗：x');
+    const again = h.reopenResult();
+    press(note(), { key: 'Escape' });
+    await expect(again).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('can show a second error and clears nothing the user typed', async () => {
+    const h = open();
+    note().value = '保留我';
+    press(note(), { key: 'Enter' });
+    await h.result;
+    h.showError('存檔失敗：一');
+    const again = h.reopenResult();
+    press(note(), { key: 'Enter' });
+    await again;
+    h.showError('存檔失敗：二');
+    expect(el('[data-role="error"]').textContent).toBe('存檔失敗：二');
+    expect(note().value).toBe('保留我');
+  });
+
+  it('shows no error element content before any error', () => {
+    open();
+    const err = shadow().querySelector('[data-role="error"]');
+    expect(err?.textContent ?? '').toBe('');
+  });
+});
+
+describe('notebook link and close', () => {
+  it('calls onOpenNotebook when the notebook link is clicked, without closing or resolving', async () => {
+    const h = open();
+    el('[data-role="open-notebook"]').click();
+    expect(onOpenNotebook).toHaveBeenCalledTimes(1);
+    expect(h.isOpen()).toBe(true);
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('labels the notebook link in Chinese', () => {
+    open();
+    expect(el('[data-role="open-notebook"]').textContent).toBe('開啟筆記本');
+  });
+
+  it('close removes the host element and isOpen turns false', () => {
+    const h = open();
+    h.close();
+    expect(mount.querySelector('[data-scenenote-overlay]')).toBeNull();
+    expect(h.isOpen()).toBe(false);
+  });
+
+  it('close is idempotent and showError after close does not throw', () => {
+    const h = open();
+    h.close();
+    expect(() => h.close()).not.toThrow();
+    expect(() => h.showError('晚了')).not.toThrow();
+    expect(h.isOpen()).toBe(false);
+  });
+});
