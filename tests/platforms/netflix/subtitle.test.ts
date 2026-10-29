@@ -1,32 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { cleanLanguageReactorText, extractSubtitle } from '../../../src/platforms/netflix/subtitle';
-
-describe('cleanLanguageReactorText', () => {
-  it('drops ellipsis markers and joins CJK characters directly', () => {
-    expect(
-      cleanLanguageReactorText(
-        '... 而 ... 二 樓 ... 則 ... 是 ... 蔣 經 國 ... 先 生 ... 和 ... 政 府 ... 高 層',
-      ),
-    ).toBe('而二樓則是蔣經國先生和政府高層');
-  });
-
-  it('keeps one space between non-CJK words', () => {
-    expect(cleanLanguageReactorText("I ... don't ... know ...")).toBe("I don't know");
-  });
-
-  it('keeps a space between CJK and Latin text', () => {
-    expect(cleanLanguageReactorText('我 用 iPhone 拍')).toBe('我用 iPhone 拍');
-  });
-
-  it('strips the ellipsis glued to a word, including the single-character form', () => {
-    expect(cleanLanguageReactorText('...wait… what....')).toBe('wait what');
-  });
-
-  it('returns an empty string for blank or marker-only input', () => {
-    expect(cleanLanguageReactorText('')).toBe('');
-    expect(cleanLanguageReactorText('  ...  …  ')).toBe('');
-  });
-});
+import { extractSubtitle } from '../../../src/platforms/netflix/subtitle';
 
 describe('extractSubtitle', () => {
   beforeEach(() => {

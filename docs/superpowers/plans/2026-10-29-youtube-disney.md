@@ -105,13 +105,13 @@ export function runContentScript(opts: ContentScriptOptions): void;
 
 **Files:** `src/platforms/bridge-protocol.ts`（由 netflix 搬來）、`src/core/hide-ui.ts`（搬來）、`src/platforms/language-reactor.ts`（新，自 netflix/subtitle.ts 抽出）、`src/core/content-main.ts`（新）、`src/core/capture-controller.ts`、`src/core/quick-button.ts`、`src/platforms/types.ts`、`src/platforms/netflix/*`、`src/entrypoints/netflix.content.ts`，與對應測試（搬檔的測試跟著搬）。
 
-- [ ] 搬檔照 Shared Interfaces；Netflix 端改 import，行為不變。`hidePlayerUi(root, keep)`：Netflix 傳原本的 `'video, .player-timedtext, #lln-main-subs'`。
-- [ ] `askBridge` 取代 Netflix adapter 私有的 `ask`。
-- [ ] `content-main.ts`：把 `netflix.content.ts` 的 `main()` 內容搬進 `runContentScript`；`isToContent`、`seekAndPause`、訊息監聽、頁面按鈕、`scenenote/shortcut` 都在這裡。`loadRecent` 送 `{ type: 'scenenote/recent', platform, videoId, limit: 2 }`。`netflix.content.ts` 只剩 `defineContentScript({ matches, main() { runContentScript({ platform: 'netflix', adapter: createNetflixAdapter(document), isWatchPage: () => parseWatchVideoId(location.href) !== null }) } })`。
-- [ ] `capture-controller.ts`：deps 加 `platform: Platform`，存檔用它。選圖順序（spec §3.3）：分頁截圖裁切沒被擋 → `adapter.grabFrame?.()` 有 bytes 時轉 data URL，再用 `deps.cropAndCheck(dataUrl, { x: 0, y: 0, width, height }, 1)` 做黑畫面判斷，沒被擋就 `source: 'frame'`、`missing: null` → 進度條小圖 → 沒有圖。`useShortcutOnce` 只在最後的 `source` 是 `'trickplay'` 或 `'none'` 時加。
-- [ ] `quick-button.ts`：選項加 `anchor?: () => Element | null`。有 anchor 時：只有滑鼠事件的座標落在 anchor 的 `getBoundingClientRect()` 內才顯示；位置以 `position: fixed` 的 `right`／`bottom` inline style 對齊 anchor 右下角（內縮右 24 px、下 80 px）；`scroll` 事件（capture、passive）時收起。沒有 anchor 時完全照 v1。全螢幕時照舊放進 `fullscreenElement`。
-- [ ] 測試：controller 的 `'frame'` 路徑（成功、被判黑改用 trickplay、grabFrame 丟例外）、hint 規則、`platform` 寫進筆記；quick button anchor（座標在內顯示、在外不顯示、位置 style、scroll 收起、無 anchor 時行為不變）；content-main 的 recent 訊息帶 platform（若現有架構難測，至少測 `isToContent`）；搬過去的 bridge-protocol／hide-ui／language-reactor 測試照舊通過。
-- [ ] Commit：`refactor: share the content script, page bridge protocol and UI hiding across platforms`
+- [x] 搬檔照 Shared Interfaces；Netflix 端改 import，行為不變。`hidePlayerUi(root, keep)`：Netflix 傳原本的 `'video, .player-timedtext, #lln-main-subs'`。
+- [x] `askBridge` 取代 Netflix adapter 私有的 `ask`。
+- [x] `content-main.ts`：把 `netflix.content.ts` 的 `main()` 內容搬進 `runContentScript`；`isToContent`、`seekAndPause`、訊息監聽、頁面按鈕、`scenenote/shortcut` 都在這裡。`loadRecent` 送 `{ type: 'scenenote/recent', platform, videoId, limit: 2 }`。`netflix.content.ts` 只剩 `defineContentScript({ matches, main() { runContentScript({ platform: 'netflix', adapter: createNetflixAdapter(document), isWatchPage: () => parseWatchVideoId(location.href) !== null }) } })`。
+- [x] `capture-controller.ts`：deps 加 `platform: Platform`，存檔用它。選圖順序（spec §3.3）：分頁截圖裁切沒被擋 → `adapter.grabFrame?.()` 有 bytes 時轉 data URL，再用 `deps.cropAndCheck(dataUrl, { x: 0, y: 0, width, height }, 1)` 做黑畫面判斷，沒被擋就 `source: 'frame'`、`missing: null` → 進度條小圖 → 沒有圖。`useShortcutOnce` 只在最後的 `source` 是 `'trickplay'` 或 `'none'` 時加。
+- [x] `quick-button.ts`：選項加 `anchor?: () => Element | null`。有 anchor 時：只有滑鼠事件的座標落在 anchor 的 `getBoundingClientRect()` 內才顯示；位置以 `position: fixed` 的 `right`／`bottom` inline style 對齊 anchor 右下角（內縮右 24 px、下 80 px）；`scroll` 事件（capture、passive）時收起。沒有 anchor 時完全照 v1。全螢幕時照舊放進 `fullscreenElement`。
+- [x] 測試：controller 的 `'frame'` 路徑（成功、被判黑改用 trickplay、grabFrame 丟例外）、hint 規則、`platform` 寫進筆記；quick button anchor（座標在內顯示、在外不顯示、位置 style、scroll 收起、無 anchor 時行為不變）；content-main 的 recent 訊息帶 platform（若現有架構難測，至少測 `isToContent`）；搬過去的 bridge-protocol／hide-ui／language-reactor 測試照舊通過。
+- [x] Commit：`refactor: share the content script, page bridge protocol and UI hiding across platforms`
 
 ## Task 3：YouTube 轉接層（可與 Task 4 平行）
 

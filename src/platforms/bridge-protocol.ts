@@ -1,15 +1,17 @@
 /**
  * Messages between the isolated-world content script (caller) and the main-world page bridge,
  * both carried by `window.postMessage`. Every message is a plain object tagged with a fixed
- * `source`; receivers ignore anything that does not match the exact shape.
+ * `source`; receivers ignore anything that does not match the exact shape. The format is the
+ * same on every platform; each platform's page bridge answers the ops it supports and `null`
+ * (or `false` for the player controls) to the rest.
  */
 
 export const REQUEST_SOURCE = 'scenenote-req';
 export const RESPONSE_SOURCE = 'scenenote-res';
 
-export type BridgeOp = 'playback' | 'pause' | 'play' | 'seek' | 'trickplay';
+export type BridgeOp = 'playback' | 'pause' | 'play' | 'seek' | 'trickplay' | 'frame';
 
-const BRIDGE_OPS: readonly string[] = ['playback', 'pause', 'play', 'seek', 'trickplay'];
+const BRIDGE_OPS: readonly string[] = ['playback', 'pause', 'play', 'seek', 'trickplay', 'frame'];
 
 export interface BridgeRequest {
   source: typeof REQUEST_SOURCE;
@@ -106,4 +108,18 @@ export function callBridge<T>(
       finish(null);
     }
   });
+}
+
+/** `callBridge` that cannot reject: an unexpected failure is logged once and counts as no answer. */
+export async function askBridge<T>(
+  op: BridgeOp,
+  timeMs?: number,
+  timeoutMs?: number,
+): Promise<T | null> {
+  try {
+    return await callBridge<T>(op, timeMs, timeoutMs);
+  } catch (error) {
+    warnOnce('bridge call', error);
+    return null;
+  }
 }

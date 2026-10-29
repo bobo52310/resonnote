@@ -2,7 +2,6 @@
  * Runs in the page's own JS world (MAIN), the only place Netflix's player API exists.
  * Answers `callBridge` requests that the isolated-world content script posts to this window.
  */
-import { bifFrame, parseBif, type BifIndex } from './bif';
 import {
   RESPONSE_SOURCE,
   isBridgeRequest,
@@ -10,7 +9,8 @@ import {
   warnOnce,
   type BridgeRequest,
   type BridgeResponse,
-} from './bridge-protocol';
+} from '../bridge-protocol';
+import { bifFrame, parseBif, type BifIndex } from './bif';
 import { mapNetflixMetadata } from './metadata';
 import { parseWatchVideoId } from './url';
 
@@ -248,6 +248,9 @@ async function handle(win: Window, request: BridgeRequest): Promise<unknown> {
       return control(win, request.op, request.timeMs);
     case 'trickplay':
       return trickplay(win, request.timeMs);
+    case 'frame':
+      // Netflix pictures are DRM-protected: a canvas draw would only come out black.
+      return null;
   }
 }
 

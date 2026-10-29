@@ -1,18 +1,27 @@
 /**
- * The 「記下這一刻」 button on the player. It behaves like Netflix's own controls: it fades in
+ * The 「記下這一刻」 button on the player. It behaves like the site's own controls: it fades in
  * while the mouse moves and fades out after a few idle seconds, so it never sits on the picture
  * while watching. It lives in its own shadow root on the page (inside the fullscreen element in
  * fullscreen), so the screenshot code hides it with the rest of the player UI.
+ *
+ * By default it sits in the bottom-right corner of the viewport. Where the player does not fill
+ * the viewport (YouTube), an `anchor` pins it to the player's corner instead.
  */
 
 export interface QuickButtonOptions {
   doc: Document;
   /** Starts a capture (the button only asks; the background does the work). */
   onPress: () => void;
-  /** Only shown on watch pages: Netflix changes pages without reloading. */
+  /** Only shown on watch pages: streaming sites change pages without reloading. */
   isWatchPage: () => boolean;
   /** True while the note overlay is open: the button steps aside. */
   isBusy: () => boolean;
+  /**
+   * The element the button sits on (its bottom-right corner). With an anchor the button only
+   * shows while the mouse moves over that element and hides when the page scrolls; without one
+   * it floats at the viewport's bottom-right corner.
+   */
+  anchor?: () => Element | null;
 }
 
 export interface QuickButtonHandle {
@@ -21,8 +30,12 @@ export interface QuickButtonHandle {
   destroy(): void;
 }
 
-/** How long the button stays after the mouse stops, like Netflix's controls. */
+/** How long the button stays after the mouse stops, like the site's own controls. */
 export const IDLE_HIDE_MS = 3000;
+
+/** Distance from the anchor's right and bottom edges; the bottom one clears the control bar. */
+export const ANCHOR_INSET_RIGHT_PX = 24;
+export const ANCHOR_INSET_BOTTOM_PX = 80;
 
 const HOST_ATTRIBUTE = 'data-scenenote-button';
 
@@ -90,7 +103,7 @@ kbd:empty {
 /** A picture frame with a pencil: "note this scene". */
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.5"/><path d="M14 20.5l1-3.5 6-6 2.5 2.5-6 6z"/></svg>`;
 
-/** Events that would reach Netflix's player (play/pause, fullscreen, shortcuts) if not stopped. */
+/** Events that would reach the site's player (play/pause, fullscreen, shortcuts) if not stopped. */
 const STOPPED_EVENTS = [
   'click',
   'dblclick',
@@ -139,23 +152,48 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
     if (parent && host.parentNode !== parent) parent.appendChild(host);
   };
 
-  const onActivity = () => {
-    if (!opts.isWatchPage() || opts.isBusy()) {
-      hide();
-      return;
-    }
+  /** Lines the button up with the anchor's bottom-right corner. */
+  const alignTo = (box: DOMRect) => {
+    const view = doc.defaultView;
+    // clientWidth/Height leave out the scrollbars, which `position: fixed` offsets are measured from.
+    const width = doc.documentElement.clientWidth || view?.innerWidth || 0;
+    const height = doc.documentElement.clientHeight || view?.innerHeight || 0;
+    host.style.right = `${Math.max(0, width - box.right + ANCHOR_INSET_RIGHT_PX)}px`;
+    host.style.bottom = `${Math.max(0, height - box.bottom + ANCHOR_INSET_BOTTOM_PX)}px`;
+  };
+
+  const reveal = () => {
     place();
     host.setAttribute('data-visible', '');
     clearTimeout(hideTimer);
     // Stay while the pointer rests on the button itself, like a menu would.
     hideTimer = setTimeout(() => {
       if (!button.matches(':hover')) hide();
-      else onActivity();
+      else reveal();
     }, IDLE_HIDE_MS);
+  };
+
+  const onActivity = (event: Event) => {
+    if (!opts.isWatchPage() || opts.isBusy()) {
+      hide();
+      return;
+    }
+    if (opts.anchor) {
+      const box = opts.anchor()?.getBoundingClientRect();
+      const { clientX: x, clientY: y } = event as MouseEvent;
+      if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) {
+        hide();
+        return;
+      }
+      alignTo(box);
+    }
+    reveal();
   };
 
   doc.addEventListener('mousemove', onActivity, { capture: true, passive: true });
   doc.addEventListener('fullscreenchange', place);
+  // The anchor moves with the page, so a button left behind would float over something else.
+  if (opts.anchor) doc.addEventListener('scroll', hide, { capture: true, passive: true });
   place();
 
   const updateLabel = (shortcut: string) => {
@@ -170,6 +208,7 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
       hide();
       doc.removeEventListener('mousemove', onActivity, { capture: true });
       doc.removeEventListener('fullscreenchange', place);
+      doc.removeEventListener('scroll', hide, { capture: true });
       host.remove();
     },
   };

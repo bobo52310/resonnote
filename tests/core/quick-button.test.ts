@@ -83,3 +83,162 @@ describe('quick button', () => {
     expect(host()).toBeNull();
   });
 });
+
+describe('quick button with an anchor', () => {
+  // A 800x450 player 100px from the left and 50px from the top of a 1200x800 window.
+  const PLAYER = { left: 100, top: 50, right: 900, bottom: 500 };
+  let player: HTMLElement | null;
+
+  const moveMouseTo = (clientX: number, clientY: number) =>
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX, clientY }));
+
+  beforeEach(() => {
+    // Replace the default button from the outer beforeEach.
+    handle!.destroy();
+    (window as unknown as { happyDOM: { setViewport(v: object): void } }).happyDOM.setViewport({
+      width: 1200,
+      height: 800,
+    });
+    player = document.createElement('div');
+    player.getBoundingClientRect = () =>
+      ({
+        ...PLAYER,
+        x: PLAYER.left,
+        y: PLAYER.top,
+        width: PLAYER.right - PLAYER.left,
+        height: PLAYER.bottom - PLAYER.top,
+      }) as DOMRect;
+    document.body.append(player);
+    handle = mountQuickButton({
+      doc: document,
+      onPress,
+      isWatchPage: () => watch,
+      isBusy: () => busy,
+      anchor: () => player,
+    });
+  });
+
+  afterEach(() => {
+    player?.remove();
+    player = null;
+  });
+
+  it('shows when the mouse moves inside the anchor and not when it moves outside', () => {
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(true);
+    moveMouseTo(950, 300);
+    expect(visible()).toBe(false);
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(true);
+    moveMouseTo(500, 520);
+    expect(visible()).toBe(false);
+  });
+
+  it('counts the edges of the anchor as inside', () => {
+    moveMouseTo(PLAYER.left, PLAYER.top);
+    expect(visible()).toBe(true);
+    moveMouseTo(PLAYER.right, PLAYER.bottom);
+    expect(visible()).toBe(true);
+    moveMouseTo(PLAYER.left - 1, PLAYER.top);
+    expect(visible()).toBe(false);
+    moveMouseTo(PLAYER.right + 1, PLAYER.bottom);
+    expect(visible()).toBe(false);
+  });
+
+  it('sits 24px from the anchor right edge and 80px above its bottom edge', () => {
+    moveMouseTo(500, 300);
+    // 1200 - 900 + 24 and 800 - 500 + 80
+    expect(host()!.style.right).toBe('324px');
+    expect(host()!.style.bottom).toBe('380px');
+  });
+
+  it('follows the anchor when it moves or resizes', () => {
+    moveMouseTo(500, 300);
+    player!.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }) as DOMRect;
+    moveMouseTo(500, 300);
+    expect(host()!.style.right).toBe('24px');
+    expect(host()!.style.bottom).toBe('80px');
+  });
+
+  it('hides when the page scrolls, wherever the scrolling happens', () => {
+    moveMouseTo(500, 300);
+    document.dispatchEvent(new Event('scroll'));
+    expect(visible()).toBe(false);
+
+    const inner = document.createElement('div');
+    document.body.append(inner);
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(true);
+    inner.dispatchEvent(new Event('scroll'));
+    expect(visible()).toBe(false);
+    inner.remove();
+  });
+
+  it('still fades out after the mouse rests', () => {
+    moveMouseTo(500, 300);
+    vi.advanceTimersByTime(IDLE_HIDE_MS);
+    expect(visible()).toBe(false);
+  });
+
+  it('stays hidden off watch pages, while busy, and when the anchor is gone', () => {
+    watch = false;
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(false);
+    watch = true;
+    busy = true;
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(false);
+    busy = false;
+    player!.remove();
+    const gone = player;
+    player = null;
+    handle!.destroy();
+    handle = mountQuickButton({
+      doc: document,
+      onPress,
+      isWatchPage: () => true,
+      isBusy: () => false,
+      anchor: () => null,
+    });
+    moveMouseTo(500, 300);
+    expect(visible()).toBe(false);
+    gone?.remove();
+  });
+
+  it('goes into the fullscreen element when the player is fullscreen', () => {
+    const fullscreen = document.createElement('div');
+    document.body.append(fullscreen);
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreen });
+    try {
+      moveMouseTo(500, 300);
+      expect(host()!.parentElement).toBe(fullscreen);
+    } finally {
+      delete (document as unknown as { fullscreenElement?: unknown }).fullscreenElement;
+      fullscreen.remove();
+    }
+  });
+
+  it('is removed by destroy, scroll listener included', () => {
+    handle!.destroy();
+    handle = null;
+    expect(host()).toBeNull();
+    document.dispatchEvent(new Event('scroll'));
+    moveMouseTo(500, 300);
+    expect(host()).toBeNull();
+  });
+});
+
+describe('quick button without an anchor', () => {
+  it('is placed by the stylesheet only: no inline position, wherever the mouse is', () => {
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 }));
+    expect(visible()).toBe(true);
+    expect(host()!.style.right).toBe('');
+    expect(host()!.style.bottom).toBe('');
+  });
+
+  it('does not hide on scroll', () => {
+    moveMouse();
+    document.dispatchEvent(new Event('scroll'));
+    expect(visible()).toBe(true);
+  });
+});

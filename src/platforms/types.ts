@@ -25,5 +25,7 @@ export interface PlatformAdapter {
   hidePlayerUi(): () => void;
   /** JPEG bytes of the scrubber preview image at `timeMs`. */
   getTrickplayFrame(timeMs: number): Promise<Uint8Array | null>;
+  /** JPEG bytes of the current frame taken straight from the <video> (no subtitles), or null (DRM, no video). */
+  grabFrame?(): Promise<Uint8Array | null>;
   watchUrl(videoId: string, timeMs: number): string;
 }

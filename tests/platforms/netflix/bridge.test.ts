@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { callBridge } from '../../../src/platforms/netflix/bridge-protocol';
+import { callBridge } from '../../../src/platforms/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/netflix/page-bridge';
 
 const MAGIC = [0x89, 0x42, 0x49, 0x46, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -340,6 +340,11 @@ describe('page bridge', () => {
 
     expect(await callBridge('trickplay', 1000)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers null to a frame request: Netflix pictures are DRM-protected', async () => {
+    installNetflix(makePlayer());
+    expect(await callBridge('frame', undefined, 200)).toBeNull();
   });
 
   it('answers null for a failed download and retries it next time', async () => {

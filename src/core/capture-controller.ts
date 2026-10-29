@@ -3,10 +3,12 @@ import type { cropAndCheck } from './crop';
 import { formatTime, noteHeading } from './format';
 import type { BeginResult, RecentNote, SaveResult, ToBackground } from './messages';
 import type { OverlayHandle, OverlayResult, openOverlay } from './overlay/overlay';
-import type { ImageSource, Missing, Note, Playback, Rect } from './types';
+import type { ImageSource, Missing, Note, Platform, Playback, Rect } from './types';
 
 export interface CaptureControllerDeps {
   adapter: PlatformAdapter;
+  /** The site the adapter reads; written into every note. */
+  platform: Platform;
   cropAndCheck: typeof cropAndCheck;
   jpegBytesToDataUrl: (bytes: Uint8Array) => Promise<{ dataUrl: string; width: number; height: number }>;
   openOverlay: typeof openOverlay;
@@ -125,7 +127,10 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     }
   }
 
-  /** The cropped screenshot if it is usable, else the scrubber image, else nothing. */
+  /**
+   * The cropped screenshot if it is usable, else the frame the adapter drew from the <video>
+   * (full quality, no subtitles), else the scrubber image, else nothing.
+   */
   async function pickPicture(state: Snapshot, dataUrl: string | null): Promise<Picture> {
     if (dataUrl !== null && state.rect !== null) {
       try {
@@ -135,6 +140,25 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         }
       } catch (error) {
         console.warn('[scenenote] could not crop the screenshot', error);
+      }
+    }
+    if (adapter.grabFrame !== undefined) {
+      try {
+        const bytes = await adapter.grabFrame();
+        if (bytes !== null) {
+          const image = await deps.jpegBytesToDataUrl(bytes);
+          // Only the black-frame check is wanted from the crop; the picture itself is kept as drawn.
+          const check = await deps.cropAndCheck(
+            image.dataUrl,
+            { x: 0, y: 0, width: image.width, height: image.height },
+            1,
+          );
+          if (!check.blocked && image.width > 0 && image.height > 0) {
+            return { source: 'frame', dataUrl: image.dataUrl, width: image.width, height: image.height, missing: null };
+          }
+        }
+      } catch (error) {
+        console.warn('[scenenote] could not use the frame drawn from the video', error);
       }
     }
     try {
@@ -205,13 +229,16 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
       await adapter.pause();
       const picture = await pickPicture(state, dataUrl);
       const missing = picture.missing === null ? [...state.missing] : [...state.missing, picture.missing];
-      if (hint === 'use-shortcut-once' && picture.source !== 'tab') missing.push('useShortcutOnce');
+      // Only a low-quality or missing picture is worth the tip: a tab screenshot or a drawn frame is fine.
+      if (hint === 'use-shortcut-once' && (picture.source === 'trickplay' || picture.source === 'none')) {
+        missing.push('useShortcutOnce');
+      }
       const id = deps.uuid();
       const createdAt = deps.now().toISOString();
       const makeNote = (typed: Extract<OverlayResult, { action: 'save' }>): Note => ({
         ...state.playback,
         id,
-        platform: 'netflix',
+        platform: deps.platform,
         // Trailing spaces and blank lines would show up as empty blocks in the exports.
         subtitle: typed.subtitle.trimEnd(),
         body: typed.body.trimEnd(),
