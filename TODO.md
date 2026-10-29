@@ -7,7 +7,7 @@
 - [ ] 照 `docs/acceptance-2026-10-28.md` 在真的 Netflix 上跑一遍驗收，逐項勾通過／不通過
 - [x] 合併進 `main`（2026-10-29）
 - [x] 建 GitHub private repo 並推上去（2026-10-29）
-- [ ] 回 Notion「22 DB Side Project Ideas」的 scenenote 卡片補 GitHub 欄
+- [x] 回 Notion「22 DB Side Project Ideas」的 scenenote 卡片補 GitHub 欄（2026-10-29）
 
 ## 只有實機能確認的事
 
