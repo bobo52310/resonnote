@@ -1,5 +1,8 @@
 import { jumpTo, type JumpDeps } from '../background/jump';
+import { listRecent, RECENT_THUMB_WIDTH } from '../background/recent';
 import { handleSave } from '../background/save';
+import { getImage, listNotes } from '../core/db';
+import { downscaleJpeg } from '../export/image';
 import { handleTrigger, type TriggerDeps } from '../background/trigger';
 import type { JumpResult, ToBackground } from '../core/messages';
 
@@ -7,6 +10,16 @@ const CAPTURE_COMMAND = 'capture-scene';
 
 type SaveMessage = Extract<ToBackground, { type: 'scenenote/save' }>;
 type JumpMessage = Extract<ToBackground, { type: 'scenenote/jump' }>;
+type RecentMessage = Extract<ToBackground, { type: 'scenenote/recent' }>;
+
+function isRecentMessage(message: Record<string, unknown>): message is RecentMessage {
+  return (
+    message['type'] === 'scenenote/recent' &&
+    typeof message['videoId'] === 'string' &&
+    typeof message['limit'] === 'number' &&
+    Number.isInteger(message['limit'])
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -103,6 +116,16 @@ export default defineBackground(() => {
           sendResponse({ ok: false, error: String(error) } satisfies JumpResult);
         },
       );
+      return true;
+    }
+
+    if (isRecentMessage(message)) {
+      const limit = Math.min(Math.max(message.limit, 0), 5);
+      void listRecent(message.videoId, limit, {
+        listNotes,
+        getImage,
+        shrink: (bytes) => downscaleJpeg(bytes, RECENT_THUMB_WIDTH),
+      }).then(sendResponse);
       return true;
     }
 

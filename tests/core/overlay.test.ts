@@ -492,6 +492,61 @@ describe('focus and keys taken by the page', () => {
   });
 });
 
+describe('earlier notes stacked behind the picture', () => {
+  const earlier = (id: string, timeMs: number, body = '', thumb: string | null = 'data:image/jpeg;base64,QQ==') => ({
+    id,
+    timeMs,
+    subtitle: '台詞',
+    body,
+    thumb,
+  });
+  const cards = () => Array.from(shadow().querySelectorAll<HTMLElement>('[data-role="previous"]'));
+
+  it('stacks up to two earlier notes, the newest nearest the picture', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 925_000, '伏筆'), earlier('b', 725_000), earlier('c', 60_000)]);
+    const byDepth = cards().sort((x, y) => Number(x.dataset['depth']) - Number(y.dataset['depth']));
+    expect(byDepth.map((c) => c.querySelector('.prev-time')?.textContent)).toEqual(['15:25', '12:05']);
+    expect(byDepth.map((c) => c.dataset['depth'])).toEqual(['1', '2']);
+    expect(byDepth[0]!.querySelector('.prev-text')?.textContent).toBe('伏筆');
+    expect(byDepth[0]!.querySelector('img')?.getAttribute('src')).toBe('data:image/jpeg;base64,QQ==');
+    expect(shadow().querySelector('.stack')?.classList.contains('has-previous')).toBe(true);
+  });
+
+  it('shows the subtitle when the earlier note has no thoughts, and no image when it has none', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 1000, '', null)]);
+    const [card] = cards();
+    expect(card!.querySelector('img')).toBeNull();
+    expect(card!.querySelector('.prev-text')?.textContent).toBe('台詞');
+  });
+
+  it('keeps the new picture in front of the earlier ones', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 1000)]);
+    const deck = shadow().querySelector('.deck')!;
+    expect(deck.lastElementChild?.getAttribute('data-role')).toBe('thumb');
+  });
+
+  it('does nothing without a picture of its own, or once closed', () => {
+    const h = open({ thumbUrl: null });
+    h.showPrevious([earlier('a', 1000)]);
+    expect(cards()).toHaveLength(0);
+    h.close();
+    const h2 = open();
+    h2.close();
+    h2.showPrevious([earlier('a', 1000)]);
+    expect(mount.querySelectorAll('[data-scenenote-overlay]')).toHaveLength(0);
+  });
+
+  it('replaces the stack when called again', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 1000), earlier('b', 2000)]);
+    h.showPrevious([earlier('c', 3000)]);
+    expect(cards()).toHaveLength(1);
+  });
+});
+
 describe('clicking the dimmed backdrop', () => {
   const host = () => mount.querySelector<HTMLElement>('[data-scenenote-overlay]')!;
   function clickFrom(down: Element, up: Element = down) {

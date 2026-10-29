@@ -1,7 +1,7 @@
 import type { PlatformAdapter } from '../platforms/types';
 import type { cropAndCheck } from './crop';
 import { formatTime, noteHeading } from './format';
-import type { BeginResult, SaveResult, ToBackground } from './messages';
+import type { BeginResult, RecentNote, SaveResult, ToBackground } from './messages';
 import type { OverlayHandle, OverlayResult, openOverlay } from './overlay/overlay';
 import type { ImageSource, Missing, Note, Playback, Rect } from './types';
 
@@ -11,6 +11,8 @@ export interface CaptureControllerDeps {
   jpegBytesToDataUrl: (bytes: Uint8Array) => Promise<{ dataUrl: string; width: number; height: number }>;
   openOverlay: typeof openOverlay;
   sendToBackground: (msg: ToBackground) => Promise<SaveResult | void>;
+  /** The newest earlier notes of a video (newest first), shown stacked behind the new picture. */
+  loadRecent: (videoId: string) => Promise<RecentNote[]>;
   /** Where the overlay goes: `document.fullscreenElement ?? document.body`. */
   mount: () => Element;
   dpr: () => number;
@@ -224,6 +226,15 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         },
       });
       overlay = handle;
+      // Not awaited: the earlier notes slide in when they are ready, the user can type meanwhile.
+      void deps
+        .loadRecent(state.playback.videoId)
+        .then((notes) => {
+          if (notes.length > 0) handle.showPrevious(notes);
+        })
+        .catch((error: unknown) => {
+          console.warn('[scenenote] could not load the earlier notes', error);
+        });
       // Not awaited: the user may take minutes, and the caller only needs to know the overlay is up.
       void converse(handle, makeNote, picture.dataUrl).catch((error: unknown) => {
         console.error('[scenenote] the note overlay failed', error);

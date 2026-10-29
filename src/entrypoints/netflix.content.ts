@@ -1,6 +1,6 @@
 import { createCaptureController } from '../core/capture-controller';
 import { cropAndCheck, jpegBytesToDataUrl } from '../core/crop';
-import type { BeginResult, SaveResult, ToBackground, ToContent } from '../core/messages';
+import type { BeginResult, RecentNote, SaveResult, ToBackground, ToContent } from '../core/messages';
 import { openOverlay } from '../core/overlay/overlay';
 import { createNetflixAdapter } from '../platforms/netflix/adapter';
 
@@ -31,6 +31,14 @@ export default defineContentScript({
       openOverlay,
       sendToBackground: (msg: ToBackground) =>
         browser.runtime.sendMessage<ToBackground, SaveResult | void>(msg),
+      loadRecent: async (videoId: string) => {
+        const notes = await browser.runtime.sendMessage<ToBackground, RecentNote[] | undefined>({
+          type: 'scenenote/recent',
+          videoId,
+          limit: 2,
+        });
+        return Array.isArray(notes) ? notes : [];
+      },
       mount: () => document.fullscreenElement ?? document.body,
       dpr: () => window.devicePixelRatio,
       // Two frames: the first runs before the style change is painted, the second after.

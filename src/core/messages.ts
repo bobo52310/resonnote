@@ -13,7 +13,18 @@ export type ToContent =
 export type ToBackground =
   | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
   | { type: 'scenenote/open-notebook' }
-  | { type: 'scenenote/jump'; videoId: string; timeMs: number };
+  | { type: 'scenenote/jump'; videoId: string; timeMs: number }
+  | { type: 'scenenote/recent'; videoId: string; limit: number };
+
+/** One earlier note of the same video, as the note overlay shows it behind the new picture. */
+export interface RecentNote {
+  id: string;
+  timeMs: number;
+  subtitle: string;
+  body: string;
+  /** A small JPEG `data:` URL, or null when the note has no picture. */
+  thumb: string | null;
+}
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 

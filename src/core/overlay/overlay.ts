@@ -1,3 +1,5 @@
+import { formatTime } from '../format';
+import type { RecentNote } from '../messages';
 import type { Missing } from '../types';
 
 export const MISSING_LABELS: Record<Missing, string> = {
@@ -22,6 +24,11 @@ export interface OverlayHandle {
   close(): void;
   /** False once closed, or once the page has taken the overlay out of the document. */
   isOpen(): boolean;
+  /**
+   * Stacks up to two earlier notes of the same video behind the new picture, newest nearest.
+   * Does nothing when the overlay has no picture or is closed.
+   */
+  showPrevious(notes: RecentNote[]): void;
 }
 
 export interface OverlayOptions {
@@ -67,13 +74,119 @@ const OVERLAY_CSS = `
   gap: 16px;
   align-items: flex-start;
 }
-.thumb {
+.stack {
   flex: 0 0 240px;
   width: 240px;
+  transition: padding-top 0.25s ease;
+}
+.stack.has-previous {
+  padding-top: 50px;
+}
+.stack.has-previous:hover,
+.stack.has-previous:focus-within {
+  padding-top: 196px;
+}
+.deck {
+  position: relative;
   aspect-ratio: 16 / 9;
+}
+.thumb {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   border-radius: 6px;
   background: #000;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+}
+/* Earlier notes: the same box as the picture, scaled from the top and pushed up behind it. */
+.prev {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #2a2a2a;
+  transform-origin: top center;
+  opacity: 0;
+  transition: transform 0.25s ease, opacity 0.3s ease, filter 0.25s ease;
+}
+.prev img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.prev[data-depth='1'] {
+  z-index: 2;
+  opacity: 1;
+  transform: translateY(-22px) scale(0.93) rotate(-2deg);
+  filter: brightness(0.65);
+}
+.prev[data-depth='2'] {
+  z-index: 1;
+  opacity: 1;
+  transform: translateY(-46px) scale(0.86) rotate(2.5deg);
+  filter: brightness(0.45);
+}
+.stack:hover .prev[data-depth='1'],
+.stack:focus-within .prev[data-depth='1'] {
+  transform: translateY(-102px) scale(0.7) rotate(0deg);
+  filter: none;
+}
+.stack:hover .prev[data-depth='2'],
+.stack:focus-within .prev[data-depth='2'] {
+  transform: translateY(-185px) scale(0.55) rotate(0deg);
+  filter: none;
+}
+.prev-time {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+/* The back card tilts the other way, so its top-left corner is the part that shows. */
+.prev[data-depth='2'] .prev-time {
+  right: auto;
+  left: 8px;
+}
+.prev-text {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 18px 10px 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  font-size: 17px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.stack:hover .prev-text,
+.stack:focus-within .prev-text {
+  opacity: 1;
+}
+/* Cards fade and slide in from behind the picture when they arrive. */
+@starting-style {
+  .prev[data-depth] {
+    opacity: 0;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stack,
+  .prev,
+  .prev-text {
+    transition: none;
+  }
 }
 .info {
   flex: 1;
@@ -206,11 +319,18 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   panel.setAttribute('tabindex', '-1');
   const top = create('div', 'top');
 
+  // The picture sits in a deck, so earlier notes can be stacked behind it later (showPrevious).
+  let deck: HTMLDivElement | null = null;
+  let stack: HTMLDivElement | null = null;
   if (opts.thumbUrl !== null) {
+    stack = create('div', 'stack');
+    deck = create('div', 'deck');
     const thumb = create('img', 'thumb', 'thumb');
     thumb.setAttribute('src', opts.thumbUrl);
     thumb.alt = '';
-    top.appendChild(thumb);
+    deck.appendChild(thumb);
+    stack.appendChild(deck);
+    top.appendChild(stack);
   }
 
   const info = create('div', 'info');
@@ -400,5 +520,33 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     },
     // A host the page removed (without a save or cancel) must not keep the capture "busy" for ever.
     isOpen: () => open && host.isConnected,
+    showPrevious(notes) {
+      if (!open || deck === null || stack === null) return;
+      for (const old of deck.querySelectorAll('.prev')) old.remove();
+      const shown = notes.slice(0, 2);
+      shown.forEach((note, i) => {
+        const card = create('div', 'prev', 'previous');
+        const time = formatTime(note.timeMs);
+        const words = note.body.trim() || note.subtitle.trim();
+        card.title = words === '' ? time : `${time}　${words}`;
+        if (note.thumb !== null) {
+          const img = create('img');
+          img.setAttribute('src', note.thumb);
+          img.alt = '';
+          card.appendChild(img);
+        }
+        const label = create('span', 'prev-time');
+        label.textContent = time;
+        card.appendChild(label);
+        if (words !== '') {
+          const text = create('span', 'prev-text');
+          text.textContent = words;
+          card.appendChild(text);
+        }
+        card.setAttribute('data-depth', String(i + 1));
+        deck!.insertBefore(card, deck!.firstChild);
+      });
+      stack.classList.toggle('has-previous', shown.length > 0);
+    },
   };
 }

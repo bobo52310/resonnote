@@ -50,6 +50,7 @@ function fakeOverlay() {
       open = false;
     }),
     isOpen: () => open,
+    showPrevious: vi.fn(),
   };
   return {
     handle,
@@ -69,6 +70,7 @@ interface Harness {
     hidePlayerUi: Mock<PlatformAdapter['hidePlayerUi']>;
   };
   restoreUi: Mock<() => void>;
+  loadRecent: Mock<CaptureControllerDeps['loadRecent']>;
   nextFrame: Mock<() => Promise<void>>;
   overlay: ReturnType<typeof fakeOverlay>;
   openOverlay: Mock<(opts: OverlayOptions) => OverlayHandle>;
@@ -115,6 +117,7 @@ function setup(): Harness {
   const nextFrame = vi.fn(async () => {
     calls.push('nextFrame');
   });
+  const loadRecent = vi.fn<CaptureControllerDeps['loadRecent']>(async () => []);
   const openOverlay = vi.fn((_opts: OverlayOptions) => {
     calls.push('openOverlay');
     return overlay.handle;
@@ -143,6 +146,7 @@ function setup(): Harness {
     mount: () => mountEl,
     dpr: () => 2,
     nextFrame,
+    loadRecent,
     now: () => new Date('2026-10-28T10:00:00.000Z'),
     uuid: () => 'note-1',
   };
@@ -151,6 +155,7 @@ function setup(): Harness {
     adapter,
     restoreUi,
     nextFrame,
+    loadRecent,
     overlay,
     openOverlay,
     cropAndCheck,
@@ -197,6 +202,32 @@ function lastNote(): Note {
   if (!msg) throw new Error('no save message was sent');
   return msg.note;
 }
+
+describe('earlier notes behind the picture', () => {
+  const EARLIER = [{ id: 'old', timeMs: 900_000, subtitle: '早安', body: '伏筆', thumb: TRICKPLAY }];
+
+  it('asks for the earlier notes of the same video and hands them to the overlay', async () => {
+    h.loadRecent.mockResolvedValue(EARLIER);
+    await capture();
+    expect(h.loadRecent).toHaveBeenCalledWith(PLAYBACK.videoId);
+    await vi.waitFor(() => expect(h.overlay.handle.showPrevious).toHaveBeenCalledWith(EARLIER));
+  });
+
+  it('leaves the overlay alone when there are none, or when loading them fails', async () => {
+    h.loadRecent.mockResolvedValueOnce([]);
+    const { controller } = await capture();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.overlay.handle.showPrevious).not.toHaveBeenCalled();
+    h.overlay.press({ action: 'cancel' });
+    await vi.waitFor(() => expect(h.overlay.handle.close).toHaveBeenCalled());
+
+    h.loadRecent.mockRejectedValueOnce(new Error('gone'));
+    await controller.begin();
+    await controller.show(SCREENSHOT);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.overlay.handle.showPrevious).not.toHaveBeenCalled();
+  });
+});
 
 describe('player controls in the screenshot', () => {
   it('hides the controls and waits for a painted frame before begin answers', async () => {
