@@ -428,6 +428,70 @@ describe('focus stays inside the overlay after clicking its non-input parts', ()
   });
 });
 
+describe('focus and keys taken by the page', () => {
+  it('takes focus back to the note box when the page focuses one of its own elements', () => {
+    open();
+    const player = document.createElement('div');
+    player.tabIndex = 0;
+    document.body.append(player);
+    player.focus();
+    expect(shadow().activeElement).toBe(note());
+  });
+
+  it('takes focus back to the box the user was typing in', () => {
+    open();
+    subtitle().focus();
+    const player = document.createElement('button');
+    document.body.append(player);
+    player.focus();
+    expect(shadow().activeElement).toBe(subtitle());
+  });
+
+  it('takes focus back after a plain blur that leaves focus on the page body', async () => {
+    open();
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    note().blur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(shadow().activeElement).toBe(note());
+  });
+
+  it('keeps keys that land outside the overlay away from the page while it is open', () => {
+    open();
+    const pageKeys = vi.fn();
+    document.addEventListener('keydown', pageKeys);
+    try {
+      press(document.body, { key: ' ' });
+      expect(pageKeys).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keydown', pageKeys);
+    }
+  });
+
+  it('lets the page have its focus and keys back once closed', () => {
+    const h = open();
+    h.close();
+    const pageKeys = vi.fn();
+    document.addEventListener('keydown', pageKeys);
+    const player = document.createElement('button');
+    document.body.append(player);
+    try {
+      player.focus();
+      expect(document.activeElement).toBe(player);
+      press(document.body, { key: ' ' });
+      expect(pageKeys).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener('keydown', pageKeys);
+    }
+  });
+
+  it('still saves on Enter in the note box (its own keys are not blocked)', async () => {
+    const h = open();
+    note().value = '心得';
+    press(note(), { key: 'Enter' });
+    expect(await h.result).toEqual({ action: 'save', subtitle: '你好嗎', body: '心得' });
+  });
+});
+
 describe('showError and reopenResult', () => {
   it('keeps the overlay open with the typed text and shows the error', async () => {
     const h = open();

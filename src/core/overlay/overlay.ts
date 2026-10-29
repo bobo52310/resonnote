@@ -329,6 +329,43 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     if (!(origin instanceof Node) || !panel.contains(origin)) e.preventDefault();
   });
 
+  // --- guards against the page while the overlay is open -----------------
+  // Netflix moves focus back to its player now and then (and on some mouse moves). Keys typed
+  // after that went to Netflix: Space started the video and the rest of the text was lost.
+  // So focus taken outside is taken back to the box the user was in, and keys that land
+  // outside the overlay are kept from the page's handlers.
+  const win = doc.defaultView;
+  let lastFocused: HTMLElement = noteEl;
+  root.addEventListener('focusin', (e) => {
+    const origin = e.composedPath()[0];
+    if (origin instanceof HTMLElement && panel.contains(origin)) lastFocused = origin;
+  });
+  const fromOverlay = (e: Event) => e.composedPath().includes(host);
+  const active = () => open && host.isConnected;
+  const takeFocusBack = () => {
+    if (active()) lastFocused.focus({ preventScroll: true });
+  };
+  const onPageFocusIn = (e: FocusEvent) => {
+    if (active() && !fromOverlay(e)) takeFocusBack();
+  };
+  // A plain blur() moves focus to <body> without any focusin; check once the move is done.
+  const onOverlayFocusOut = () => {
+    setTimeout(() => {
+      if (!active() || !doc.hasFocus()) return;
+      if (doc.activeElement !== host) takeFocusBack();
+    }, 0);
+  };
+  const onPageKey = (e: Event) => {
+    if (active() && !fromOverlay(e)) e.stopImmediatePropagation();
+  };
+  doc.addEventListener('focusin', onPageFocusIn, true);
+  root.addEventListener('focusout', onOverlayFocusOut);
+  for (const type of KEYBOARD_EVENTS) win?.addEventListener(type, onPageKey, true);
+  const removeGuards = () => {
+    doc.removeEventListener('focusin', onPageFocusIn, true);
+    for (const type of KEYBOARD_EVENTS) win?.removeEventListener(type, onPageKey, true);
+  };
+
   opts.mount.appendChild(host);
   noteEl.focus();
 
@@ -347,6 +384,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     close() {
       if (!open) return;
       open = false;
+      removeGuards();
       host.remove();
     },
     // A host the page removed (without a save or cancel) must not keep the capture "busy" for ever.
