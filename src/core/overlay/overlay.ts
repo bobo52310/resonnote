@@ -232,7 +232,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   noteEl.placeholder = '寫下這一刻的心得（可以留空）';
 
   const hint = create('div', 'hint');
-  hint.textContent = 'Enter 存檔並繼續播放　Shift+Enter 換行　Esc 取消';
+  hint.textContent = 'Enter 存檔並繼續播放　Shift+Enter 換行　Esc 或點外面取消';
 
   panel.append(top, noteEl, hint);
 
@@ -324,9 +324,20 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   // shadow tree, so `e.target === host` would also be true for the textareas
   // and buttons and would block focus, caret and selection there. The first
   // entry of the composed path is the real origin.
-  host.addEventListener('mousedown', (e) => {
+  const onBackdrop = (e: Event) => {
     const origin = e.composedPath()[0];
-    if (!(origin instanceof Node) || !panel.contains(origin)) e.preventDefault();
+    return !(origin instanceof Node) || !panel.contains(origin);
+  };
+  // A click on the dimmed backdrop cancels, like Esc. Only when the press also started there:
+  // a text selection dragged from a box out onto the backdrop must not throw the note away.
+  let pressedOnBackdrop = false;
+  host.addEventListener('mousedown', (e) => {
+    pressedOnBackdrop = onBackdrop(e);
+    if (pressedOnBackdrop) e.preventDefault();
+  });
+  host.addEventListener('click', (e) => {
+    if (pressedOnBackdrop && onBackdrop(e)) settle({ action: 'cancel' });
+    pressedOnBackdrop = false;
   });
 
   // --- guards against the page while the overlay is open -----------------

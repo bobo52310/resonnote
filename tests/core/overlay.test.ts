@@ -492,6 +492,39 @@ describe('focus and keys taken by the page', () => {
   });
 });
 
+describe('clicking the dimmed backdrop', () => {
+  const host = () => mount.querySelector<HTMLElement>('[data-scenenote-overlay]')!;
+  function clickFrom(down: Element, up: Element = down) {
+    down.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true }));
+    up.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+  }
+
+  it('cancels like Esc', async () => {
+    const h = open();
+    clickFrom(host());
+    await expect(h.result).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('does not cancel on clicks inside the panel', async () => {
+    const h = open();
+    clickFrom(note());
+    clickFrom(el('[data-role="heading"]'));
+    clickFrom(el('.panel'));
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('does not cancel when a press inside the panel is released on the backdrop', async () => {
+    const h = open();
+    clickFrom(note(), host());
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('mentions it in the key hints', () => {
+    open();
+    expect(el('.hint').textContent).toContain('點外面取消');
+  });
+});
+
 describe('showError and reopenResult', () => {
   it('keeps the overlay open with the typed text and shows the error', async () => {
     const h = open();
