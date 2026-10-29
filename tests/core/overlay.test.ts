@@ -492,7 +492,7 @@ describe('focus and keys taken by the page', () => {
   });
 });
 
-describe('earlier notes stacked behind the picture', () => {
+describe('film strip of earlier notes', () => {
   const earlier = (id: string, timeMs: number, body = '', thumb: string | null = 'data:image/jpeg;base64,QQ==') => ({
     id,
     timeMs,
@@ -500,50 +500,62 @@ describe('earlier notes stacked behind the picture', () => {
     body,
     thumb,
   });
-  const cards = () => Array.from(shadow().querySelectorAll<HTMLElement>('[data-role="previous"]'));
+  const frames = () => Array.from(shadow().querySelectorAll<HTMLElement>('.frame'));
+  const times = () => frames().map((f) => f.querySelector('.frame-time')?.textContent);
 
-  it('stacks up to two earlier notes, the newest nearest the picture', () => {
+  it('runs oldest to newest, then this moment, with at most two earlier notes', () => {
     const h = open();
     h.showPrevious([earlier('a', 925_000, '伏筆'), earlier('b', 725_000), earlier('c', 60_000)]);
-    const byDepth = cards().sort((x, y) => Number(x.dataset['depth']) - Number(y.dataset['depth']));
-    expect(byDepth.map((c) => c.querySelector('.prev-time')?.textContent)).toEqual(['15:25', '12:05']);
-    expect(byDepth.map((c) => c.dataset['depth'])).toEqual(['1', '2']);
-    expect(byDepth[0]!.querySelector('.prev-text')?.textContent).toBe('伏筆');
-    expect(byDepth[0]!.querySelector('img')?.getAttribute('src')).toBe('data:image/jpeg;base64,QQ==');
-    expect(shadow().querySelector('.stack')?.classList.contains('has-previous')).toBe(true);
+    expect(times()).toEqual(['12:05', '15:25', '16:43']);
+    expect(frames().map((f) => f.dataset['age'] ?? 'now')).toEqual(['2', '1', 'now']);
+    expect(frames()[2]!.classList.contains('now')).toBe(true);
+    expect(frames()[2]!.querySelector('img')?.getAttribute('src')).toBe('blob:thumb-1');
+    expect(shadow().querySelectorAll('[data-role="previous"]')).toHaveLength(2);
   });
 
-  it('shows the subtitle when the earlier note has no thoughts, and no image when it has none', () => {
+  it('sits at the top of the panel', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 1000)]);
+    expect(el('.panel').firstElementChild?.classList.contains('film')).toBe(true);
+  });
+
+  it('captions the latest earlier note, and the hovered frame on mouseenter', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 925_000, '伏筆'), earlier('b', 725_000)]);
+    const caption = el('.film-caption');
+    expect(caption.textContent).toBe('15:25伏筆');
+    frames()[0]!.dispatchEvent(new MouseEvent('mouseenter'));
+    // no thoughts: the subtitle stands in
+    expect(caption.textContent).toBe('12:05台詞');
+    el('.frames').dispatchEvent(new MouseEvent('mouseleave'));
+    expect(caption.textContent).toBe('15:25伏筆');
+  });
+
+  it('draws an empty frame for an earlier note without a picture', () => {
     const h = open();
     h.showPrevious([earlier('a', 1000, '', null)]);
-    const [card] = cards();
-    expect(card!.querySelector('img')).toBeNull();
-    expect(card!.querySelector('.prev-text')?.textContent).toBe('台詞');
+    expect(frames()[0]!.querySelector('img')).toBeNull();
   });
 
-  it('keeps the new picture in front of the earlier ones', () => {
-    const h = open();
-    h.showPrevious([earlier('a', 1000)]);
-    const deck = shadow().querySelector('.deck')!;
-    expect(deck.lastElementChild?.getAttribute('data-role')).toBe('thumb');
-  });
-
-  it('does nothing without a picture of its own, or once closed', () => {
+  it('does nothing without a picture of its own, with no earlier notes, or once closed', () => {
     const h = open({ thumbUrl: null });
     h.showPrevious([earlier('a', 1000)]);
-    expect(cards()).toHaveLength(0);
+    expect(shadow().querySelector('.film')).toBeNull();
     h.close();
     const h2 = open();
+    h2.showPrevious([]);
+    expect(shadow().querySelector('.film')).toBeNull();
     h2.close();
     h2.showPrevious([earlier('a', 1000)]);
     expect(mount.querySelectorAll('[data-scenenote-overlay]')).toHaveLength(0);
   });
 
-  it('replaces the stack when called again', () => {
+  it('replaces the strip when called again', () => {
     const h = open();
     h.showPrevious([earlier('a', 1000), earlier('b', 2000)]);
     h.showPrevious([earlier('c', 3000)]);
-    expect(cards()).toHaveLength(1);
+    expect(shadow().querySelectorAll('.film')).toHaveLength(1);
+    expect(frames()).toHaveLength(2);
   });
 });
 

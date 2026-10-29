@@ -74,117 +74,136 @@ const OVERLAY_CSS = `
   gap: 16px;
   align-items: flex-start;
 }
-.stack {
+.thumb {
   flex: 0 0 240px;
   width: 240px;
-  transition: padding-top 0.25s ease;
-}
-.stack.has-previous {
-  padding-top: 50px;
-}
-.stack.has-previous:hover,
-.stack.has-previous:focus-within {
-  padding-top: 196px;
-}
-.deck {
-  position: relative;
   aspect-ratio: 16 / 9;
-}
-.thumb {
-  position: relative;
-  z-index: 3;
-  display: block;
-  width: 100%;
-  height: 100%;
   object-fit: cover;
   border-radius: 6px;
   background: #000;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
 }
-/* Earlier notes: the same box as the picture, scaled from the top and pushed up behind it. */
-.prev {
+/* Film strip of the earlier notes of this video: oldest left, this moment at the right end. */
+.film {
+  --hole: rgba(235, 225, 205, 0.85);
+  position: relative;
+  margin: -4px -4px 14px;
+  padding: 16px 14px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #1c1813, #0f0d0a 50%, #1c1813);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.5);
+  transform: rotate(-0.6deg);
+}
+/* Sprocket holes along both edges. */
+.film::before,
+.film::after {
+  content: '';
   position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: 6px;
-  background: #2a2a2a;
-  transform-origin: top center;
-  opacity: 0;
-  transition: transform 0.25s ease, opacity 0.3s ease, filter 0.25s ease;
+  left: 6px;
+  right: 6px;
+  height: 6px;
+  background: repeating-linear-gradient(90deg, var(--hole) 0 8px, transparent 8px 18px);
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 60%, transparent 62%) 0 0 / 18px 6px;
+  border-radius: 2px;
+  opacity: 0.8;
 }
-.prev img {
+.film::before {
+  top: 5px;
+}
+.film::after {
+  bottom: 5px;
+}
+.film-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.frames {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 8px;
+}
+.frame {
+  position: relative;
+  flex: none;
+  margin: 0;
+  border: 2px solid #000;
+  border-radius: 2px;
+  background: #2a2620;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+.frame img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: sepia(0.25) saturate(0.9);
 }
-.prev[data-depth='1'] {
-  z-index: 2;
-  opacity: 1;
-  transform: translateY(-22px) scale(0.93) rotate(-2deg);
-  filter: brightness(0.65);
+.frame[data-age='2'] {
+  height: 72px;
+  opacity: 0.75;
 }
-.prev[data-depth='2'] {
-  z-index: 1;
-  opacity: 1;
-  transform: translateY(-46px) scale(0.86) rotate(2.5deg);
-  filter: brightness(0.45);
+.frame[data-age='1'] {
+  height: 88px;
+  opacity: 0.9;
 }
-.stack:hover .prev[data-depth='1'],
-.stack:focus-within .prev[data-depth='1'] {
-  transform: translateY(-102px) scale(0.7) rotate(0deg);
+.frame.now {
+  height: 104px;
+  border-color: #e50914;
+}
+.frame.now img {
   filter: none;
 }
-.stack:hover .prev[data-depth='2'],
-.stack:focus-within .prev[data-depth='2'] {
-  transform: translateY(-185px) scale(0.55) rotate(0deg);
-  filter: none;
-}
-.prev-time {
+/* Edge code: the time printed on the film under each frame. */
+.frame-time {
   position: absolute;
-  top: 2px;
-  right: 8px;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.7);
+  left: 4px;
+  bottom: 2px;
+  color: #ffb547;
+  font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 2px #000;
+}
+.frame.now .frame-time {
   color: #fff;
+}
+.frame.now .frame-time::before {
+  content: '● ';
+  color: #e50914;
+}
+.arrow {
+  align-self: center;
+  color: rgba(235, 225, 205, 0.45);
+  font-size: 14px;
+}
+.film-caption {
+  flex: 1;
+  min-width: 0;
+  color: #d9cfbd;
   font-size: 13px;
-  line-height: 18px;
-  font-variant-numeric: tabular-nums;
-}
-/* The back card tilts the other way, so its top-left corner is the part that shows. */
-.prev[data-depth='2'] .prev-time {
-  right: auto;
-  left: 8px;
-}
-.prev-text {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 18px 10px 6px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-  font-size: 17px;
-  line-height: 1.3;
-  white-space: nowrap;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0;
-  transition: opacity 0.2s ease;
 }
-.stack:hover .prev-text,
-.stack:focus-within .prev-text {
-  opacity: 1;
+.film-caption b {
+  display: block;
+  color: #ffb547;
+  font: 600 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-/* Cards fade and slide in from behind the picture when they arrive. */
 @starting-style {
-  .prev[data-depth] {
+  .film {
     opacity: 0;
-    transform: none;
+    transform: translateX(24px) rotate(-0.6deg);
   }
 }
+.film {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
 @media (prefers-reduced-motion: reduce) {
-  .stack,
-  .prev,
-  .prev-text {
+  .film {
     transition: none;
   }
 }
@@ -319,18 +338,11 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   panel.setAttribute('tabindex', '-1');
   const top = create('div', 'top');
 
-  // The picture sits in a deck, so earlier notes can be stacked behind it later (showPrevious).
-  let deck: HTMLDivElement | null = null;
-  let stack: HTMLDivElement | null = null;
   if (opts.thumbUrl !== null) {
-    stack = create('div', 'stack');
-    deck = create('div', 'deck');
     const thumb = create('img', 'thumb', 'thumb');
     thumb.setAttribute('src', opts.thumbUrl);
     thumb.alt = '';
-    deck.appendChild(thumb);
-    stack.appendChild(deck);
-    top.appendChild(stack);
+    top.appendChild(thumb);
   }
 
   const info = create('div', 'info');
@@ -521,32 +533,63 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     // A host the page removed (without a save or cancel) must not keep the capture "busy" for ever.
     isOpen: () => open && host.isConnected,
     showPrevious(notes) {
-      if (!open || deck === null || stack === null) return;
-      for (const old of deck.querySelectorAll('.prev')) old.remove();
+      if (!open || opts.thumbUrl === null) return;
+      panel.querySelector('.film')?.remove();
       const shown = notes.slice(0, 2);
-      shown.forEach((note, i) => {
-        const card = create('div', 'prev', 'previous');
-        const time = formatTime(note.timeMs);
-        const words = note.body.trim() || note.subtitle.trim();
-        card.title = words === '' ? time : `${time}　${words}`;
-        if (note.thumb !== null) {
+      if (shown.length === 0) return;
+
+      const film = create('div', 'film', 'film');
+      const body = create('div', 'film-body');
+      const frames = create('div', 'frames');
+      const caption = create('div', 'film-caption');
+      const describe = (time: string, words: string) => (words === '' ? time : `${time}　${words}`);
+      const showCaption = (time: string, words: string) => {
+        const code = create('b');
+        code.textContent = time;
+        caption.replaceChildren(code, doc.createTextNode(words));
+      };
+
+      const addFrame = (thumb: string | null, time: string, words: string, extra: (el: HTMLElement) => void) => {
+        const frame = create('figure', 'frame');
+        if (thumb !== null) {
           const img = create('img');
-          img.setAttribute('src', note.thumb);
+          img.setAttribute('src', thumb);
           img.alt = '';
-          card.appendChild(img);
+          frame.appendChild(img);
         }
-        const label = create('span', 'prev-time');
-        label.textContent = time;
-        card.appendChild(label);
-        if (words !== '') {
-          const text = create('span', 'prev-text');
-          text.textContent = words;
-          card.appendChild(text);
+        const code = create('span', 'frame-time');
+        code.textContent = time;
+        frame.appendChild(code);
+        frame.title = describe(time, words);
+        frame.addEventListener('mouseenter', () => showCaption(time, words));
+        extra(frame);
+        if (frames.childElementCount > 0) {
+          const arrow = create('span', 'arrow');
+          arrow.textContent = '›';
+          frames.appendChild(arrow);
         }
-        card.setAttribute('data-depth', String(i + 1));
-        deck!.insertBefore(card, deck!.firstChild);
+        frames.appendChild(frame);
+      };
+
+      // Oldest first, so the strip reads left to right like the film runs.
+      [...shown].reverse().forEach((note, i) => {
+        const words = note.body.trim() || note.subtitle.trim();
+        addFrame(note.thumb, formatTime(note.timeMs), words, (el) => {
+          el.setAttribute('data-role', 'previous');
+          el.setAttribute('data-age', String(shown.length - i));
+        });
       });
-      stack.classList.toggle('has-previous', shown.length > 0);
+      addFrame(opts.thumbUrl, opts.time, '這一刻', (el) => el.classList.add('now'));
+      // At rest the caption tells the latest earlier note; hovering a frame shows that one.
+      const latest = shown[0]!;
+      const showLatest = () =>
+        showCaption(formatTime(latest.timeMs), latest.body.trim() || latest.subtitle.trim());
+      showLatest();
+      frames.addEventListener('mouseleave', showLatest);
+
+      body.append(frames, caption);
+      film.append(body);
+      panel.insertBefore(film, panel.firstChild);
     },
   };
 }
