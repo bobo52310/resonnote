@@ -100,8 +100,33 @@ kbd:empty {
 }
 `;
 
-/** A picture frame with a pencil: "note this scene". */
-const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.5"/><path d="M14 20.5l1-3.5 6-6 2.5 2.5-6 6z"/></svg>`;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * A picture frame with a pencil: "note this scene". Built node by node rather than through
+ * innerHTML: YouTube enforces Trusted Types, which rejects HTML strings in the page's own world.
+ */
+function createIcon(doc: Document): SVGSVGElement {
+  const svg = doc.createElementNS(SVG_NS, 'svg');
+  const attrs: Record<string, string> = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  };
+  for (const [name, value] of Object.entries(attrs)) svg.setAttribute(name, value);
+  const frame = doc.createElementNS(SVG_NS, 'rect');
+  for (const [name, value] of Object.entries({ x: '2.5', y: '4.5', width: '15', height: '11', rx: '1.5' })) {
+    frame.setAttribute(name, value);
+  }
+  const pencil = doc.createElementNS(SVG_NS, 'path');
+  pencil.setAttribute('d', 'M14 20.5l1-3.5 6-6 2.5 2.5-6 6z');
+  svg.append(frame, pencil);
+  return svg;
+}
 
 /** Events that would reach the site's player (play/pause, fullscreen, shortcuts) if not stopped. */
 const STOPPED_EVENTS = [
@@ -126,7 +151,7 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
   style.textContent = BUTTON_CSS;
   const button = doc.createElement('button');
   button.type = 'button';
-  button.innerHTML = ICON;
+  button.append(createIcon(doc));
   const label = doc.createElement('span');
   label.textContent = '記下這一刻';
   const kbd = doc.createElement('kbd');

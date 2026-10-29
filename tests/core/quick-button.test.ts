@@ -33,6 +33,18 @@ describe('quick button', () => {
     expect(visible()).toBe(true);
   });
 
+  it('draws its icon as SVG nodes, not an HTML string (YouTube enforces Trusted Types)', () => {
+    const setter = vi.spyOn(Element.prototype, 'innerHTML', 'set');
+    handle?.destroy();
+    handle = mountQuickButton({ doc: document, onPress, isWatchPage: () => watch, isBusy: () => busy });
+    expect(setter).not.toHaveBeenCalled();
+    setter.mockRestore();
+    const svg = button().querySelector('svg');
+    expect(svg?.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(svg?.querySelector('rect')).not.toBeNull();
+    expect(svg?.querySelector('path')?.getAttribute('d')).toBe('M14 20.5l1-3.5 6-6 2.5 2.5-6 6z');
+  });
+
   it('fades out after the mouse rests, and comes back on the next move', () => {
     moveMouse();
     vi.advanceTimersByTime(IDLE_HIDE_MS - 1);
