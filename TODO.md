@@ -1,11 +1,12 @@
 # TODO — scenenote
 
-> 2026-10-28：v1 程式完成（431 項自動測試通過），在 `feat/v1` 分支，**還沒合併進 `main`、還沒推 GitHub**。
+> 2026-10-28：v1 程式完成（431 項自動測試通過）。2026-10-29 已合併進 `main`（本機）；**還沒推 GitHub**（沒有 remote）。
 
 ## 🔴 下一步
 
 - [ ] 照 `docs/acceptance-2026-10-28.md` 在真的 Netflix 上跑一遍驗收，逐項勾通過／不通過
-- [ ] 驗收沒問題 → 決定要不要合併進 `main`、要不要建 GitHub private repo（建了記得回 Notion「22 DB Side Project Ideas」補 GitHub 欄）
+- [x] 合併進 `main`（2026-10-29）
+- [ ] 決定要不要建 GitHub private repo（建了記得回 Notion「22 DB Side Project Ideas」補 GitHub 欄）
 
 ## 只有實機能確認的事
 
