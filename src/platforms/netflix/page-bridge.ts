@@ -17,6 +17,16 @@ import { parseWatchVideoId } from './url';
 const INSTALLED = Symbol.for('scenenote.page-bridge');
 const BIF_URL = /\.bif(\?|$)/;
 
+/**
+ * Netflix's own title endpoint. Since late 2026 the player state's `videoMetadata` is often empty,
+ * so this is where titles come from then. For an episode id it answers with the whole show
+ * (`seasons[].seq`, `seasons[].episodes[].{id, seq, title}`), measured 2026-10-29.
+ */
+const metadataUrl = (movieId: number) => `/nq/website/memberapi/release/metadata?movieid=${movieId}`;
+/** How long a capture waits for a title that is not loaded yet; it must not hold up the screenshot. */
+const META_WAIT_MS = 600;
+const META_CACHE_SIZE = 50;
+
 /** Reads `keys` down from `root`; `undefined` as soon as a step is missing. */
 function dig(root: unknown, ...keys: string[]): unknown {
   let node: unknown = root;
@@ -87,7 +97,10 @@ function getPlayer(win: Window): unknown {
   return call(videoPlayer, 'getVideoPlayerBySessionId', ids[ids.length - 1]) ?? null;
 }
 
-function readMeta(win: Window, movieId: number) {
+type Meta = ReturnType<typeof mapNetflixMetadata>;
+
+/** The title from the player state, when Netflix still keeps it there. */
+function readStateMeta(win: Window, movieId: number): Meta {
   try {
     const playerApp = dig(win, 'netflix', 'appContext', 'state', 'playerApp');
     const state = call(playerApp, 'getState');
@@ -99,13 +112,54 @@ function readMeta(win: Window, movieId: number) {
   }
 }
 
-function playback(win: Window) {
+/** Titles by movie id, newest last. A failed download is dropped so the next capture retries. */
+const metaCache = new Map<number, Promise<Meta>>();
+
+/** Downloads (once) the title of `movieId` from Netflix's title endpoint. */
+function fetchMeta(win: Window, movieId: number): Promise<Meta> {
+  const cached = metaCache.get(movieId);
+  if (cached) return cached;
+  const loading = (async (): Promise<Meta> => {
+    const response = await win.fetch(metadataUrl(movieId), { credentials: 'include' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return mapNetflixMetadata(dig(await response.json(), 'video'), movieId);
+  })().catch((error: unknown) => {
+    warnOnce('title metadata download', error);
+    return null;
+  });
+  metaCache.set(movieId, loading);
+  if (metaCache.size > META_CACHE_SIZE) {
+    const oldest = metaCache.keys().next().value;
+    if (oldest !== undefined) metaCache.delete(oldest);
+  }
+  void loading.then((meta) => {
+    if (meta === null && metaCache.get(movieId) === loading) metaCache.delete(movieId);
+  });
+  return loading;
+}
+
+/** The player state's title, else the downloaded one if it arrives within META_WAIT_MS. */
+async function readMeta(win: Window, movieId: number): Promise<Meta> {
+  const fromState = readStateMeta(win, movieId);
+  if (fromState !== null) return fromState;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), META_WAIT_MS);
+  });
+  try {
+    return await Promise.race([fetchMeta(win, movieId), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function playback(win: Window) {
   const player = getPlayer(win);
   if (!player) return null;
   const movieId = call(player, 'getMovieId');
   const timeMs = call(player, 'getCurrentTime');
   if (!finiteNumber(movieId) || !finiteNumber(timeMs)) return null;
-  return { videoId: String(movieId), timeMs, meta: readMeta(win, movieId) };
+  return { videoId: String(movieId), timeMs, meta: await readMeta(win, movieId) };
 }
 
 function control(win: Window, method: 'pause' | 'play' | 'seek', timeMs?: number): boolean {
@@ -223,4 +277,16 @@ export function installPageBridge(win: Window): void {
     const data: unknown = event.data;
     if (isBridgeRequest(data)) void respond(win, data);
   });
+
+  // Netflix changes pages without reloading, so the watch URL is checked now and then and the
+  // title of a newly opened video is downloaded ahead of the first capture.
+  if (/(^|\.)netflix\.com$/.test(win.location.hostname)) {
+    let lastId: string | null = null;
+    win.setInterval(() => {
+      const id = parseWatchVideoId(win.location.href);
+      if (id === null || id === lastId) return;
+      lastId = id;
+      void fetchMeta(win, Number(id));
+    }, 1000);
+  }
 }

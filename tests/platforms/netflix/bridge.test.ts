@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { callBridge } from '../../../src/platforms/netflix/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/netflix/page-bridge';
 
@@ -117,6 +117,11 @@ function stubBif(url: string, buf: ArrayBuffer | null) {
   return fetchMock;
 }
 
+// No test reaches the network: the title download fails unless a test says otherwise.
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })));
+});
+
 afterEach(() => {
   setPageUrl(HOME_URL);
   removeNetflix();
@@ -148,6 +153,67 @@ describe('page bridge', () => {
   it('still answers playback when the metadata cannot be read', async () => {
     installNetflix(makePlayer(), {});
     expect(await callBridge('playback')).toEqual({ videoId: '83053998', timeMs: 1003469, meta: null });
+  });
+
+  it('downloads the title from Netflix when the player state has none', async () => {
+    const fetchMock = vi.fn(async (_url: string) => ({ ok: true, json: async () => ({ video: { ...MOVIE, id: 7001 } }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    installNetflix(makePlayer({ getMovieId: () => 7001 }), {});
+    expect(await callBridge('playback')).toEqual({ videoId: '7001', timeMs: 1003469, meta: { title: '造山者－世紀的賭注' } });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/nq/website/memberapi/release/metadata?movieid=7001');
+    // cached: a second capture does not download again
+    await callBridge('playback');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds season and episode in the show Netflix answers with for an episode id', async () => {
+    const show = {
+      type: 'show',
+      title: '新手上路',
+      id: 83124329,
+      seasons: [{ seq: 1, episodes: [{ id: 7101, seq: 1, title: '第 1 集' }, { id: 7102, seq: 2, title: '重新開始' }] }],
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ video: show }) })));
+    installNetflix(makePlayer({ getMovieId: () => 7102 }), {});
+    expect(await callBridge('playback')).toEqual({
+      videoId: '7102',
+      timeMs: 1003469,
+      meta: { title: '新手上路', season: 1, episode: 2, episodeTitle: '重新開始' },
+    });
+  });
+
+  it('does not hold up the capture for a slow title download, and uses it next time', async () => {
+    let finish!: () => void;
+    const answered = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        await answered;
+        return { ok: true, json: async () => ({ video: { ...MOVIE, id: 7201 } }) };
+      }),
+    );
+    installNetflix(makePlayer({ getMovieId: () => 7201 }), {});
+    const started = Date.now();
+    expect(await callBridge('playback')).toEqual({ videoId: '7201', timeMs: 1003469, meta: null });
+    expect(Date.now() - started).toBeLessThan(950);
+    finish();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await callBridge<{ meta: unknown }>('playback'))?.meta).toEqual({ title: '造山者－世紀的賭注' });
+  });
+
+  it('downloads again after a failed title download', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ video: { ...MOVIE, id: 7301 } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    installNetflix(makePlayer({ getMovieId: () => 7301 }), {});
+    expect((await callBridge<{ meta: unknown }>('playback'))?.meta).toBeNull();
+    expect((await callBridge<{ meta: unknown }>('playback'))?.meta).toEqual({ title: '造山者－世紀的賭注' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('answers null when there is no netflix global, no session or a bad time', async () => {

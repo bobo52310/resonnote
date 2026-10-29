@@ -195,3 +195,5 @@ main world 與內容腳本之間用 `window.postMessage`（帶固定的訊息前
 2026-10-28 已確認並寫回 §3／§4／§6 的：網址 `?t=`、`pause()`、`getTrickPlayFrame`、電影 metadata、Language Reactor 字幕 DOM、控制列不需隱藏。
 
 還沒確認的只剩一項：**影集的季、集**在 metadata 裡的結構。實作先假設 `type === 'show'` 時有 `seasons[].seq`、`seasons[].episodes[].{id, seq, title}`，以目前播放的 `movieId` 對到集；對不到就只記劇名。由驗收清單第 3 項確認。
+
+**2026-10-29 實測更新**：播放器狀態的 `videoMetadata` 常常是空的（`{}`），所以筆記都顯示「沒抓到片名」。改成在讀不到時呼叫 Netflix 的 `/nq/website/memberapi/release/metadata?movieid=<id>`，它回傳的 `video` 和原本 `_metadata.video` 同形。用單集 id 查會回整部影集，`seasons[].seq`、`seasons[].episodes[].{id, seq, title}` 的假設成立（以《新手上路》驗證，單集標題常只是「第 2 集」，這種標題不另外記）。頁面橋接在進入播放頁時先下載並快取，記錄時最多等 600 ms，不拖慢截圖。

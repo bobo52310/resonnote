@@ -2,6 +2,8 @@ import type { Playback } from '../../core/types';
 
 type NetflixMeta = Pick<Playback, 'title' | 'season' | 'episode' | 'episodeTitle'>;
 
+const GENERIC_EPISODE_TITLE = /^\s*(第\s*\d+\s*集|episode\s*\d+)\s*$/i;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -43,7 +45,10 @@ export function mapNetflixMetadata(video: unknown, movieId: number): NetflixMeta
     const episodeTitle = episode['title'];
     if (seasonNumber !== undefined) result.season = seasonNumber;
     if (episodeNumber !== undefined) result.episode = episodeNumber;
-    if (typeof episodeTitle === 'string' && episodeTitle !== '') result.episodeTitle = episodeTitle;
+    // Many shows name their episodes just 「第 2 集」/「Episode 2」, which the heading already says.
+    if (typeof episodeTitle === 'string' && episodeTitle !== '' && !GENERIC_EPISODE_TITLE.test(episodeTitle)) {
+      result.episodeTitle = episodeTitle;
+    }
     break;
   }
   return result;
