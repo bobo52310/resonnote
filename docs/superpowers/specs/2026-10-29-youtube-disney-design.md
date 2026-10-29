@@ -72,7 +72,7 @@ Disney+ 的連結文字刻意寫出「這一刻在 16:43」：分享出去的網
 - 截圖選圖順序：分頁截圖裁切（沒被擋）→ **轉接層的原畫面（`grabFrame`，YouTube）** → 進度條小圖（Netflix）→ 沒有圖。「先用一次快捷鍵」的提示只在最後拿到的是進度條小圖或沒有圖時顯示。
 - **YouTube 轉接層**
   - 秒數、片名、videoId：橋接讀 `getVideoData()`、`getCurrentTime()`；讀不到就退回網址＋`<video>.currentTime`＋分頁標題（去掉開頭的「(3) 」通知數與結尾的「 - YouTube」）。
-  - 廣告播放中（播放器有 `ad-showing` class）：`getPlayback` 回 `null`，不記（廣告的秒數不是影片的秒數）。
+  - 廣告播放中（播放器有 `ad-showing` class）：`getPlayback` 回 `null`，不記（廣告的秒數不是影片的秒數）；頁面按鈕也不出現（`watchVideoId` 在廣告中回 `null`）。
   - 播放器：網址是 `/shorts/` 用 `#shorts-player`，其他用 `#movie_player`；`<video>` 取該播放器裡的 `video.html5-main-video`。
   - 暫停、播放、跳秒：橋接呼叫播放器方法；不行就直接操作 `<video>`（YouTube 沒有 DRM，`currentTime` 可以設）。
   - 台詞：略過含 `<svg>` 的字幕視窗，其餘視窗的每一行以空白相接；沒有就讀 Language Reactor（`#lln-main-subs`，同 v1 的清理規則）。

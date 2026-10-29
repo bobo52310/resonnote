@@ -71,6 +71,11 @@ export function findPlayer(doc: Document): HTMLElement | null {
   return doc.getElementById(shorts ? 'shorts-player' : 'movie_player');
 }
 
+/** True while YouTube plays an ad in the page's player (its time and picture are the ad's). */
+export function isAdShowing(doc: Document): boolean {
+  return findPlayer(doc)?.classList.contains('ad-showing') === true;
+}
+
 export function createYouTubeAdapter(doc: Document): PlatformAdapter {
   // Everything is read at call time: YouTube is a single-page app, so the same content
   // script instance outlives a change of video.
@@ -83,7 +88,7 @@ export function createYouTubeAdapter(doc: Document): PlatformAdapter {
     );
   };
 
-  const adIsShowing = () => findPlayer(doc)?.classList.contains('ad-showing') === true;
+  const adIsShowing = () => isAdShowing(doc);
 
   /** Cleaned tab title, or the video id when that leaves nothing. */
   const fallbackTitle = (videoId: string) => {

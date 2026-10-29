@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { contentRect } from '../../../src/core/capture-math';
 import { askBridge } from '../../../src/platforms/bridge-protocol';
-import { createYouTubeAdapter, findPlayer } from '../../../src/platforms/youtube/adapter';
+import { createYouTubeAdapter, findPlayer, isAdShowing } from '../../../src/platforms/youtube/adapter';
 import { installPageBridge } from '../../../src/platforms/youtube/page-bridge';
 
 vi.mock('../../../src/platforms/bridge-protocol', async (importOriginal) => ({
@@ -90,6 +90,23 @@ describe('findPlayer', () => {
     expect(findPlayer(document)).toBeNull();
     addPlayer('shorts-player', null);
     expect(findPlayer(document)).toBeNull();
+  });
+});
+
+describe('isAdShowing', () => {
+  it("follows the page player's ad-showing class", () => {
+    expect(isAdShowing(document)).toBe(false);
+    const movie = addPlayer('movie_player', null);
+    expect(isAdShowing(document)).toBe(false);
+    movie.classList.add('ad-showing');
+    expect(isAdShowing(document)).toBe(true);
+  });
+
+  it('looks at the Shorts player on a Shorts page, not the idle #movie_player', () => {
+    addPlayer('movie_player', null).classList.add('ad-showing');
+    addPlayer('shorts-player', null);
+    setUrl(`https://www.youtube.com/shorts/${SHORTS_ID}`);
+    expect(isAdShowing(document)).toBe(false);
   });
 });
 
