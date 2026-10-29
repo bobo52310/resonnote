@@ -2,7 +2,8 @@
  * The 「記下這一刻」 button on the player. It behaves like the site's own controls: it fades in
  * while the mouse moves and fades out after a few idle seconds, so it never sits on the picture
  * while watching. It lives in its own shadow root on the page (inside the fullscreen element in
- * fullscreen), so the screenshot code hides it with the rest of the player UI.
+ * fullscreen), outside any site's player element, so the capture hides it itself
+ * (`hideForScreenshot`) rather than counting on a platform's player-UI hiding to reach it.
  *
  * By default it sits in the bottom-right corner of the viewport. Where the player does not fill
  * the viewport (YouTube), an `anchor` pins it to the player's corner instead.
@@ -27,6 +28,12 @@ export interface QuickButtonOptions {
 export interface QuickButtonHandle {
   /** Shows the shortcut beside the label (for example 「⌥⇧N」); '' hides it. */
   setShortcut(shortcut: string): void;
+  /**
+   * Makes the button vanish at once (no fade, whatever the mouse does) so a screenshot cannot
+   * catch it, even half-faded. Returns the function that lets it show again; calling that more
+   * than once is harmless.
+   */
+  hideForScreenshot(): () => void;
   destroy(): void;
 }
 
@@ -193,7 +200,8 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
     clearTimeout(hideTimer);
     // Stay while the pointer rests on the button itself, like a menu would.
     hideTimer = setTimeout(() => {
-      if (!button.matches(':hover')) hide();
+      // Same checks as a mouse move: the page may have left the watch page under a resting pointer.
+      if (!button.matches(':hover') || !opts.isWatchPage() || opts.isBusy()) hide();
       else reveal();
     }, IDLE_HIDE_MS);
   };
@@ -221,6 +229,9 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
   if (opts.anchor) doc.addEventListener('scroll', hide, { capture: true, passive: true });
   place();
 
+  // Counts the screenshots in flight, so an overlapping restore cannot show it under another one.
+  let screenshotHides = 0;
+
   const updateLabel = (shortcut: string) => {
     kbd.textContent = shortcut;
     button.setAttribute('aria-label', shortcut === '' ? '記下這一刻' : `記下這一刻（${shortcut}）`);
@@ -229,6 +240,20 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
 
   return {
     setShortcut: updateLabel,
+    hideForScreenshot() {
+      screenshotHides++;
+      // `visibility` is not part of the fade transition, so this takes effect on the next paint.
+      host.style.setProperty('visibility', 'hidden', 'important');
+      let restored = false;
+      return () => {
+        if (restored) return;
+        restored = true;
+        if (--screenshotHides > 0) return;
+        host.style.removeProperty('visibility');
+        // Leave no empty style="" behind when the button is not pinned to an anchor.
+        if (host.style.length === 0) host.removeAttribute('style');
+      };
+    },
     destroy() {
       hide();
       doc.removeEventListener('mousemove', onActivity, { capture: true });

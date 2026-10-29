@@ -49,7 +49,7 @@
 - `Platform` 變成 `'netflix' | 'youtube' | 'disney'`；舊筆記都是 `'netflix'`，不用搬資料。
 - `videoId`：Netflix 數字、YouTube 11 碼、Disney+ UUID。**同一部片的判斷一律用「平台＋videoId」**（筆記本分組、小視窗「之前的筆記」、跳回時找分頁）。
 - `image.source` 多一種 `'frame'`：從 `<video>` 直接取的原始畫面（目前只有 YouTube）。畫質完整，不標「低解析度」；但不含字幕。
-- 備份：`notes.json` 的 `platform` 接受三種值，`image.source` 接受 `'frame'`。舊版擴充功能讀新備份會略過非 Netflix 的筆記（舊版本來就只認 Netflix），可接受。
+- 備份：`notes.json` 的 `platform` 接受三種值，`image.source` 接受 `'frame'`；備份格式版本仍是 1。**舊版擴充功能（只認 Netflix）讀到含任何 YouTube／Disney+ 筆記、或任何 `image.source: 'frame'` 的備份，會整份拒絕**，顯示「這不是 ResonNote 的備份檔，或檔案已損壞」，連裡面的 Netflix 筆記也還原不了（不是只略過新筆記）；只含 Netflix 筆記、沒有 `'frame'` 的新版備份，舊版照常讀。要在舊版還原，得先用新版把那些筆記排除。這版不升格式版本，先接受這個限制。
 - YouTube 頻道名稱這版不存（Note 不加欄位）；YouTube 片名常已含頻道。
 
 ### 3.2 平台登錄表（`src/platforms/registry.ts`，純函式，背景程式、筆記本、匯出共用）
@@ -66,8 +66,9 @@ Disney+ 的連結文字刻意寫出「這一刻在 16:43」：分享出去的網
 
 ### 3.3 記錄流程（沿用 v1，只換平台轉接層）
 
-- 三個平台各一組內容腳本：isolated world 的轉接層＋小視窗，main world 的頁面橋接（碰播放器內部介面）。共用的部分抽成一個 `runContentScript({ platform, adapter, isWatchPage, … })`。
-- 頁面橋接的訊息格式（`window.postMessage`、固定前綴）三個平台共用，每個平台自己回答。
+- 三個平台各一組內容腳本：isolated world 的轉接層＋小視窗，main world 的頁面橋接（碰播放器內部介面）。共用的部分抽成一個 `runContentScript({ platform, adapter, watchVideoId, … })`（`watchVideoId` 回目前播放頁的 videoId，不是播放頁回 `null`）。
+- 頁面橋接的訊息格式（`window.postMessage`、固定前綴）三個平台共用，每個平台自己回答。橋接只回應**同一個視窗**送來的請求（`event.source === window`），內容腳本等回答時也只收同一個視窗的；頁面裡別的來源的 iframe 送的訊息不會被理會。
+- 截圖前，頁面按鈕由 `runContentScript` 一併隱藏（`hideForScreenshot`：`visibility: hidden !important`，立刻生效、不走淡出），不靠各平台的「隱藏控制列」碰到它——按鈕掛在 `body`（全螢幕時掛在全螢幕元素），不在任何平台的播放器元素底下。三個平台都一樣，與按鈕貼在哪裡無關。
 - 截圖選圖順序：分頁截圖裁切（沒被擋）→ **轉接層的原畫面（`grabFrame`，YouTube）** → 進度條小圖（Netflix）→ 沒有圖。「先用一次快捷鍵」的提示只在最後拿到的是進度條小圖或沒有圖時顯示。
 - **YouTube 轉接層**
   - 秒數、片名、videoId：橋接讀 `getVideoData()`、`getCurrentTime()`；讀不到就退回網址＋`<video>.currentTime`＋分頁標題（去掉開頭的「(3) 」通知數與結尾的「 - YouTube」）。
@@ -89,7 +90,8 @@ Disney+ 的連結文字刻意寫出「這一刻在 16:43」：分享出去的網
 ### 3.4 跳回那一秒
 
 - 背景程式用登錄表判斷平台，找「同平台、同 videoId」的分頁；有就切過去、跳秒、暫停（同 v1）。
-- 沒有就開新分頁到連結。**連結不能帶秒數的平台（Disney+）**：開分頁後每秒送一次 `seek` 給那個分頁，直到內容腳本回答成功，最多 30 秒；同一個分頁跳秒失敗改導向連結時也一樣。
+- 沒有就開新分頁到連結。**連結不能帶秒數的平台（Disney+）**：開分頁後每秒送一次 `seek` 給那個分頁，直到內容腳本回答成功，最多 30 秒（從開分頁或導向連結起算的時間，不是次數）；同一個分頁跳秒失敗改導向連結時也一樣。
+- `seek` 訊息帶筆記的 `videoId`；頁面現在播的不是那部片（等待期間使用者換了別部、或 Disney+ 自己接著播下一集）就回 `false`，不動播放器也不暫停。沒帶 `videoId` 的 `seek` 照舊直接跳。
 - 跳回訊息多帶 `platform`；沒帶的當 Netflix（相容）。
 
 ### 3.5 頁面上的「記下這一刻」按鈕

@@ -157,6 +157,10 @@ export function installPageBridge(win: Window): void {
   Object.defineProperty(win, INSTALLED, { value: true });
 
   win.addEventListener('message', (event: MessageEvent) => {
+    // Only this window's own requests (the content script's): a frame of another origin on the
+    // page can post to this window too, and must not drive the player. Chrome sets `source` to
+    // the sending window, which is `win` for a window posting to itself.
+    if (event.source !== win) return;
     const data: unknown = event.data;
     if (isBridgeRequest(data)) void respond(win, data);
   });

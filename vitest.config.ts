@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [WxtVitest()],
   test: {
     environment: 'happy-dom',
-    setupFiles: ['fake-indexeddb/auto'],
+    setupFiles: ['fake-indexeddb/auto', './tests/setup/post-message-source.ts'],
     // Agent worktrees live under .claude/worktrees/ and carry their own copy of the tests.
     exclude: [...configDefaults.exclude, '.claude/**'],
   },

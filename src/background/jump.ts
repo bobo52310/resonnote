@@ -13,11 +13,22 @@ export interface JumpDeps {
   /** Points an existing tab at `url`. */
   updateTabUrl(tabId: number, url: string): Promise<void>;
   wait(ms: number): Promise<void>;
+  /** The clock, in milliseconds, for the retry window. */
+  now(): number;
 }
 
-/** How often a freshly opened page is asked to seek, and how many times before giving up (30 s). */
+/**
+ * How often a freshly opened page is asked to seek, and how long (from opening or navigating
+ * the tab) before giving up. A window of time, not a number of attempts: an attempt can itself
+ * take seconds to be answered.
+ */
 export const SEEK_RETRY_MS = 1000;
-export const SEEK_RETRY_LIMIT = 30;
+export const SEEK_RETRY_WINDOW_MS = 30_000;
+
+/** The seek request for a note: it names the video, so a page that moved on declines it. */
+function seekMessage(note: Pick<Note, 'videoId' | 'timeMs'>): ToContent {
+  return { type: 'scenenote/seek', timeMs: note.timeMs, videoId: note.videoId };
+}
 
 /**
  * For platforms whose link cannot carry a time: the page has to load and its player has to start
@@ -27,14 +38,15 @@ export const SEEK_RETRY_LIMIT = 30;
  */
 async function seekWhenReady(
   tabId: number,
-  timeMs: number,
+  note: Pick<Note, 'videoId' | 'timeMs'>,
   label: string,
   deps: JumpDeps,
 ): Promise<void> {
-  for (let attempt = 0; attempt < SEEK_RETRY_LIMIT; attempt++) {
+  const openedAt = deps.now();
+  while (deps.now() - openedAt < SEEK_RETRY_WINDOW_MS) {
     await deps.wait(SEEK_RETRY_MS);
     try {
-      const reply = await deps.sendToTab(tabId, { type: 'scenenote/seek', timeMs });
+      const reply = await deps.sendToTab(tabId, seekMessage(note));
       if (reply === true) return;
     } catch {
       // Still loading: the content script answers a later attempt.
@@ -66,7 +78,7 @@ export async function jumpTo(
   if (!tab) {
     const newTabId = await deps.createTab(url);
     if (!info.linkKeepsTime && newTabId !== undefined) {
-      await seekWhenReady(newTabId, note.timeMs, info.label, deps);
+      await seekWhenReady(newTabId, note, info.label, deps);
     }
     return 'new';
   }
@@ -74,14 +86,14 @@ export async function jumpTo(
   await deps.focus(tab.id, tab.windowId);
   let sought = false;
   try {
-    const reply = await deps.sendToTab(tab.id, { type: 'scenenote/seek', timeMs: note.timeMs });
+    const reply = await deps.sendToTab(tab.id, seekMessage(note));
     sought = reply === true;
   } catch (error) {
     console.warn(`[scenenote] could not reach the ${info.label} tab, navigating it instead`, error);
   }
   if (!sought) {
     await deps.updateTabUrl(tab.id, url);
-    if (!info.linkKeepsTime) await seekWhenReady(tab.id, note.timeMs, info.label, deps);
+    if (!info.linkKeepsTime) await seekWhenReady(tab.id, note, info.label, deps);
   }
   return 'existing';
 }

@@ -10,7 +10,7 @@ export default defineContentScript({
     runContentScript({
       platform: 'netflix',
       adapter: createNetflixAdapter(document),
-      isWatchPage: () => parseWatchVideoId(location.href) !== null,
+      watchVideoId: () => parseWatchVideoId(location.href),
     });
   },
 });

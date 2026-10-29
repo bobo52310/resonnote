@@ -1,3 +1,4 @@
+import { Window } from 'happy-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RESPONSE_SOURCE, callBridge } from '../../../src/platforms/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/youtube/page-bridge';
@@ -353,5 +354,42 @@ describe('page bridge: other ops and installation', () => {
     window.postMessage('pause', '*');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(api.pauseVideo).not.toHaveBeenCalled();
+  });
+});
+
+describe('page bridge: who may ask', () => {
+  beforeAll(() => installPageBridge(window));
+
+  const post = (data: unknown, source: MessageEventSource | null, origin: string) =>
+    window.dispatchEvent(new MessageEvent('message', { data, origin, source }));
+
+  it('ignores requests that another window posted, and answers its own', async () => {
+    const api = makeApi();
+    addPlayer('movie_player', api);
+    const frame = new Window();
+    try {
+      // A frame of another origin on the page can post to this window too.
+      for (const source of [frame as unknown as MessageEventSource, null]) {
+        post({ source: 'scenenote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
+        post({ source: 'scenenote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
+        post({ source: 'scenenote-req', id: 'z', op: 'frame' }, source, 'https://evil.example');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(api.seekTo).not.toHaveBeenCalled();
+      expect(api.pauseVideo).not.toHaveBeenCalled();
+
+      post({ source: 'scenenote-req', id: 'own', op: 'pause' }, window, window.location.origin);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(api.pauseVideo).toHaveBeenCalledTimes(1);
+    } finally {
+      await frame.happyDOM.close();
+    }
+  });
+
+  it('still answers the content script, whose messages come from this window', async () => {
+    const api = makeApi();
+    addPlayer('movie_player', api);
+    expect(await callBridge('pause')).toBe(true);
+    expect(api.pauseVideo).toHaveBeenCalledTimes(1);
   });
 });

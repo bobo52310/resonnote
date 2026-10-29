@@ -4,14 +4,18 @@ import { createCaptureController } from './capture-controller';
 import { cropAndCheck, jpegBytesToDataUrl } from './crop';
 import type { BeginResult, RecentNote, SaveResult, ToBackground, ToContent } from './messages';
 import { openOverlay } from './overlay/overlay';
-import { mountQuickButton } from './quick-button';
+import { mountQuickButton, type QuickButtonHandle } from './quick-button';
 import type { Platform } from './types';
 
 export interface ContentScriptOptions {
   platform: Platform;
   adapter: PlatformAdapter;
-  /** Whether the page currently plays something that can be noted (quick button visibility). */
-  isWatchPage: () => boolean;
+  /**
+   * The id of the title the page plays right now (the `videoId` a note would get), or null when
+   * it is not a watch page. Asked each time: these sites change pages without reloading. Decides
+   * where the quick button shows, and which seeks the page accepts.
+   */
+  watchVideoId: () => string | null;
   /** The element the quick button sits in (bottom-right corner); omitted = viewport (v1 behaviour). */
   quickButtonAnchor?: () => Element | null;
 }
@@ -28,9 +32,44 @@ export function isToContent(message: unknown): message is ToContent {
     );
   }
   if (type === 'scenenote/seek') {
-    return Number.isFinite((message as { timeMs?: unknown }).timeMs);
+    const { timeMs, videoId } = message as { timeMs?: unknown; videoId?: unknown };
+    return (
+      Number.isFinite(timeMs) &&
+      (videoId === undefined || (typeof videoId === 'string' && videoId !== ''))
+    );
   }
   return false;
+}
+
+/**
+ * The adapter, except that hiding the player's controls also hides the on-page note button (the
+ * button is not inside any site's player, so the adapter cannot reach it), and showing them
+ * again brings both back.
+ */
+function hidingTheButtonToo(
+  adapter: PlatformAdapter,
+  button: Pick<QuickButtonHandle, 'hideForScreenshot'>,
+): PlatformAdapter {
+  return {
+    ...adapter,
+    hidePlayerUi: () => {
+      const showButton = button.hideForScreenshot();
+      try {
+        const showPlayerUi = adapter.hidePlayerUi();
+        return () => {
+          try {
+            showPlayerUi();
+          } finally {
+            showButton();
+          }
+        };
+      } catch (error) {
+        // The capture controller gets no restore function for a failed hide, so none would show it.
+        showButton();
+        throw error;
+      }
+    },
+  };
 }
 
 /**
@@ -41,8 +80,23 @@ export function isToContent(message: unknown): message is ToContent {
  */
 export function runContentScript(opts: ContentScriptOptions): void {
   const { platform, adapter } = opts;
+
+  // Mounted before the controller, which needs the button to hide it for the screenshot. The
+  // button asks the controller whether it is busy only when the mouse moves, after both exist.
+  const quickButton = mountQuickButton({
+    doc: document,
+    onPress: () => {
+      browser.runtime.sendMessage<ToBackground>({ type: 'scenenote/trigger' }).catch((error: unknown) => {
+        console.warn('[scenenote] the note button could not reach the extension', error);
+      });
+    },
+    isWatchPage: () => opts.watchVideoId() !== null,
+    isBusy: () => controller.isBusy(),
+    anchor: opts.quickButtonAnchor,
+  });
+
   const controller = createCaptureController({
-    adapter,
+    adapter: hidingTheButtonToo(adapter, quickButton),
     platform,
     cropAndCheck,
     jpegBytesToDataUrl,
@@ -71,8 +125,13 @@ export function runContentScript(opts: ContentScriptOptions): void {
     uuid: () => crypto.randomUUID(),
   });
 
-  /** Seeks and then pauses (so the scene can be looked at); a failed seek leaves playback alone. */
-  const seekAndPause = async (timeMs: number): Promise<boolean> => {
+  /**
+   * Seeks and then pauses (so the scene can be looked at); a failed seek leaves playback alone.
+   * A seek meant for another title (the page moved on since it was asked for) is declined
+   * without touching the player.
+   */
+  const seekAndPause = async (timeMs: number, videoId: string | undefined): Promise<boolean> => {
+    if (videoId !== undefined && videoId !== opts.watchVideoId()) return false;
     const sought = await adapter.seek(timeMs);
     if (sought) await adapter.pause();
     return sought;
@@ -85,21 +144,10 @@ export function runContentScript(opts: ContentScriptOptions): void {
       case 'scenenote/show':
         return controller.show(message.dataUrl, message.hint);
       case 'scenenote/seek':
-        return seekAndPause(message.timeMs);
+        return seekAndPause(message.timeMs, message.videoId);
     }
   };
 
-  const quickButton = mountQuickButton({
-    doc: document,
-    onPress: () => {
-      browser.runtime.sendMessage<ToBackground>({ type: 'scenenote/trigger' }).catch((error: unknown) => {
-        console.warn('[scenenote] the note button could not reach the extension', error);
-      });
-    },
-    isWatchPage: opts.isWatchPage,
-    isBusy: () => controller.isBusy(),
-    anchor: opts.quickButtonAnchor,
-  });
   browser.runtime
     .sendMessage<ToBackground, string | undefined>({ type: 'scenenote/shortcut' })
     .then((shortcut) => quickButton.setShortcut(typeof shortcut === 'string' ? shortcut : ''))

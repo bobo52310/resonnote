@@ -1,3 +1,4 @@
+import { Window } from 'happy-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { callBridge } from '../../../src/platforms/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/netflix/page-bridge';
@@ -384,6 +385,40 @@ describe('page bridge', () => {
     window.postMessage({ source: 'other-res', id: 'whatever', result: 'forged' }, origin);
     expect(await pending).toEqual({ videoId: '83053998', timeMs: 1003469, meta: { title: '造山者－世紀的賭注' } });
     expect(player.pause).not.toHaveBeenCalled();
+  });
+});
+
+describe('page bridge: who may ask', () => {
+  beforeAll(() => installPageBridge(window));
+
+  const request = { source: 'scenenote-req', id: 'x', op: 'pause' };
+  const post = (source: MessageEventSource | null, origin: string) =>
+    window.dispatchEvent(new MessageEvent('message', { data: request, origin, source }));
+
+  it('ignores requests that another window posted, and answers its own', async () => {
+    const player = makePlayer();
+    installNetflix(player);
+    const frame = new Window();
+    try {
+      // A frame of another origin on the page can post to this window too.
+      post(frame as unknown as MessageEventSource, 'https://evil.example');
+      post(null, 'https://evil.example');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(player.pause).not.toHaveBeenCalled();
+
+      post(window, window.location.origin);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(player.pause).toHaveBeenCalledTimes(1);
+    } finally {
+      await frame.happyDOM.close();
+    }
+  });
+
+  it('still answers the content script, whose messages come from this window', async () => {
+    const player = makePlayer();
+    installNetflix(player);
+    expect(await callBridge('pause')).toBe(true);
+    expect(player.pause).toHaveBeenCalledTimes(1);
   });
 });
 

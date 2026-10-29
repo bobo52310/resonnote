@@ -1,3 +1,4 @@
+import { Window } from 'happy-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { callBridge } from '../../../src/platforms/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/disney/page-bridge';
@@ -343,6 +344,40 @@ describe('trickplay and frame', () => {
     mountPlayer(makePlayer());
     expect(await ask('trickplay', 1000)).toBeNull();
     expect(await ask('frame')).toBeNull();
+  });
+});
+
+describe('who may ask', () => {
+  const post = (data: unknown, source: MessageEventSource | null, origin: string) =>
+    window.dispatchEvent(new MessageEvent('message', { data, origin, source }));
+
+  it('ignores requests that another window posted, and answers its own', async () => {
+    const player = makePlayer();
+    mountPlayer(player);
+    const frame = new Window();
+    try {
+      // A frame of another origin on the page can post to this window too.
+      for (const source of [frame as unknown as MessageEventSource, null]) {
+        post({ source: 'scenenote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
+        post({ source: 'scenenote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
+      }
+      await settle();
+      expect(player.seek).not.toHaveBeenCalled();
+      expect(player.pause).not.toHaveBeenCalled();
+
+      post({ source: 'scenenote-req', id: 'own', op: 'pause' }, window, window.location.origin);
+      await settle();
+      expect(player.pause).toHaveBeenCalledTimes(1);
+    } finally {
+      await frame.happyDOM.close();
+    }
+  });
+
+  it('still answers the content script, whose messages come from this window', async () => {
+    const player = makePlayer();
+    mountPlayer(player);
+    expect(await ask('pause')).toBe(true);
+    expect(player.pause).toHaveBeenCalledTimes(1);
   });
 });
 

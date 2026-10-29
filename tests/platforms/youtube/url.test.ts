@@ -32,7 +32,6 @@ describe('parseWatchVideoId', () => {
     expect(parseWatchVideoId(`https://www.youtube.com/watch?v=${ID}`)).toBe(ID);
     expect(parseWatchVideoId(`https://www.youtube.com/watch?v=${ID}&t=60s&list=PL123#x`)).toBe(ID);
     expect(parseWatchVideoId(`https://www.youtube.com/watch?list=PL123&v=${ID}`)).toBe(ID);
-    expect(parseWatchVideoId(`https://youtube.com/watch?v=${ID}`)).toBe(ID);
   });
 
   it('reads the id from /shorts/ and /live/ pages', () => {
@@ -40,7 +39,6 @@ describe('parseWatchVideoId', () => {
     expect(parseWatchVideoId(`https://www.youtube.com/shorts/${ID}/`)).toBe(ID);
     expect(parseWatchVideoId(`https://www.youtube.com/shorts/${ID}?feature=share`)).toBe(ID);
     expect(parseWatchVideoId(`https://www.youtube.com/live/${ID}`)).toBe(ID);
-    expect(parseWatchVideoId(`https://youtube.com/live/${ID}?si=abc`)).toBe(ID);
   });
 
   it('accepts every character an id may hold', () => {
@@ -69,6 +67,10 @@ describe('parseWatchVideoId', () => {
   });
 
   it('rejects the other YouTube hosts and look-alike hosts', () => {
+    // Without www: the content scripts and tab patterns cover only www.youtube.com.
+    expect(parseWatchVideoId(`https://youtube.com/watch?v=${ID}`)).toBeNull();
+    expect(parseWatchVideoId(`https://youtube.com/shorts/${ID}`)).toBeNull();
+    expect(parseWatchVideoId(`https://youtube.com/live/${ID}?si=abc`)).toBeNull();
     expect(parseWatchVideoId(`https://m.youtube.com/watch?v=${ID}`)).toBeNull();
     expect(parseWatchVideoId(`https://music.youtube.com/watch?v=${ID}`)).toBeNull();
     expect(parseWatchVideoId(`https://youtu.be/${ID}`)).toBeNull();

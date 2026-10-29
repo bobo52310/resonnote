@@ -1,3 +1,4 @@
+import { Window } from 'happy-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   REQUEST_SOURCE,
@@ -67,6 +68,40 @@ describe('askBridge', () => {
     } finally {
       stop();
     }
+  });
+
+  it('ignores an answer that another window posted, even with the right id', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000000');
+    const answer = (result: unknown, source: MessageEventSource | null) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { source: RESPONSE_SOURCE, id: '00000000-0000-4000-8000-000000000000', result },
+          source,
+        }),
+      );
+    const frame = new Window();
+    try {
+      const pending = askBridge('playback', undefined, 500);
+      // A frame of another origin on the page can post to this window too.
+      answer('from a frame', frame as unknown as MessageEventSource);
+      answer('from nowhere', null);
+      answer('from this window', window);
+      expect(await pending).toBe('from this window');
+    } finally {
+      await frame.happyDOM.close();
+    }
+  });
+
+  it('resolves null when only another window answers', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001');
+    const pending = askBridge('playback', undefined, 60);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { source: RESPONSE_SOURCE, id: '00000000-0000-4000-8000-000000000001', result: 'forged' },
+        source: null,
+      }),
+    );
+    expect(await pending).toBeNull();
   });
 
   it('resolves null instead of rejecting when the page refuses the request', async () => {

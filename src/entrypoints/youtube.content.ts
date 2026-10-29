@@ -10,7 +10,7 @@ export default defineContentScript({
     runContentScript({
       platform: 'youtube',
       adapter: createYouTubeAdapter(document),
-      isWatchPage: () => parseWatchVideoId(location.href) !== null,
+      watchVideoId: () => parseWatchVideoId(location.href),
       // The player is not full-window in the default and theater layouts, so the button sits on it.
       quickButtonAnchor: () => findPlayer(document),
     });

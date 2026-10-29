@@ -12,7 +12,15 @@ export type ToContent =
       /** Set when the on-page button could not take a screenshot (no shortcut used in this tab yet). */
       hint?: 'use-shortcut-once';
     }
-  | { type: 'scenenote/seek'; timeMs: number };
+  | {
+      type: 'scenenote/seek';
+      timeMs: number;
+      /**
+       * The title the seek is meant for. A page that plays something else (the tab moved on while
+       * a retry was pending) declines, so the wrong video is never moved or paused.
+       */
+      videoId?: string;
+    };
 
 /** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
 export type ToBackground =

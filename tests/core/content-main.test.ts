@@ -34,7 +34,7 @@ function makeAdapter() {
 
 function start(overrides: Partial<ContentScriptOptions> = {}) {
   const adapter = makeAdapter();
-  runContentScript({ platform: 'netflix', adapter, isWatchPage: () => true, ...overrides });
+  runContentScript({ platform: 'netflix', adapter, watchVideoId: () => 'vid-1', ...overrides });
   return adapter;
 }
 
@@ -75,6 +75,7 @@ describe('isToContent', () => {
     [{ type: 'scenenote/show', dataUrl: null, hint: 'use-shortcut-once' }],
     [{ type: 'scenenote/seek', timeMs: 0 }],
     [{ type: 'scenenote/seek', timeMs: 1003469 }],
+    [{ type: 'scenenote/seek', timeMs: 1003469, videoId: 'vid-1' }],
   ])('accepts %j', (message) => {
     expect(isToContent(message)).toBe(true);
   });
@@ -92,6 +93,9 @@ describe('isToContent', () => {
     [{ type: 'scenenote/seek', timeMs: '600000' }],
     [{ type: 'scenenote/seek', timeMs: Number.NaN }],
     [{ type: 'scenenote/seek', timeMs: Number.POSITIVE_INFINITY }],
+    [{ type: 'scenenote/seek', timeMs: 1, videoId: '' }],
+    [{ type: 'scenenote/seek', timeMs: 1, videoId: 83053998 }],
+    [{ type: 'scenenote/seek', timeMs: 1, videoId: null }],
   ])('rejects %j', (message) => {
     expect(isToContent(message)).toBe(false);
   });
@@ -152,6 +156,36 @@ describe('runContentScript', () => {
       start({ adapter });
       expect(await ask({ type: 'scenenote/seek', timeMs: 1 })).toBeUndefined();
     });
+
+    it('seeks when the page plays the title the seek is for', async () => {
+      const adapter = start({ watchVideoId: () => 'vid-1' });
+      expect(await ask({ type: 'scenenote/seek', timeMs: 600000, videoId: 'vid-1' })).toBe(true);
+      expect(adapter.seek).toHaveBeenCalledWith(600000);
+      expect(adapter.pause).toHaveBeenCalledTimes(1);
+    });
+
+    it('declines, without touching the player, when the page plays another title', async () => {
+      const adapter = start({ watchVideoId: () => 'vid-2' });
+      expect(await ask({ type: 'scenenote/seek', timeMs: 600000, videoId: 'vid-1' })).toBe(false);
+      expect(adapter.seek).not.toHaveBeenCalled();
+      expect(adapter.pause).not.toHaveBeenCalled();
+    });
+
+    it('declines when the page is not a watch page any more', async () => {
+      const adapter = start({ watchVideoId: () => null });
+      expect(await ask({ type: 'scenenote/seek', timeMs: 600000, videoId: 'vid-1' })).toBe(false);
+      expect(adapter.seek).not.toHaveBeenCalled();
+      expect(adapter.pause).not.toHaveBeenCalled();
+    });
+
+    it('asks which title the page plays at the moment of the seek, not at load', async () => {
+      let playing: string | null = 'vid-2';
+      const adapter = start({ watchVideoId: () => playing });
+      expect(await ask({ type: 'scenenote/seek', timeMs: 1, videoId: 'vid-1' })).toBe(false);
+      playing = 'vid-1';
+      expect(await ask({ type: 'scenenote/seek', timeMs: 1, videoId: 'vid-1' })).toBe(true);
+      expect(adapter.seek).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('earlier notes', () => {
@@ -201,7 +235,7 @@ describe('runContentScript', () => {
     });
 
     it('stays away when the page is not a watch page', () => {
-      start({ isWatchPage: () => false });
+      start({ watchVideoId: () => null });
       const host = document.querySelector<HTMLElement>('[data-scenenote-button]')!;
       move();
       expect(host.hasAttribute('data-visible')).toBe(false);
@@ -229,6 +263,64 @@ describe('runContentScript', () => {
       move();
       expect(host.style.right).toBe('');
       expect(host.style.bottom).toBe('');
+    });
+  });
+
+  describe('on-page button during a capture', () => {
+    const host = () => document.querySelector<HTMLElement>('[data-scenenote-button]')!;
+    const hidden = () => host().style.getPropertyValue('visibility') === 'hidden';
+    const move = () => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    it('is out of the picture from begin until show, on any platform', async () => {
+      // The adapter hides only the player's own controls, as YouTube's does: the button is not among them.
+      const adapter = start();
+      move();
+      expect(host().hasAttribute('data-visible')).toBe(true);
+
+      expect(await ask({ type: 'scenenote/begin' })).toEqual({ status: 'ok' });
+      expect(adapter.hidePlayerUi).toHaveBeenCalledTimes(1);
+      expect(hidden()).toBe(true);
+      expect(host().style.getPropertyPriority('visibility')).toBe('important');
+      // A mouse move between the two steps cannot bring it back.
+      move();
+      expect(hidden()).toBe(true);
+
+      await ask({ type: 'scenenote/show', dataUrl: null });
+      expect(hidden()).toBe(false);
+    });
+
+    it('comes back together with the player controls', async () => {
+      const restorePlayer = vi.fn();
+      const adapter = makeAdapter();
+      adapter.hidePlayerUi.mockReturnValue(restorePlayer);
+      start({ adapter });
+      await ask({ type: 'scenenote/begin' });
+      expect(restorePlayer).not.toHaveBeenCalled();
+      await ask({ type: 'scenenote/show', dataUrl: null });
+      expect(restorePlayer).toHaveBeenCalledTimes(1);
+      expect(hidden()).toBe(false);
+    });
+
+    it('comes back even when the player controls fail to come back', async () => {
+      const adapter = makeAdapter();
+      adapter.hidePlayerUi.mockReturnValue(() => {
+        throw new Error('boom');
+      });
+      start({ adapter });
+      await ask({ type: 'scenenote/begin' });
+      expect(hidden()).toBe(true);
+      await ask({ type: 'scenenote/show', dataUrl: null });
+      expect(hidden()).toBe(false);
+    });
+
+    it('does not stay hidden when the player controls cannot be hidden', async () => {
+      const adapter = makeAdapter();
+      adapter.hidePlayerUi.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      start({ adapter });
+      expect(await ask({ type: 'scenenote/begin' })).toEqual({ status: 'ok' });
+      expect(hidden()).toBe(false);
     });
   });
 });

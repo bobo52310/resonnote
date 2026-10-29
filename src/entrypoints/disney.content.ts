@@ -10,7 +10,7 @@ export default defineContentScript({
     runContentScript({
       platform: 'disney',
       adapter: createDisneyAdapter(document),
-      isWatchPage: () => parseWatchVideoId(location.href) !== null,
+      watchVideoId: () => parseWatchVideoId(location.href),
     });
   },
 });

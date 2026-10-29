@@ -65,6 +65,47 @@ describe('quick button', () => {
     expect(visible()).toBe(false);
   });
 
+  describe('while the pointer rests on the button', () => {
+    /** happy-dom does not track the pointer, so say whether it is over the button. */
+    const hovering = (over: boolean) =>
+      vi.spyOn(button(), 'matches').mockImplementation((selector) => over && selector === ':hover');
+
+    it('stays, as a menu would, while the page is still a watch page', () => {
+      moveMouse();
+      hovering(true);
+      vi.advanceTimersByTime(IDLE_HIDE_MS * 3);
+      expect(visible()).toBe(true);
+    });
+
+    it('hides within the idle time once the page leaves the watch page', () => {
+      moveMouse();
+      hovering(true);
+      vi.advanceTimersByTime(IDLE_HIDE_MS);
+      expect(visible()).toBe(true);
+      watch = false;
+      vi.advanceTimersByTime(IDLE_HIDE_MS);
+      expect(visible()).toBe(false);
+    });
+
+    it('hides within the idle time once the note overlay opens', () => {
+      moveMouse();
+      hovering(true);
+      busy = true;
+      vi.advanceTimersByTime(IDLE_HIDE_MS);
+      expect(visible()).toBe(false);
+    });
+
+    it('does not come back on its own after it hid', () => {
+      moveMouse();
+      hovering(true);
+      watch = false;
+      vi.advanceTimersByTime(IDLE_HIDE_MS);
+      watch = true;
+      vi.advanceTimersByTime(IDLE_HIDE_MS * 3);
+      expect(visible()).toBe(false);
+    });
+  });
+
   it('starts a capture on click, hides itself, and keeps the click from the player', () => {
     const playerClick = vi.fn();
     document.addEventListener('click', playerClick);
@@ -93,6 +134,83 @@ describe('quick button', () => {
     expect(host()).toBeNull();
     moveMouse();
     expect(host()).toBeNull();
+  });
+});
+
+describe('quick button hidden for a screenshot', () => {
+  const hiddenNow = () => host()!.style.getPropertyValue('visibility') === 'hidden';
+
+  it('vanishes at once, with no fade, even though it was showing', () => {
+    moveMouse();
+    expect(visible()).toBe(true);
+    handle!.hideForScreenshot();
+    // Nothing waited for: no timer ran, so no fade-out could have finished.
+    expect(hiddenNow()).toBe(true);
+    expect(host()!.style.getPropertyPriority('visibility')).toBe('important');
+    // `visibility` is not among the properties the button's stylesheet fades.
+    const css = host()!.shadowRoot!.querySelector('style')!.textContent!;
+    expect(css.match(/transition:([^;]*);/)?.[1]).not.toContain('visibility');
+  });
+
+  it('stays hidden when the mouse moves, until it is let back', () => {
+    const restore = handle!.hideForScreenshot();
+    moveMouse();
+    expect(hiddenNow()).toBe(true);
+    restore();
+    expect(hiddenNow()).toBe(false);
+    expect(host()!.hasAttribute('style')).toBe(false);
+    // The ordinary show/hide behaviour is back.
+    expect(visible()).toBe(true);
+    vi.advanceTimersByTime(IDLE_HIDE_MS);
+    expect(visible()).toBe(false);
+  });
+
+  it('can be let back more than once without harm', () => {
+    const restore = handle!.hideForScreenshot();
+    restore();
+    restore();
+    expect(hiddenNow()).toBe(false);
+  });
+
+  it('is not shown early by the restore of an earlier screenshot', () => {
+    const first = handle!.hideForScreenshot();
+    const second = handle!.hideForScreenshot();
+    first();
+    first();
+    expect(hiddenNow()).toBe(true);
+    second();
+    expect(hiddenNow()).toBe(false);
+  });
+
+  it('is hidden even when it is the fullscreen element that holds it', () => {
+    const fullscreen = document.createElement('div');
+    document.body.append(fullscreen);
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreen });
+    try {
+      moveMouse();
+      expect(host()!.parentElement).toBe(fullscreen);
+      handle!.hideForScreenshot();
+      expect(hiddenNow()).toBe(true);
+    } finally {
+      delete (document as unknown as { fullscreenElement?: unknown }).fullscreenElement;
+      fullscreen.remove();
+    }
+  });
+
+  it('keeps the anchor position when it is let back', () => {
+    handle!.destroy();
+    handle = mountQuickButton({
+      doc: document,
+      onPress,
+      isWatchPage: () => watch,
+      isBusy: () => busy,
+      anchor: () => document.body,
+    });
+    host()!.style.right = '24px';
+    const restore = handle.hideForScreenshot();
+    restore();
+    expect(host()!.style.right).toBe('24px');
+    expect(host()!.style.getPropertyValue('visibility')).toBe('');
   });
 });
 

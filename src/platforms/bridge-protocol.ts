@@ -82,6 +82,8 @@ export function callBridge<T>(
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const onMessage = (event: MessageEvent) => {
+      // Only the page bridge of this window answers; a frame of another origin cannot (see the bridges).
+      if (event.source !== window) return;
       const data: unknown = event.data;
       if (!isBridgeResponse(data) || data.id !== id) return;
       finish((data.result ?? null) as T | null);

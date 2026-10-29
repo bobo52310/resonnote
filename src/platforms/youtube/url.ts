@@ -1,8 +1,6 @@
-// Only the main site: m.youtube.com, music.youtube.com, youtu.be and /embed/ pages are not supported.
-const WATCH_ORIGINS: ReadonlySet<string> = new Set([
-  'https://www.youtube.com',
-  'https://youtube.com',
-]);
+// Only www.youtube.com, the only host the content scripts and tab patterns cover: youtube.com
+// (no www), m.youtube.com, music.youtube.com, youtu.be and /embed/ pages are not supported.
+const WATCH_ORIGIN = 'https://www.youtube.com';
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const SHORTS_OR_LIVE_PATH = /^\/(?:shorts|live)\/([A-Za-z0-9_-]{11})\/?$/;
 
@@ -14,14 +12,14 @@ export function watchUrl(videoId: string, timeMs: number): string {
 
 /**
  * The video id of a YouTube watch page (`/watch?v=<id>`, `/shorts/<id>` or `/live/<id>` on
- * `www.youtube.com` or `youtube.com`), or `null` for any other URL. Other query parameters and
- * the fragment are ignored.
+ * `www.youtube.com`), or `null` for any other URL. Other query parameters and the fragment are
+ * ignored.
  */
 export function parseWatchVideoId(url: string | undefined): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    if (!WATCH_ORIGINS.has(parsed.origin)) return null;
+    if (parsed.origin !== WATCH_ORIGIN) return null;
     if (parsed.pathname === '/watch') {
       const id = parsed.searchParams.get('v');
       return id !== null && VIDEO_ID.test(id) ? id : null;

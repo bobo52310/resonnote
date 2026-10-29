@@ -86,6 +86,7 @@ export default defineBackground(() => {
       await browser.tabs.update(tabId, { url });
     },
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
   };
 
   const trigger = async (tab: { id?: number; windowId: number; url?: string }): Promise<void> => {

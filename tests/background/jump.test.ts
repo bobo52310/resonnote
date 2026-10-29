@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { jumpTo, SEEK_RETRY_LIMIT, SEEK_RETRY_MS } from '../../src/background/jump';
+import { jumpTo, SEEK_RETRY_MS, SEEK_RETRY_WINDOW_MS } from '../../src/background/jump';
 import type { ToContent } from '../../src/core/messages';
 
 type Deps = Parameters<typeof jumpTo>[1];
@@ -27,6 +27,8 @@ function setup(
   newTabId: number | null = 99,
 ) {
   const calls: string[] = [];
+  /** The fake clock: `wait` moves it by the time waited, and each seek by `clock.answerMs`. */
+  const clock = { now: 1_700_000_000_000, answerMs: 0 };
   /** Replies for the next seeks, in order; an Error is thrown instead. Afterwards `seekReply` applies. */
   const script: unknown[] = [];
   const queryTabs = vi.fn<Deps['queryTabs']>(async () => tabs);
@@ -35,6 +37,7 @@ function setup(
   });
   const sendToTab = vi.fn<Deps['sendToTab']>(async (_id, _msg: ToContent) => {
     calls.push('seek');
+    clock.now += clock.answerMs;
     if (script.length === 0) return seekReply;
     const next = script.shift();
     if (next instanceof Error) throw next;
@@ -47,11 +50,12 @@ function setup(
   const updateTabUrl = vi.fn<Deps['updateTabUrl']>(async () => {
     calls.push('update');
   });
-  const wait = vi.fn<Deps['wait']>(async () => {
+  const wait = vi.fn<Deps['wait']>(async (ms) => {
     calls.push('wait');
+    clock.now += ms;
   });
-  const deps: Deps = { queryTabs, focus, sendToTab, createTab, updateTabUrl, wait };
-  return { deps, queryTabs, focus, sendToTab, createTab, updateTabUrl, wait, calls, script };
+  const deps: Deps = { queryTabs, focus, sendToTab, createTab, updateTabUrl, wait, now: () => clock.now };
+  return { deps, queryTabs, focus, sendToTab, createTab, updateTabUrl, wait, calls, script, clock };
 }
 
 describe('jumpTo', () => {
@@ -63,7 +67,11 @@ describe('jumpTo', () => {
     const result = await jumpTo(NOTE, t.deps);
     expect(result).toBe('existing');
     expect(t.focus).toHaveBeenCalledWith(2, 20);
-    expect(t.sendToTab).toHaveBeenCalledWith(2, { type: 'scenenote/seek', timeMs: 1_003_469 });
+    expect(t.sendToTab).toHaveBeenCalledWith(2, {
+      type: 'scenenote/seek',
+      timeMs: 1_003_469,
+      videoId: '83053998',
+    });
     expect(t.calls).toEqual(['focus', 'seek']);
     expect(t.createTab).not.toHaveBeenCalled();
     expect(t.updateTabUrl).not.toHaveBeenCalled();
@@ -161,7 +169,11 @@ describe('jumpTo on YouTube', () => {
       ]),
     );
     expect(t.focus).toHaveBeenCalledWith(2, 20);
-    expect(t.sendToTab).toHaveBeenCalledWith(2, { type: 'scenenote/seek', timeMs: 1_003_469 });
+    expect(t.sendToTab).toHaveBeenCalledWith(2, {
+      type: 'scenenote/seek',
+      timeMs: 1_003_469,
+      videoId: 'arj7oStGLkU',
+    });
   });
 
   it('finds the video on a Shorts page too', async () => {
@@ -197,7 +209,11 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.queryTabs).toHaveBeenCalledWith(['https://www.disneyplus.com/*']);
     expect(t.focus).toHaveBeenCalledWith(4, 40);
     expect(t.sendToTab).toHaveBeenCalledTimes(1);
-    expect(t.sendToTab).toHaveBeenCalledWith(4, { type: 'scenenote/seek', timeMs: 600_000 });
+    expect(t.sendToTab).toHaveBeenCalledWith(4, {
+      type: 'scenenote/seek',
+      timeMs: 600_000,
+      videoId: DISNEY_ID,
+    });
     expect(t.wait).not.toHaveBeenCalled();
     expect(t.createTab).not.toHaveBeenCalled();
     expect(t.updateTabUrl).not.toHaveBeenCalled();
@@ -229,7 +245,7 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.createTab).toHaveBeenCalledWith(DISNEY_LINK);
     expect(t.sendToTab).toHaveBeenCalledTimes(3);
     for (const call of t.sendToTab.mock.calls) {
-      expect(call).toEqual([99, { type: 'scenenote/seek', timeMs: 600_000 }]);
+      expect(call).toEqual([99, { type: 'scenenote/seek', timeMs: 600_000, videoId: DISNEY_ID }]);
     }
     expect(t.wait).toHaveBeenCalledTimes(3);
     for (const call of t.wait.mock.calls) expect(call).toEqual([SEEK_RETRY_MS]);
@@ -245,22 +261,38 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.wait).toHaveBeenCalledTimes(1);
   });
 
-  it('gives up after 30 failed attempts, only warns, and still reports a new tab', async () => {
+  it('gives up once the 30 s window has passed, only warns, and still reports a new tab', async () => {
     const t = setup([], false);
+    const openedAt = t.clock.now;
     expect(await jumpTo(DISNEY_NOTE, t.deps)).toBe('new');
-    expect(SEEK_RETRY_LIMIT).toBe(30);
+    expect(SEEK_RETRY_WINDOW_MS).toBe(30_000);
+    // Instant answers and a 1 s spacing: one attempt per second for the whole window.
     expect(t.sendToTab).toHaveBeenCalledTimes(30);
     expect(t.wait).toHaveBeenCalledTimes(30);
+    expect(t.clock.now - openedAt).toBe(SEEK_RETRY_WINDOW_MS);
     expect(console.warn).toHaveBeenCalledTimes(1);
     expect(String(vi.mocked(console.warn).mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
   });
 
-  it('counts a message that throws as a failed attempt too, for all 30', async () => {
+  it('counts a message that throws as a failed attempt too, for the whole window', async () => {
     const t = setup([]);
     t.sendToTab.mockRejectedValue(new Error('Could not establish connection'));
     expect(await jumpTo(DISNEY_NOTE, t.deps)).toBe('new');
     expect(t.sendToTab).toHaveBeenCalledTimes(30);
     expect(t.wait).toHaveBeenCalledTimes(30);
+  });
+
+  it('measures the window in time, not attempts: slow answers leave room for fewer asks', async () => {
+    const t = setup([], false);
+    t.clock.answerMs = 2500; // a Disney+ seek waits up to 1.5 s to verify, 2.5 s without the bridge
+    const openedAt = t.clock.now;
+    expect(await jumpTo(DISNEY_NOTE, t.deps)).toBe('new');
+    // Each round takes 1 s of waiting plus 2.5 s of answering; the 9th starts at 28 s, the 10th would be past 30 s.
+    expect(t.sendToTab).toHaveBeenCalledTimes(9);
+    expect(t.wait).toHaveBeenCalledTimes(9);
+    expect(t.clock.now - openedAt).toBeGreaterThanOrEqual(SEEK_RETRY_WINDOW_MS);
+    expect(t.clock.now - openedAt).toBeLessThan(SEEK_RETRY_WINDOW_MS + SEEK_RETRY_MS + 2500);
+    expect(console.warn).toHaveBeenCalledTimes(1);
   });
 
   it('does not ask a tab it cannot name when the browser gives no id for the new tab', async () => {
@@ -282,16 +314,31 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.updateTabUrl).toHaveBeenCalledWith(4, DISNEY_LINK);
     expect(t.createTab).not.toHaveBeenCalled();
     expect(t.sendToTab).toHaveBeenCalledTimes(3);
-    expect(t.sendToTab).toHaveBeenLastCalledWith(4, { type: 'scenenote/seek', timeMs: 600_000 });
+    expect(t.sendToTab).toHaveBeenLastCalledWith(4, {
+      type: 'scenenote/seek',
+      timeMs: 600_000,
+      videoId: DISNEY_ID,
+    });
     expect(t.calls).toEqual(['focus', 'seek', 'update', 'wait', 'seek', 'wait', 'seek']);
   });
 
-  it('gives up on a navigated tab after 30 failed attempts and still reports the existing tab', async () => {
+  it('gives up on a navigated tab after the 30 s window and still reports the existing tab', async () => {
     const t = setup([{ id: 4, windowId: 40, url: DISNEY_SAME_URL }], false);
     expect(await jumpTo(DISNEY_NOTE, t.deps)).toBe('existing');
-    // One seek before the navigation, then 30 on the navigated tab.
+    // One seek before the navigation, then a window's worth on the navigated tab.
     expect(t.sendToTab).toHaveBeenCalledTimes(31);
     expect(t.wait).toHaveBeenCalledTimes(30);
     expect(t.updateTabUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the window when the tab is navigated, not when the jump began', async () => {
+    const t = setup([{ id: 4, windowId: 40, url: DISNEY_SAME_URL }], false);
+    // The first seek, on the old page, takes 25 s to be answered; that time is not the new page's.
+    t.sendToTab.mockImplementationOnce(async () => {
+      t.clock.now += 25_000;
+      return false;
+    });
+    expect(await jumpTo(DISNEY_NOTE, t.deps)).toBe('existing');
+    expect(t.sendToTab).toHaveBeenCalledTimes(31);
   });
 });
