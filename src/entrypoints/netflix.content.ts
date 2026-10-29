@@ -2,6 +2,8 @@ import { createCaptureController } from '../core/capture-controller';
 import { cropAndCheck, jpegBytesToDataUrl } from '../core/crop';
 import type { BeginResult, RecentNote, SaveResult, ToBackground, ToContent } from '../core/messages';
 import { openOverlay } from '../core/overlay/overlay';
+import { mountQuickButton } from '../core/quick-button';
+import { parseWatchVideoId } from '../platforms/netflix/url';
 import { createNetflixAdapter } from '../platforms/netflix/adapter';
 
 function isToContent(message: unknown): message is ToContent {
@@ -9,8 +11,11 @@ function isToContent(message: unknown): message is ToContent {
   const { type } = message as { type?: unknown };
   if (type === 'scenenote/begin') return true;
   if (type === 'scenenote/show') {
-    const { dataUrl } = message as { dataUrl?: unknown };
-    return dataUrl === null || typeof dataUrl === 'string';
+    const { dataUrl, hint } = message as { dataUrl?: unknown; hint?: unknown };
+    return (
+      (dataUrl === null || typeof dataUrl === 'string') &&
+      (hint === undefined || hint === 'use-shortcut-once')
+    );
   }
   if (type === 'scenenote/seek') {
     return Number.isFinite((message as { timeMs?: unknown }).timeMs);
@@ -64,11 +69,26 @@ export default defineContentScript({
         case 'scenenote/begin':
           return controller.begin();
         case 'scenenote/show':
-          return controller.show(message.dataUrl);
+          return controller.show(message.dataUrl, message.hint);
         case 'scenenote/seek':
           return seekAndPause(message.timeMs);
       }
     };
+
+    const quickButton = mountQuickButton({
+      doc: document,
+      onPress: () => {
+        browser.runtime.sendMessage<ToBackground>({ type: 'scenenote/trigger' }).catch((error: unknown) => {
+          console.warn('[scenenote] the note button could not reach the extension', error);
+        });
+      },
+      isWatchPage: () => parseWatchVideoId(location.href) !== null,
+      isBusy: () => controller.isBusy(),
+    });
+    browser.runtime
+      .sendMessage<ToBackground, string | undefined>({ type: 'scenenote/shortcut' })
+      .then((shortcut) => quickButton.setShortcut(typeof shortcut === 'string' ? shortcut : ''))
+      .catch(() => quickButton.setShortcut(''));
 
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isToContent(message)) return;

@@ -203,6 +203,30 @@ function lastNote(): Note {
   return msg.note;
 }
 
+describe('hint from the page button', () => {
+  it('adds the use-the-shortcut-once note when the button could not take a screenshot', async () => {
+    // without the hint: only the usual scrubber-image note
+    const { opts } = await capture(null);
+    expect(opts.missing).toEqual(['fullFrame']);
+    h.overlay.press({ action: 'cancel' });
+    await vi.waitFor(() => expect(h.overlay.handle.close).toHaveBeenCalled());
+
+    const h2 = setup();
+    h = h2;
+    const controller = createCaptureController(h.deps);
+    await controller.begin();
+    await controller.show(null, 'use-shortcut-once');
+    expect(h.openOverlay.mock.calls[0]![0].missing).toEqual(['fullFrame', 'useShortcutOnce']);
+  });
+
+  it('reports busy while the overlay is open', async () => {
+    const { controller } = await capture();
+    expect(controller.isBusy()).toBe(true);
+    h.overlay.press({ action: 'cancel' });
+    await vi.waitFor(() => expect(controller.isBusy()).toBe(false));
+  });
+});
+
 describe('earlier notes behind the picture', () => {
   const EARLIER = [{ id: 'old', timeMs: 900_000, subtitle: '早安', body: '伏筆', thumb: TRICKPLAY }];
 

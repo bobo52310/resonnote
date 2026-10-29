@@ -6,7 +6,12 @@ export type BeginResult = { status: 'ok' } | { status: 'busy' } | { status: 'no-
 /** Background -> content script. */
 export type ToContent =
   | { type: 'scenenote/begin' }
-  | { type: 'scenenote/show'; dataUrl: string | null }
+  | {
+      type: 'scenenote/show';
+      dataUrl: string | null;
+      /** Set when the on-page button could not take a screenshot (no shortcut used in this tab yet). */
+      hint?: 'use-shortcut-once';
+    }
   | { type: 'scenenote/seek'; timeMs: number };
 
 /** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
@@ -14,7 +19,11 @@ export type ToBackground =
   | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
   | { type: 'scenenote/open-notebook' }
   | { type: 'scenenote/jump'; videoId: string; timeMs: number }
-  | { type: 'scenenote/recent'; videoId: string; limit: number };
+  | { type: 'scenenote/recent'; videoId: string; limit: number }
+  /** The on-page 「記下這一刻」 button: same as the shortcut, for the tab that sent it. */
+  | { type: 'scenenote/trigger' }
+  /** The shortcut as the user has set it (for example 「⌥⇧N」), or '' when none is set. */
+  | { type: 'scenenote/shortcut' };
 
 /** One earlier note of the same video, as the note overlay shows it behind the new picture. */
 export interface RecentNote {

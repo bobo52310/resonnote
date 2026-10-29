@@ -127,6 +127,31 @@ describe('handleTrigger', () => {
   });
 });
 
+describe('the button on the page', () => {
+  const lastShow = (t: ReturnType<typeof setup>) =>
+    t.sendToTab.mock.calls.map(([, msg]) => msg).filter((msg) => msg.type === 'scenenote/show').at(-1);
+
+  it('asks the overlay to explain when the screenshot is refused (no shortcut used in the tab yet)', async () => {
+    const t = setup();
+    t.captureVisibleTab.mockRejectedValueOnce(new Error('activeTab permission not in effect'));
+    expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps, 'button')).toBe('shown');
+    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: null, hint: 'use-shortcut-once' });
+  });
+
+  it('sends the screenshot without a hint when it works', async () => {
+    const t = setup();
+    await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps, 'button');
+    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: SCREENSHOT });
+  });
+
+  it('gives no hint for a refused screenshot from the shortcut itself', async () => {
+    const t = setup();
+    t.captureVisibleTab.mockRejectedValueOnce(new Error('blocked'));
+    await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps);
+    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: null });
+  });
+});
+
 describe('the reload badge (page opened before the extension was loaded)', () => {
   it('shows ! with an explanation on the tab when the content script cannot be reached', async () => {
     const t = setup();

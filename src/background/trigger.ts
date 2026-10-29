@@ -52,6 +52,12 @@ async function updateBadge(
 export async function handleTrigger(
   tab: { id?: number; windowId: number; url?: string },
   deps: TriggerDeps,
+  /**
+   * `'button'`: pressed on the page. Chrome only lets the screenshot through once the shortcut or
+   * the toolbar button has been used in the tab (activeTab), so a failed screenshot then comes
+   * with a hint for the overlay.
+   */
+  source: 'shortcut' | 'button' = 'shortcut',
 ): Promise<TriggerOutcome> {
   const tabId = tab.id;
   if (parseWatchVideoId(tab.url) === null || tabId === undefined) {
@@ -85,9 +91,13 @@ export async function handleTrigger(
   } catch (error) {
     console.warn('[scenenote] screenshot failed, continuing without it', error);
   }
+  const show: ToContent =
+    dataUrl === null && source === 'button'
+      ? { type: 'scenenote/show', dataUrl, hint: 'use-shortcut-once' }
+      : { type: 'scenenote/show', dataUrl };
 
   try {
-    await deps.sendToTab(tabId, { type: 'scenenote/show', dataUrl });
+    await deps.sendToTab(tabId, show);
   } catch (error) {
     console.warn('[scenenote] could not show the note overlay', error);
     return 'no-video';

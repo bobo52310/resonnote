@@ -100,8 +100,30 @@ export default defineBackground(() => {
   });
 
   // Replies are async, so use sendResponse and return true to keep the channel open.
-  browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!isRecord(message)) return;
+
+    // The 「記下這一刻」 button on a Netflix page: the tab is the one that sent it.
+    if (message['type'] === 'scenenote/trigger') {
+      const tab = sender.tab;
+      if (tab?.id === undefined) return;
+      handleTrigger(tab, triggerDeps, 'button').then(
+        () => sendResponse({ ok: true }),
+        (error: unknown) => {
+          console.error('[scenenote] trigger from the page button failed', error);
+          sendResponse({ ok: false });
+        },
+      );
+      return true;
+    }
+
+    if (message['type'] === 'scenenote/shortcut') {
+      browser.commands.getAll().then(
+        (commands) => sendResponse(commands.find((c) => c.name === CAPTURE_COMMAND)?.shortcut ?? ''),
+        () => sendResponse(''),
+      );
+      return true;
+    }
 
     if (isSaveMessage(message)) {
       void handleSave(message).then(sendResponse);

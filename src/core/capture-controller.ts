@@ -33,7 +33,9 @@ export interface CaptureController {
    * Pauses, picks the picture and opens the note overlay. Resolves once the overlay is on
    * screen; saving or cancelling afterwards is handled in the background of this call.
    */
-  show(dataUrl: string | null): Promise<void>;
+  show(dataUrl: string | null, hint?: 'use-shortcut-once'): Promise<void>;
+  /** True while a capture is being prepared or its overlay is open. */
+  isBusy(): boolean;
 }
 
 /** What `begin` read from the page, waiting for the screenshot to arrive in `show`. */
@@ -187,7 +189,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     }
   }
 
-  async function show(dataUrl: string | null): Promise<void> {
+  async function show(dataUrl: string | null, hint?: 'use-shortcut-once'): Promise<void> {
     // The screenshot has been taken by now (or failed): the controls can come back.
     restoreUi();
     const state = snapshot;
@@ -198,7 +200,8 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     try {
       await adapter.pause();
       const picture = await pickPicture(state, dataUrl);
-      const missing = picture.missing === null ? state.missing : [...state.missing, picture.missing];
+      const missing = picture.missing === null ? [...state.missing] : [...state.missing, picture.missing];
+      if (hint === 'use-shortcut-once' && picture.source !== 'tab') missing.push('useShortcutOnce');
       const id = deps.uuid();
       const createdAt = deps.now().toISOString();
       const makeNote = (typed: Extract<OverlayResult, { action: 'save' }>): Note => ({
@@ -248,5 +251,5 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     }
   }
 
-  return { begin, show };
+  return { begin, show, isBusy };
 }

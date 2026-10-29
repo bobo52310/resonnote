@@ -1,6 +1,6 @@
 export type Platform = 'netflix';
 export type ImageSource = 'tab' | 'trickplay' | 'none';
-export type Missing = 'fullFrame' | 'image' | 'subtitle' | 'title' | 'playerApi';
+export type Missing = 'fullFrame' | 'image' | 'subtitle' | 'title' | 'playerApi' | 'useShortcutOnce';
 export interface Rect { x: number; y: number; width: number; height: number }
 export interface Playback {
   videoId: string; title: string; timeMs: number;
