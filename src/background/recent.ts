@@ -1,5 +1,6 @@
 import type { getImage, listNotes } from '../core/db';
 import type { RecentNote } from '../core/messages';
+import type { Platform } from '../core/types';
 
 export interface RecentDeps {
   listNotes: typeof listNotes;
@@ -12,17 +13,18 @@ export interface RecentDeps {
 export const RECENT_THUMB_WIDTH = 480;
 
 /**
- * The newest `limit` notes of `videoId` (by when they were written), newest first, each with a
- * shrunken picture. A picture that cannot be read or shrunk comes back as `null`. Never throws.
+ * The newest `limit` notes of one video (same platform and `videoId`; by when they were written),
+ * newest first, each with a shrunken picture. A picture that cannot be read or shrunk comes back as `null`. Never throws.
  */
 export async function listRecent(
+  platform: Platform,
   videoId: string,
   limit: number,
   deps: RecentDeps,
 ): Promise<RecentNote[]> {
   try {
     const notes = (await deps.listNotes())
-      .filter((note) => note.videoId === videoId)
+      .filter((note) => note.platform === platform && note.videoId === videoId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, Math.max(0, limit));
     return await Promise.all(

@@ -12,6 +12,7 @@ import type { Note } from '../core/types';
 import { mountCardActions } from '../export/card-actions';
 import { downloadBytes } from '../export/download';
 import { mountExportFileActions } from '../export/file-actions';
+import { PLATFORM_INFO } from '../platforms/registry';
 import { groupNotes, type NoteGroup } from './group';
 
 export interface NotebookDeps {
@@ -19,7 +20,7 @@ export interface NotebookDeps {
   putNote: typeof putNote;
   deleteNote: typeof deleteNote;
   getImage: typeof getImage;
-  /** Takes the user back to the note's moment in Netflix. */
+  /** Takes the user back to the note's moment on its platform. */
   jump: (note: Note) => void;
   now: () => Date;
 }
@@ -28,7 +29,7 @@ const DAY_MS = 86_400_000;
 const CONFIRM_DELETE_MS = 3000;
 /** How long the typing has to pause before the body is saved (a tab can be closed at any time). */
 const SAVE_DEBOUNCE_MS = 500;
-const EMPTY_TEXT = '還沒有筆記。在 Netflix 播放時按 ⌥⇧N 記下第一則。';
+const EMPTY_TEXT = '還沒有筆記。在 Netflix、YouTube 或 Disney+ 播放時按 ⌥⇧N 記下第一則。';
 const MSG_NOT_A_BACKUP = '這不是 ResonNote 的備份檔，或檔案已損壞';
 
 interface ViewState {
@@ -402,7 +403,7 @@ function buildNote(
 
   const timeButton = create(doc, 'button', 'time', time);
   timeButton.type = 'button';
-  timeButton.title = '跳到 Netflix 的這一刻';
+  timeButton.title = `跳到 ${PLATFORM_INFO[note.platform].label} 的這一刻`;
   timeButton.addEventListener('click', () => {
     state.deps.jump(state.notes.get(note.id) ?? note);
   });
@@ -488,6 +489,7 @@ function buildGroup(
 ): HTMLElement {
   const doc = state.groupsEl.ownerDocument;
   const section = create(doc, 'section', 'group');
+  section.dataset['platform'] = group.platform;
   section.dataset['videoId'] = group.videoId;
 
   const all = create(doc, 'input');
@@ -503,7 +505,13 @@ function buildGroup(
   selectAll.append(all, create(doc, 'span', undefined, '全選'));
 
   const head = create(doc, 'header', 'group-head');
-  head.append(create(doc, 'h2', undefined, group.heading), selectAll);
+  // The platform name sits under the heading in the same chip style as the 低解析度 label.
+  const title = create(doc, 'div', 'group-title');
+  title.append(
+    create(doc, 'h2', undefined, group.heading),
+    create(doc, 'span', 'platform-tag lowres', PLATFORM_INFO[group.platform].label),
+  );
+  head.append(title, selectAll);
   section.append(head);
   for (const note of group.notes) section.append(buildNote(state, seq, note, loads));
   return section;

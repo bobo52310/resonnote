@@ -1,5 +1,6 @@
-export type Platform = 'netflix';
-export type ImageSource = 'tab' | 'trickplay' | 'none';
+export type Platform = 'netflix' | 'youtube' | 'disney';
+/** `frame` is the raw picture taken from the <video> itself: full quality, but without subtitles. */
+export type ImageSource = 'tab' | 'frame' | 'trickplay' | 'none';
 export type Missing = 'fullFrame' | 'image' | 'subtitle' | 'title' | 'playerApi' | 'useShortcutOnce';
 export interface Rect { x: number; y: number; width: number; height: number }
 export interface Playback {

@@ -36,6 +36,43 @@ describe('groupNotes', () => {
     expect(groups.find((g) => g.videoId === '2')?.heading).toBe('乙');
   });
 
+  it('keeps the same id string on different platforms in separate groups', () => {
+    // 11 digits is a valid id on both Netflix and YouTube.
+    const groups = groupNotes([
+      makeNote('n', { platform: 'netflix', videoId: '12345678901', title: 'Netflix 的片' }),
+      makeNote('y', {
+        platform: 'youtube',
+        videoId: '12345678901',
+        title: 'YouTube 的片',
+        createdAt: '2026-10-28T11:00:00.000Z',
+      }),
+      makeNote('d', {
+        platform: 'disney',
+        videoId: '12345678901',
+        title: 'Disney+ 的片',
+        createdAt: '2026-10-28T09:00:00.000Z',
+      }),
+      makeNote('y2', {
+        platform: 'youtube',
+        videoId: '12345678901',
+        title: 'YouTube 的片',
+        timeMs: 5000,
+      }),
+    ]);
+    expect(groups.map((g) => [g.platform, g.videoId, g.heading])).toEqual([
+      ['youtube', '12345678901', 'YouTube 的片'],
+      ['netflix', '12345678901', 'Netflix 的片'],
+      ['disney', '12345678901', 'Disney+ 的片'],
+    ]);
+    expect(groups[0]?.notes.map((n) => n.id)).toEqual(['y2', 'y']);
+    expect(groups[1]?.notes.map((n) => n.id)).toEqual(['n']);
+  });
+
+  it('carries the platform of the notes in each group', () => {
+    const [group] = groupNotes([makeNote('a', { platform: 'disney', videoId: 'u-1' })]);
+    expect(group?.platform).toBe('disney');
+  });
+
   it('keeps different episodes of one show apart because they have different videoIds', () => {
     const groups = groupNotes([
       makeNote('a', { videoId: '1', title: '劇', episode: 1 }),

@@ -43,6 +43,53 @@ describe('buildMarkdown', () => {
     );
   });
 
+  it('links a YouTube note to the video at that second', () => {
+    const md = buildMarkdown(
+      [makeNote('abc', { platform: 'youtube', videoId: 'arj7oStGLkU', subtitle: '', body: '' })],
+      never,
+    );
+    expect(md).toBe(
+      [
+        '# 造山者－世紀的賭注',
+        '',
+        '## 16:43',
+        '',
+        '[在 YouTube 從 16:43 開始看](https://www.youtube.com/watch?v=arj7oStGLkU&t=1003s)',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('links a Disney+ note to the title without a time and says where the moment is', () => {
+    const id = '4b3a1c2e-9f00-4d6b-8a21-0123456789ab';
+    const md = buildMarkdown(
+      [makeNote('abc', { platform: 'disney', videoId: id, subtitle: '', body: '' })],
+      never,
+    );
+    expect(md).toBe(
+      [
+        '# 造山者－世紀的賭注',
+        '',
+        '## 16:43',
+        '',
+        `[在 Disney+ 打開（這一刻在 16:43）](https://www.disneyplus.com/play/${id})`,
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('uses each note own platform when the export mixes platforms', () => {
+    const md = buildMarkdown(
+      [
+        makeNote('n', { subtitle: '', body: '' }),
+        makeNote('y', { platform: 'youtube', videoId: 'arj7oStGLkU', title: '別的片', subtitle: '', body: '' }),
+      ],
+      never,
+    );
+    expect(md).toContain('[在 Netflix 從 16:43 開始看](https://www.netflix.com/watch/83053998?t=1003)');
+    expect(md).toContain('[在 YouTube 從 16:43 開始看](https://www.youtube.com/watch?v=arj7oStGLkU&t=1003s)');
+  });
+
   it('omits the image line when the note has no image', () => {
     const md = buildMarkdown([makeNote('abc')], never);
     expect(md).not.toContain('![');

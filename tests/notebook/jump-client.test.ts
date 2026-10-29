@@ -3,7 +3,7 @@ import type { JumpResult, ToBackground } from '../../src/core/messages';
 import type { Note } from '../../src/core/types';
 import { createJump } from '../../src/notebook/jump-client';
 
-const NOTE = { videoId: '83053998', timeMs: 1_003_469 } as Note;
+const NOTE = { platform: 'netflix', videoId: '83053998', timeMs: 1_003_469 } as Note;
 
 let warn: ReturnType<typeof vi.spyOn>;
 
@@ -20,10 +20,25 @@ describe('createJump', () => {
     const notify = vi.fn();
     createJump(send, notify)(NOTE);
     await settle();
-    expect(send).toHaveBeenCalledWith({ type: 'scenenote/jump', videoId: '83053998', timeMs: 1_003_469 });
+    expect(send).toHaveBeenCalledWith({
+      type: 'scenenote/jump',
+      platform: 'netflix',
+      videoId: '83053998',
+      timeMs: 1_003_469,
+    });
     expect(notify).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it.each([['youtube', 'arj7oStGLkU'], ['disney', '4b3a1c2e-9f00-4d6b-8a21-0123456789ab']] as const)(
+    'sends the platform of the note (%s) so the background looks for the right tab',
+    async (platform, videoId) => {
+      const send = vi.fn(async (_m: ToBackground): Promise<unknown> => ({ ok: true, result: 'new' }) satisfies JumpResult);
+      createJump(send, vi.fn())({ platform, videoId, timeMs: 61_000 } as Note);
+      await settle();
+      expect(send).toHaveBeenCalledWith({ type: 'scenenote/jump', platform, videoId, timeMs: 61_000 });
+    },
+  );
 
   it('shows a failure reported by the background in the status line', async () => {
     const send = vi.fn(async (): Promise<unknown> => ({ ok: false, error: 'Error: No tab with id: 12' }) satisfies JumpResult);

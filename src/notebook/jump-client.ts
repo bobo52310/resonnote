@@ -22,6 +22,7 @@ export function createJump(
   const run = async (note: Note): Promise<void> => {
     const reply = (await send({
       type: 'scenenote/jump',
+      platform: note.platform,
       videoId: note.videoId,
       timeMs: note.timeMs,
     })) as JumpResult | undefined;

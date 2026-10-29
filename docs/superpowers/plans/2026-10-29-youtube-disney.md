@@ -82,24 +82,24 @@ export function runContentScript(opts: ContentScriptOptions): void;
 
 **Files:** `src/core/types.ts`、`src/platforms/registry.ts`（新）、`src/platforms/youtube/url.ts`（新）、`src/platforms/disney/url.ts`（新）、`src/core/messages.ts`、`src/background/{trigger,jump,recent}.ts`、`src/entrypoints/background.ts`、`src/notebook/{group,view,jump-client}.ts`、`src/export/{html,markdown}.ts`、`src/core/backup.ts`、`src/core/overlay/overlay.ts`（只改 `playerApi` 那句文字）、`wxt.config.ts`，與對應測試。
 
-- [ ] `Platform`、`ImageSource` 照 Shared Interfaces。`src/core/capture-controller.ts` 這個 task 先不動（它仍寫 `platform: 'netflix'`，型別相容）。
-- [ ] YouTube 網址（spec §3.2）：host 只認 `www.youtube.com` 與 `youtube.com`；`/watch?v=<id>`、`/shorts/<id>`、`/live/<id>`，id 為 `^[A-Za-z0-9_-]{11}$`；其他（含 `/embed/`、`m.youtube.com`、`music.youtube.com`、`youtu.be`）回 `null`。`watchUrl` → `https://www.youtube.com/watch?v=<id>&t=<floor 秒>s`。`tabPatterns` 至少涵蓋 `https://www.youtube.com/watch*`、`https://www.youtube.com/shorts/*`、`https://www.youtube.com/live/*`。
-- [ ] Disney+ 網址：origin `https://www.disneyplus.com`，path `^(?:/[a-z]{2}(?:-[a-z0-9]{2,4})?)?/(?:play|video)/(<UUID>)/?$`（UUID 小寫十六進位 8-4-4-4-12；大寫也接受、回傳時轉小寫）。`watchUrl` → `https://www.disneyplus.com/play/<id>`（不帶秒數）。`tabPatterns`：`https://www.disneyplus.com/*`（jumpTo 自己再用 parse 比對 id）。
-- [ ] Netflix 的 `parseWatchVideoId`／`watchUrl` 不改，由登錄表引用。
-- [ ] `watchLinkText` 用 `formatTime`；三種文字照 spec §3.2。
-- [ ] `trigger.ts`：用 `detectWatchPage(tab.url)` 判斷；徽章提示改成 `請重新整理這個 <label> 分頁後再按一次`（匯出一個 `reloadTitle(label)` 函式，`RELOAD_BADGE`、`DEFAULT_ACTION_TITLE` 不變）。非播放頁照舊開筆記本。
-- [ ] `jump.ts`：簽名 `jumpTo(note: Pick<Note, 'platform' | 'videoId' | 'timeMs'>, deps)`。`JumpDeps` 改為 `queryTabs(patterns)`、`focus`、`sendToTab`、`createTab(url): Promise<number | undefined>`（回新分頁 id）、`updateTabUrl`、`wait(ms)`。找分頁時要求「同平台＋同 videoId」。`linkKeepsTime === false` 的平台：開新分頁後、以及既有分頁跳秒失敗改導向之後，每 `SEEK_RETRY_MS = 1000` 毫秒送一次 `scenenote/seek`，回 `true` 就停，最多 `SEEK_RETRY_LIMIT = 30` 次；送訊息丟例外（內容腳本還沒載入）也算一次失敗、繼續重試；全部失敗只 `console.warn`，仍回 `'new'`／`'existing'`。
-- [ ] `background.ts`：接線改用新 deps；`isJumpMessage` 的 `platform` 可省略（省略＝`'netflix'`），不認得的值拒絕；`isRecentMessage` 同理。
-- [ ] `recent.ts`：`listRecent(platform, videoId, limit, deps)`，只取同平台＋同 videoId。
-- [ ] `group.ts`：以 `platform + videoId` 分組（Netflix 與 YouTube 同 id 字串也要分開）；`NoteGroup` 加 `platform`。
-- [ ] `view.ts`：空狀態文字、時間按鈕 title 照 spec §3.6；每組標題旁加平台名稱小標籤（樣式跟現有 chip／低解析度標籤一致，自己找現有 CSS 沿用）。
-- [ ] `jump-client.ts`：送出 `platform`。
-- [ ] `html.ts`、`markdown.ts`：連結用 `PLATFORM_INFO[note.platform].watchUrl`、文字用 `watchLinkText`。
-- [ ] `backup.ts`：`platform` 用 `isPlatform` 驗證；`image.source` 接受 `'frame'`。
-- [ ] `overlay.ts`：`playerApi` 文字改成「播放器介面讀不到，秒數改從影片讀」。
-- [ ] `wxt.config.ts`：`host_permissions` 加兩個網域；`description` 改成「看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得（支援 Netflix、YouTube、Disney+）」。
-- [ ] 新測試（至少）：`tests/platforms/registry.test.ts`、`tests/platforms/youtube/url.test.ts`、`tests/platforms/disney/url.test.ts`（含語系前綴、大寫 UUID、`/video/`、非播放頁、別的網域、`undefined`）；jump：Disney+ 新分頁重試直到成功、30 次都失敗、送訊息丟例外後成功、YouTube 不重試、找分頁時不同平台同 id 不算；trigger：YouTube／Disney+ 播放頁走記錄、首頁開筆記本、徽章文字含平台名；group：同 id 不同平台分兩組；匯出：三平台連結與文字；backup：接受 youtube／disney／frame，拒絕未知平台；recent：過濾平台。
-- [ ] Commit：`feat: platform registry and multi-platform notes, jump and exports`
+- [x] `Platform`、`ImageSource` 照 Shared Interfaces。`src/core/capture-controller.ts` 這個 task 先不動（它仍寫 `platform: 'netflix'`，型別相容）。
+- [x] YouTube 網址（spec §3.2）：host 只認 `www.youtube.com` 與 `youtube.com`；`/watch?v=<id>`、`/shorts/<id>`、`/live/<id>`，id 為 `^[A-Za-z0-9_-]{11}$`；其他（含 `/embed/`、`m.youtube.com`、`music.youtube.com`、`youtu.be`）回 `null`。`watchUrl` → `https://www.youtube.com/watch?v=<id>&t=<floor 秒>s`。`tabPatterns` 至少涵蓋 `https://www.youtube.com/watch*`、`https://www.youtube.com/shorts/*`、`https://www.youtube.com/live/*`。
+- [x] Disney+ 網址：origin `https://www.disneyplus.com`，path `^(?:/[a-z]{2}(?:-[a-z0-9]{2,4})?)?/(?:play|video)/(<UUID>)/?$`（UUID 小寫十六進位 8-4-4-4-12；大寫也接受、回傳時轉小寫）。`watchUrl` → `https://www.disneyplus.com/play/<id>`（不帶秒數）。`tabPatterns`：`https://www.disneyplus.com/*`（jumpTo 自己再用 parse 比對 id）。
+- [x] Netflix 的 `parseWatchVideoId`／`watchUrl` 不改，由登錄表引用。
+- [x] `watchLinkText` 用 `formatTime`；三種文字照 spec §3.2。
+- [x] `trigger.ts`：用 `detectWatchPage(tab.url)` 判斷；徽章提示改成 `請重新整理這個 <label> 分頁後再按一次`（匯出一個 `reloadTitle(label)` 函式，`RELOAD_BADGE`、`DEFAULT_ACTION_TITLE` 不變）。非播放頁照舊開筆記本。
+- [x] `jump.ts`：簽名 `jumpTo(note: Pick<Note, 'platform' | 'videoId' | 'timeMs'>, deps)`。`JumpDeps` 改為 `queryTabs(patterns)`、`focus`、`sendToTab`、`createTab(url): Promise<number | undefined>`（回新分頁 id）、`updateTabUrl`、`wait(ms)`。找分頁時要求「同平台＋同 videoId」。`linkKeepsTime === false` 的平台：開新分頁後、以及既有分頁跳秒失敗改導向之後，每 `SEEK_RETRY_MS = 1000` 毫秒送一次 `scenenote/seek`，回 `true` 就停，最多 `SEEK_RETRY_LIMIT = 30` 次；送訊息丟例外（內容腳本還沒載入）也算一次失敗、繼續重試；全部失敗只 `console.warn`，仍回 `'new'`／`'existing'`。
+- [x] `background.ts`：接線改用新 deps；`isJumpMessage` 的 `platform` 可省略（省略＝`'netflix'`），不認得的值拒絕；`isRecentMessage` 同理。
+- [x] `recent.ts`：`listRecent(platform, videoId, limit, deps)`，只取同平台＋同 videoId。
+- [x] `group.ts`：以 `platform + videoId` 分組（Netflix 與 YouTube 同 id 字串也要分開）；`NoteGroup` 加 `platform`。
+- [x] `view.ts`：空狀態文字、時間按鈕 title 照 spec §3.6；每組標題旁加平台名稱小標籤（樣式跟現有 chip／低解析度標籤一致，自己找現有 CSS 沿用）。
+- [x] `jump-client.ts`：送出 `platform`。
+- [x] `html.ts`、`markdown.ts`：連結用 `PLATFORM_INFO[note.platform].watchUrl`、文字用 `watchLinkText`。
+- [x] `backup.ts`：`platform` 用 `isPlatform` 驗證；`image.source` 接受 `'frame'`。
+- [x] `overlay.ts`：`playerApi` 文字改成「播放器介面讀不到，秒數改從影片讀」。
+- [x] `wxt.config.ts`：`host_permissions` 加兩個網域；`description` 改成「看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得（支援 Netflix、YouTube、Disney+）」。
+- [x] 新測試（至少）：`tests/platforms/registry.test.ts`、`tests/platforms/youtube/url.test.ts`、`tests/platforms/disney/url.test.ts`（含語系前綴、大寫 UUID、`/video/`、非播放頁、別的網域、`undefined`）；jump：Disney+ 新分頁重試直到成功、30 次都失敗、送訊息丟例外後成功、YouTube 不重試、找分頁時不同平台同 id 不算；trigger：YouTube／Disney+ 播放頁走記錄、首頁開筆記本、徽章文字含平台名；group：同 id 不同平台分兩組；匯出：三平台連結與文字；backup：接受 youtube／disney／frame，拒絕未知平台；recent：過濾平台。
+- [x] Commit：`feat: platform registry and multi-platform notes, jump and exports`
 
 ## Task 2：內容腳本共用層
 

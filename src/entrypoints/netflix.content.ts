@@ -39,6 +39,7 @@ export default defineContentScript({
       loadRecent: async (videoId: string) => {
         const notes = await browser.runtime.sendMessage<ToBackground, RecentNote[] | undefined>({
           type: 'scenenote/recent',
+          platform: 'netflix',
           videoId,
           limit: 2,
         });

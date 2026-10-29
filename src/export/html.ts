@@ -1,6 +1,6 @@
 import { formatTime } from '../core/format';
 import type { Note } from '../core/types';
-import { watchUrl } from '../platforms/netflix/url';
+import { PLATFORM_INFO, watchLinkText } from '../platforms/registry';
 import { groupByHeading } from './group';
 
 const IMAGE_DATA_URL_PREFIX = 'data:image/';
@@ -40,9 +40,8 @@ function articleHtml(note: Note, imageDataUrl: string | undefined): string {
   parts.push(`<p class="time">${esc(time)}</p>`);
   if (note.subtitle !== '') parts.push(`<blockquote>${esc(note.subtitle)}</blockquote>`);
   if (note.body !== '') parts.push(`<p class="body">${esc(note.body)}</p>`);
-  parts.push(
-    `<a class="watch" href="${esc(watchUrl(note.videoId, note.timeMs))}">在 Netflix 從 ${esc(time)} 開始看</a>`,
-  );
+  const link = PLATFORM_INFO[note.platform].watchUrl(note.videoId, note.timeMs);
+  parts.push(`<a class="watch" href="${esc(link)}">${esc(watchLinkText(note.platform, note.timeMs))}</a>`);
   return `<article>\n${parts.join('\n')}\n</article>`;
 }
 

@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { browser } from 'wxt/browser';
 import { getImage, listNotes, putImage, putNote } from './db';
+import { isPlatform } from '../platforms/registry';
 import type { ImageSource, Note } from './types';
 
 const BACKUP_VERSION = 1;
@@ -43,7 +44,7 @@ function isIsoDate(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value));
 }
 
-const IMAGE_SOURCES: readonly ImageSource[] = ['tab', 'trickplay', 'none'];
+const IMAGE_SOURCES: readonly ImageSource[] = ['tab', 'frame', 'trickplay', 'none'];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -68,7 +69,7 @@ function toNote(value: unknown): Note | null {
   if (
     !isString(value.id) ||
     value.id === '' ||
-    value.platform !== 'netflix' ||
+    !isPlatform(value.platform) ||
     !isString(value.videoId) ||
     !isString(value.title) ||
     !isOptional(value.season, isFiniteNumber) ||

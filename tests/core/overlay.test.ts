@@ -80,7 +80,7 @@ describe('MISSING_LABELS', () => {
       image: '沒有截到圖',
       subtitle: '沒抓到台詞',
       title: '沒抓到片名',
-      playerApi: 'Netflix 播放器介面讀不到，秒數改從影片讀',
+      playerApi: '播放器介面讀不到，秒數改從影片讀',
       useShortcutOnce:
         '畫面上的按鈕截不到完整畫面：請先在這個分頁按一次快捷鍵或工具列的 ResonNote 圖示，之後按鈕就能截完整畫面',
     });
