@@ -46,6 +46,8 @@ interface ViewState {
   /** Takes the page-level listeners (pagehide, visibilitychange) off again. */
   removeListeners: () => void;
   groupsEl: HTMLElement;
+  /** The sticky bar with the selection count and the export buttons. */
+  actionBar: HTMLElement;
   /** Shows one picture at full size; opened by clicking a thumbnail. */
   lightbox: HTMLDialogElement;
   backupBar: HTMLElement;
@@ -328,10 +330,40 @@ async function removeNote(state: ViewState, article: HTMLElement, button: HTMLBu
   if (group && group.querySelector('.note') === null) group.remove();
   else if (group) syncGroupSelect(group);
   if (state.groupsEl.querySelector('.group') === null) showEmpty(state);
+  syncSelectionBar(state);
 }
 
 function showEmpty(state: ViewState): void {
   state.groupsEl.replaceChildren(create(state.groupsEl.ownerDocument, 'p', 'empty', EMPTY_TEXT));
+}
+
+const MSG_NONE_SELECTED = '勾選筆記後，可以複製圖卡或匯出';
+
+/** Brings the sticky bar (count, 全選 box, 取消選取) in line with the checked boxes. */
+function syncSelectionBar(state: ViewState): void {
+  const bar = state.actionBar;
+  const boxes = Array.from(state.groupsEl.querySelectorAll<HTMLInputElement>('input.note-select'));
+  const checked = boxes.filter((box) => box.checked).length;
+  bar.dataset['count'] = String(checked);
+  const count = bar.querySelector<HTMLElement>('.selection-count');
+  if (count) count.textContent = checked === 0 ? MSG_NONE_SELECTED : `已選 ${checked} 則`;
+  const all = bar.querySelector<HTMLInputElement>('.select-all input');
+  if (all) {
+    all.disabled = boxes.length === 0;
+    all.checked = boxes.length > 0 && checked === boxes.length;
+    all.indeterminate = checked > 0 && checked < boxes.length;
+  }
+  const clear = bar.querySelector<HTMLButtonElement>('.clear-selection');
+  if (clear) clear.hidden = checked === 0;
+}
+
+/** Checks or unchecks every note, then updates the groups' boxes and the bar. */
+function setAllSelected(state: ViewState, selected: boolean): void {
+  for (const box of state.groupsEl.querySelectorAll<HTMLInputElement>('input.note-select')) {
+    box.checked = selected;
+  }
+  for (const group of state.groupsEl.querySelectorAll<HTMLElement>('.group')) syncGroupSelect(group);
+  syncSelectionBar(state);
 }
 
 function buildNote(
@@ -496,6 +528,7 @@ async function loadAndPaint(
   const groups = groupNotes(notes);
   if (groups.length === 0) {
     showEmpty(state);
+    syncSelectionBar(state);
     return;
   }
   // Draw the whole list first and let the pictures arrive as they are read.
@@ -508,6 +541,7 @@ async function loadAndPaint(
     }
     for (const section of sections) syncGroupSelect(section);
   }
+  syncSelectionBar(state);
   await Promise.all(loads);
 }
 
@@ -547,6 +581,30 @@ export async function renderNotebook(
 
   const toolbar = create(doc, 'div', 'toolbar');
   toolbar.id = 'export-actions';
+  const shareActions = create(doc, 'div', 'action-group');
+  shareActions.setAttribute('role', 'group');
+  shareActions.setAttribute('aria-label', '分享');
+  const fileActions = create(doc, 'div', 'action-group');
+  fileActions.setAttribute('role', 'group');
+  fileActions.setAttribute('aria-label', '匯出');
+  toolbar.append(shareActions, fileActions);
+
+  // Stays at the top while the list scrolls, so boxes can be checked anywhere and acted on at once.
+  const selectAllBox = create(doc, 'input');
+  selectAllBox.type = 'checkbox';
+  selectAllBox.setAttribute('aria-label', '全選所有筆記');
+  const selectAll = create(doc, 'label', 'select-all');
+  selectAll.append(selectAllBox, create(doc, 'span', undefined, '全選'));
+  const selectionCount = create(doc, 'span', 'selection-count');
+  const clearSelection = create(doc, 'button', 'clear-selection', '取消選取');
+  clearSelection.type = 'button';
+  clearSelection.hidden = true;
+  const selection = create(doc, 'div', 'selection');
+  selection.append(selectAll, selectionCount, clearSelection);
+  const actionBar = create(doc, 'section', 'action-bar');
+  actionBar.setAttribute('aria-label', '選取與匯出');
+  actionBar.append(selection, toolbar, statusLine);
+
   const groupsEl = create(doc, 'div', 'groups');
   const lightbox = createLightbox(doc);
 
@@ -560,6 +618,7 @@ export async function renderNotebook(
     disposed: false,
     removeListeners: () => {},
     groupsEl,
+    actionBar,
     lightbox,
     backupBar,
     backupStatus,
@@ -597,15 +656,22 @@ export async function renderNotebook(
     if (file) void runRestore(state, file);
   });
 
-  root.replaceChildren(backupBar, statusLine, toolbar, groupsEl, lightbox);
+  selectAllBox.addEventListener('change', () => setAllSelected(state, selectAllBox.checked));
+  clearSelection.addEventListener('click', () => setAllSelected(state, false));
+  // Note and group boxes bubble their `change` here after their own handlers have run.
+  groupsEl.addEventListener('change', (e) => {
+    if (e.target instanceof HTMLInputElement && e.target.type === 'checkbox') syncSelectionBar(state);
+  });
+
+  root.replaceChildren(backupBar, actionBar, groupsEl, lightbox);
 
   const exportDeps = {
     getSelectedNotes: () => getSelectedNotes(root),
     getImage: (id: string) => state.deps.getImage(id),
     notify: state.notify,
   };
-  mountExportFileActions(toolbar, exportDeps);
-  mountCardActions(toolbar, exportDeps);
+  mountCardActions(shareActions, exportDeps);
+  mountExportFileActions(fileActions, exportDeps);
 
   await Promise.all([
     refreshBackupBar(state),

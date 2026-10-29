@@ -162,16 +162,16 @@ describe('page structure', () => {
     await renderNotebook(root, mockDeps([]));
     const toolbar = q('#export-actions');
     const labels = Array.from(toolbar.querySelectorAll('button')).map((b) => b.textContent);
-    expect(labels).toEqual(['匯出網頁檔', '匯出 Markdown', '複製圖卡', '下載圖卡']);
+    expect(labels).toEqual(['複製圖卡', '下載圖卡', '匯出網頁檔', '匯出 Markdown']);
     const live = q('[role="status"]');
     expect(live.getAttribute('aria-live')).toBe('polite');
     expect(buttonByText('全部備份')).toBeTruthy();
     expect(buttonByText('從備份還原')).toBeTruthy();
   });
 
-  it('puts the backup bar, then the status line, then the toolbar, then the groups', async () => {
+  it('puts the backup bar, then the action bar (toolbar, status line), then the groups', async () => {
     await renderNotebook(root, mockDeps([makeNote('a')]));
-    const order = ['.backup-bar', '[role="status"]', '#export-actions', '.group'].map((sel) => {
+    const order = ['.backup-bar', '.action-bar', '#export-actions', '[role="status"]', '.group'].map((sel) => {
       const el = q(sel);
       return { sel, el };
     });
@@ -189,6 +189,63 @@ describe('page structure', () => {
     expect(root.querySelectorAll('#export-actions')).toHaveLength(1);
     expect(root.querySelectorAll('#export-actions button')).toHaveLength(4);
     expect(root.querySelectorAll('.group')).toHaveLength(1);
+  });
+});
+
+describe('selection bar', () => {
+  const count = () => q('.selection-count').textContent;
+  const noteBox = (id: string) => noteEl(id).querySelector<HTMLInputElement>('input.note-select')!;
+  const twoVideos = () => [makeNote('a'), makeNote('b'), makeNote('c', { videoId: '80000000', title: '造山者' })];
+
+  it('keeps the toolbar and the status line inside the sticky action bar', async () => {
+    await renderNotebook(root, mockDeps([makeNote('a')]));
+    const bar = q('.action-bar');
+    expect(bar.contains(q('#export-actions'))).toBe(true);
+    expect(bar.contains(q('[role="status"]'))).toBe(true);
+  });
+
+  it('says what to do while nothing is selected', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    expect(count()).toBe('勾選筆記後，可以複製圖卡或匯出');
+    expect(q('.action-bar').dataset['count']).toBe('0');
+    expect(q<HTMLButtonElement>('.clear-selection').hidden).toBe(true);
+  });
+
+  it('counts the checked notes as boxes are ticked, also through a group 全選', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    setChecked(noteBox('a'), true);
+    expect(count()).toBe('已選 1 則');
+    const groupAll = root.querySelector<HTMLInputElement>('.group[data-video-id="80000000"] .group-select input')!;
+    setChecked(groupAll, true);
+    expect(count()).toBe('已選 2 則');
+    expect(q('.action-bar').dataset['count']).toBe('2');
+    expect(q<HTMLButtonElement>('.clear-selection').hidden).toBe(false);
+    expect(q<HTMLInputElement>('.select-all input').indeterminate).toBe(true);
+  });
+
+  it('selects every note, across groups, with the bar 全選', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    setChecked(q<HTMLInputElement>('.select-all input'), true);
+    expect(getSelectedNotes(root).map((n) => n.id).sort()).toEqual(['a', 'b', 'c']);
+    expect(count()).toBe('已選 3 則');
+    for (const all of root.querySelectorAll<HTMLInputElement>('.group-select input')) {
+      expect(all.checked).toBe(true);
+    }
+  });
+
+  it('clears the selection with 取消選取', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    setChecked(noteBox('a'), true);
+    setChecked(noteBox('c'), true);
+    q<HTMLButtonElement>('.clear-selection').click();
+    expect(getSelectedNotes(root)).toEqual([]);
+    expect(count()).toBe('勾選筆記後，可以複製圖卡或匯出');
+    expect(q<HTMLInputElement>('.select-all input').checked).toBe(false);
+  });
+
+  it('disables the bar 全選 when there are no notes', async () => {
+    await renderNotebook(root, mockDeps([]));
+    expect(q<HTMLInputElement>('.select-all input').disabled).toBe(true);
   });
 });
 
