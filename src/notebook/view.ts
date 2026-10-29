@@ -46,6 +46,8 @@ interface ViewState {
   /** Takes the page-level listeners (pagehide, visibilitychange) off again. */
   removeListeners: () => void;
   groupsEl: HTMLElement;
+  /** Shows one picture at full size; opened by clicking a thumbnail. */
+  lightbox: HTMLDialogElement;
   backupBar: HTMLElement;
   backupStatus: HTMLElement;
   backupHint: HTMLElement;
@@ -201,7 +203,46 @@ async function loadThumb(
   const img = create(doc, 'img');
   img.src = url;
   img.alt = `${formatTime(note.timeMs)} 的畫面`;
-  slot.replaceChildren(img);
+  const zoom = create(doc, 'button', 'thumb-zoom');
+  zoom.type = 'button';
+  zoom.title = '放大檢視';
+  zoom.setAttribute('aria-label', `放大 ${formatTime(note.timeMs)} 的畫面`);
+  zoom.append(img);
+  zoom.addEventListener('click', () => {
+    openLightbox(state, url, state.notes.get(note.id) ?? note);
+  });
+  slot.replaceChildren(zoom);
+}
+
+/** The full-size view of a note's picture. Closes on Esc, the 關閉 button or a click anywhere. */
+function createLightbox(doc: Document): HTMLDialogElement {
+  const dialog = create(doc, 'dialog', 'lightbox');
+  dialog.setAttribute('aria-label', '放大的畫面');
+  const img = create(doc, 'img');
+  const caption = create(doc, 'p', 'lightbox-caption');
+  const close = create(doc, 'button', 'lightbox-close', '關閉');
+  close.type = 'button';
+  dialog.append(close, img, caption);
+  dialog.addEventListener('click', () => closeLightbox(dialog));
+  return dialog;
+}
+
+function openLightbox(state: ViewState, url: string, note: Note): void {
+  const dialog = state.lightbox;
+  const img = dialog.querySelector('img')!;
+  const time = formatTime(note.timeMs);
+  img.src = url;
+  img.alt = `${time} 的畫面`;
+  const subtitle = note.subtitle.trim();
+  dialog.querySelector('.lightbox-caption')!.textContent = subtitle === '' ? time : `${time}　${subtitle}`;
+  if (dialog.open) return;
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+function closeLightbox(dialog: HTMLDialogElement): void {
+  if (typeof dialog.close === 'function') dialog.close();
+  dialog.removeAttribute('open');
 }
 
 /** The grey 「沒有圖」 box. */
@@ -507,6 +548,7 @@ export async function renderNotebook(
   const toolbar = create(doc, 'div', 'toolbar');
   toolbar.id = 'export-actions';
   const groupsEl = create(doc, 'div', 'groups');
+  const lightbox = createLightbox(doc);
 
   const state: ViewState = {
     deps,
@@ -518,6 +560,7 @@ export async function renderNotebook(
     disposed: false,
     removeListeners: () => {},
     groupsEl,
+    lightbox,
     backupBar,
     backupStatus,
     backupHint,
@@ -554,7 +597,7 @@ export async function renderNotebook(
     if (file) void runRestore(state, file);
   });
 
-  root.replaceChildren(backupBar, statusLine, toolbar, groupsEl);
+  root.replaceChildren(backupBar, statusLine, toolbar, groupsEl, lightbox);
 
   const exportDeps = {
     getSelectedNotes: () => getSelectedNotes(root),

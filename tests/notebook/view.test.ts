@@ -275,6 +275,25 @@ describe('thumbnails', () => {
     expect(blob.type).toBe('image/jpeg');
   });
 
+  it('opens the full-size picture with time and subtitle when the thumbnail is clicked', async () => {
+    const note = makeNote('a', { timeMs: 1003000, subtitle: '你好嗎' });
+    await renderNotebook(root, mockDeps([note], { getImage: vi.fn(async () => jpegBuffer()) }));
+    const dialog = q<HTMLDialogElement>('dialog.lightbox');
+    expect(dialog.open).toBe(false);
+    noteEl('a').querySelector<HTMLButtonElement>('.thumb-zoom')!.click();
+    expect(dialog.open).toBe(true);
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('blob:thumb-1');
+    expect(dialog.querySelector('.lightbox-caption')?.textContent).toBe('16:43　你好嗎');
+  });
+
+  it('closes the full-size picture on a click', async () => {
+    await renderNotebook(root, mockDeps([makeNote('a')], { getImage: vi.fn(async () => jpegBuffer()) }));
+    noteEl('a').querySelector<HTMLButtonElement>('.thumb-zoom')!.click();
+    const dialog = q<HTMLDialogElement>('dialog.lightbox');
+    dialog.querySelector<HTMLButtonElement>('.lightbox-close')!.click();
+    expect(dialog.open).toBe(false);
+  });
+
   it('shows the grey 沒有圖 placeholder when the image is missing from storage', async () => {
     // image.source says there should be a picture, but nothing is stored for it
     await renderNotebook(root, mockDeps([makeNote('a')]));
