@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* macOS system font for Traditional Chinese; the renderer runs on this Mac. */
+      @font-face { font-family: "PingFang TC"; src: local("PingFangTC-Regular"), local("PingFang TC"); font-weight: 400; }
+      @font-face { font-family: "PingFang TC"; src: local("PingFangTC-Semibold"); font-weight: 600 900; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px; height: 1080px; overflow: hidden;
+        background: #0b0a09;
+        font-family: "PingFang TC", "Inter", system-ui, sans-serif;
+        color: #f5f2ef;
+        -webkit-font-smoothing: antialiased;
+      }
+      :root {
+        --ink-950: #0b0a09;
+        --ink-900: #141210;
+        --ink-800: #1f1c18;
+        --film: #1c1813;
+        --ink-100: #f5f2ef;
+        --ink-300: #d9d2c7;
+        --ink-500: #a8a093;
+        --red: #e50914;
+        --amber: #ffb547;
+        --hole: #ebe1cd;
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      .scene { position: absolute; inset: 0; opacity: 0; display: none; background: var(--ink-950); }
+      .eyebrow { font-size: 28px; letter-spacing: 0.08em; color: var(--ink-500); font-weight: 600; }
+      .hl { color: var(--amber); }
+      .still { background-size: cover; background-position: center; }
+      .still-rain { background-image: url("assets/still-rain.jpg"); }
+      .still-roof { background-image: url("assets/still-rooftop.jpg"); }
+      .still-lab { background-image: url("assets/still-lab.jpg"); }
+      .still-plat { background-image: url("assets/still-platform.jpg"); }
+      .head { position: absolute; left: 100px; right: 100px; top: 56px; }
+      .head h2 { margin-top: 12px; font-size: 92px; line-height: 1.12; font-weight: 800; letter-spacing: 0.01em; }
+
+      /* ============ SCENE 1 — HOOK ============ */
+      .s1-frame { position: absolute; inset: 0; }
+      .s1-scrim { position: absolute; inset: 0; background: linear-gradient(270deg, rgba(11,10,9,0.94) 0%, rgba(11,10,9,0.7) 38%, rgba(11,10,9,0.08) 70%); }
+      .s1-bar { position: absolute; left: 0; right: 0; height: 96px; background: #000; }
+      .s1-bar.top { top: 0; } .s1-bar.bottom { bottom: 0; }
+      .s1-time {
+        position: absolute; top: 128px; right: 100px;
+        padding: 10px 22px; border-radius: 999px; background: rgba(0,0,0,0.72);
+        font: 600 34px/1 var(--mono); color: var(--ink-100);
+      }
+      .s1-time span { position: absolute; left: 62px; top: 10px; opacity: 0; }
+      .s1-time::before { content: "▶"; color: var(--red); margin-right: 14px; }
+      .s1-time i { visibility: hidden; font-style: normal; }
+      .s1-sub {
+        position: absolute; left: 0; right: 0; bottom: 150px; text-align: center;
+        font-size: 56px; font-weight: 600; color: #ffffff;
+        text-shadow: 0 2px 6px #000, 0 0 2px #000;
+      }
+      .s1-line { position: absolute; left: 1020px; top: 280px; width: 820px; }
+      .s1-line h1 { font-size: 168px; line-height: 1.05; font-weight: 900; }
+      .s1-line h3 { font-size: 88px; line-height: 1.15; font-weight: 800; }
+
+      /* ============ SCENE 2/3 — NOTE OVERLAY ============ */
+      .backdrop { position: absolute; inset: 0; filter: blur(14px) brightness(0.32); transform: scale(1.06); }
+      .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+      .keys { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; gap: 28px; }
+      .key {
+        width: 190px; height: 190px; border-radius: 30px;
+        background: linear-gradient(180deg, #2b2722, #1a1714);
+        border: 2px solid #4a443c; box-shadow: 0 14px 0 #0f0d0b, 0 22px 40px rgba(0,0,0,0.6);
+        display: flex; align-items: center; justify-content: center;
+        font: 600 104px/1 var(--mono); color: var(--ink-100);
+      }
+      .panel {
+        position: absolute; left: 210px; width: 1500px;
+        padding: 40px 44px; border-radius: 26px;
+        background: rgba(20, 18, 16, 0.96);
+        box-shadow: 0 30px 90px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.06);
+      }
+      .p-top { display: flex; gap: 40px; }
+      .p-thumb { position: relative; flex: none; width: 600px; height: 338px; border-radius: 12px; overflow: hidden; }
+      .p-thumb > div { position: absolute; inset: 0; }
+      .p-info { flex: 1; min-width: 0; }
+      .p-title { font-size: 48px; font-weight: 800; }
+      .p-time { position: relative; height: 54px; margin: 8px 0 22px; font: 600 40px/54px var(--mono); color: var(--ink-300); }
+      .p-time span { position: absolute; left: 0; top: 0; }
+      .field {
+        position: relative; border: 2px solid #4a443c; border-radius: 12px; background: var(--ink-800);
+        padding: 18px 22px; font-size: 36px; line-height: 1.4; color: var(--ink-100); min-height: 132px;
+      }
+      .field span.alt { position: absolute; left: 22px; top: 18px; right: 22px; }
+      .note { margin-top: 28px; border-color: #e5a00d; min-height: 150px; font-size: 40px; }
+      .caret { display: inline-block; width: 3px; height: 44px; margin-left: 4px; vertical-align: -6px; background: var(--amber); }
+      .p-hint { margin-top: 16px; font-size: 26px; color: var(--ink-500); }
+
+      /* ============ SCENE 3 — FILM STRIP ============ */
+      .film {
+        position: absolute; left: 150px; width: 1620px; top: 214px; height: 236px;
+        border-radius: 8px; padding: 34px 40px;
+        background: linear-gradient(180deg, #1c1813, #0f0d0a 50%, #1c1813);
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06), 0 12px 30px rgba(0,0,0,0.6);
+        display: flex; align-items: flex-end; gap: 26px;
+      }
+      .film::before, .film::after {
+        content: ""; position: absolute; left: 14px; right: 14px; height: 14px;
+        background: repeating-linear-gradient(90deg, var(--hole) 0 18px, transparent 18px 40px);
+        border-radius: 3px; opacity: 0.85;
+      }
+      .film::before { top: 10px; } .film::after { bottom: 10px; }
+      .frame { position: relative; flex: none; aspect-ratio: 16 / 9; border: 4px solid #000; border-radius: 4px; overflow: hidden; }
+      .frame > div { position: absolute; inset: 0; }
+      .frame.a2 { height: 118px; } .frame.a1 { height: 142px; } .frame.now { height: 168px; }
+      .frame .code {
+        position: absolute; left: 10px; bottom: 6px; inset: auto auto 6px 10px;
+        font: 700 28px/1 var(--mono); color: var(--amber); text-shadow: 0 2px 4px #000;
+      }
+      .frame.now .code { color: #fff; }
+      .frame.now .code::before { content: "● "; color: var(--red); }
+      .ring { position: absolute; inset: -4px; border: 5px solid var(--red); border-radius: 4px; opacity: 0; }
+      .film-cap { flex: 1; align-self: center; font-size: 34px; color: var(--ink-300); line-height: 1.4; }
+      .film-cap b { display: block; font: 700 30px/1.5 var(--mono); color: var(--amber); }
+      .arrow { align-self: center; font-size: 44px; color: rgba(235,225,205,0.55); }
+      .viewing {
+        position: absolute; left: 254px; top: 488px; width: 1412px; padding: 12px 24px; border-radius: 12px;
+        background: #3a2a14; color: #ffd79a; font-size: 30px; opacity: 0;
+      }
+      .cursor { position: absolute; width: 56px; height: 56px; opacity: 0; z-index: 50; }
+
+      /* ============ SCENE 4 — NOTEBOOK & EXPORTS ============ */
+      .nb { position: absolute; left: 100px; top: 250px; width: 900px; }
+      .nb-bar {
+        display: flex; align-items: center; gap: 22px; padding: 18px 26px; border-radius: 14px;
+        background: var(--ink-800); border: 2px solid #3a352e; font-size: 32px; margin-bottom: 22px;
+      }
+      .nb-count { position: relative; flex: 1; height: 44px; }
+      .nb-count span { position: absolute; left: 0; top: 0; line-height: 44px; }
+      .nb-count .zero { color: var(--ink-500); }
+      .nb-count .three { color: var(--amber); font-weight: 800; opacity: 0; }
+      .nb-btn { padding: 8px 20px; border-radius: 10px; background: var(--red); color: #fff; font-weight: 700; font-size: 28px; }
+      .card {
+        position: relative; display: flex; align-items: center; gap: 24px; padding: 20px 24px; margin-bottom: 18px;
+        border-radius: 16px; background: var(--ink-800); border: 3px solid #3a352e;
+      }
+      .card .sel { position: absolute; inset: -3px; border: 4px solid var(--red); border-radius: 16px; opacity: 0; }
+      .box {
+        position: relative; flex: none; width: 44px; height: 44px; border-radius: 8px; border: 3px solid var(--ink-500);
+      }
+      .box .tick {
+        position: absolute; inset: -3px; border-radius: 8px; background: var(--red); opacity: 0;
+        display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30px; font-weight: 900;
+      }
+      .c-thumb { flex: none; width: 240px; height: 135px; border-radius: 10px; }
+      .c-text { min-width: 0; }
+      .c-time { font: 700 32px/1.3 var(--mono); color: var(--amber); }
+      .c-body { font-size: 32px; line-height: 1.35; color: var(--ink-100); }
+      .outs { position: absolute; left: 1080px; top: 250px; width: 740px; height: 760px; }
+      .line-card {
+        position: absolute; left: 0; top: 0; width: 400px; padding: 22px; border-radius: 22px;
+        background: #f6f1e9; color: #1d1a16; box-shadow: 0 24px 60px rgba(0,0,0,0.6); opacity: 0;
+      }
+      .line-card .lc-img { height: 214px; border-radius: 12px; }
+      .line-card .lc-time { margin-top: 14px; font: 800 30px/1.2 var(--mono); color: #b3141c; }
+      .line-card .lc-quote { margin-top: 8px; font-size: 30px; font-weight: 700; line-height: 1.35; }
+      .line-card .lc-title { margin-top: 10px; font-size: 24px; color: #5a534a; }
+      .tile {
+        position: absolute; left: 450px; width: 290px; padding: 26px; border-radius: 20px;
+        background: var(--ink-800); border: 2px solid #4a443c; opacity: 0;
+      }
+      .tile .t-icon { font: 800 52px/1 var(--mono); color: var(--amber); }
+      .tile .t-name { margin-top: 14px; font-size: 34px; font-weight: 800; }
+      .tile .t-sub { margin-top: 6px; font-size: 26px; color: var(--ink-300); }
+      .tile.html { top: 0; } .tile.md { top: 236px; }
+      .tag { position: absolute; left: 0; top: 560px; font-size: 26px; color: var(--ink-300); opacity: 0; }
+      .jump {
+        position: absolute; left: 0; top: 640px; padding: 18px 30px; border-radius: 999px;
+        background: var(--red); color: #fff; font-size: 36px; font-weight: 800; opacity: 0;
+      }
+
+      /* ============ SCENE 5 — HEART ============ */
+      .s5 { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      .s5-mark { display: flex; align-items: center; gap: 44px; }
+      .s5-icon {
+        position: relative; width: 190px; height: 190px; border-radius: 42px;
+        background: linear-gradient(160deg, #2a241c, #14110d); box-shadow: inset 0 0 0 3px #3a3229, 0 20px 50px rgba(0,0,0,0.6);
+      }
+      /* A film frame with a red record dot: "this moment". */
+      .s5-icon::before {
+        content: ""; position: absolute; left: 30px; top: 50px; width: 130px; height: 90px;
+        border: 9px solid var(--amber); border-radius: 12px;
+      }
+      .s5-icon::after {
+        content: ""; position: absolute; left: 122px; top: 34px; width: 46px; height: 46px; border-radius: 50%;
+        background: var(--red); box-shadow: 0 0 0 7px #14110d;
+      }
+      .s5-word { font: 800 180px/1 "Inter", "PingFang TC", system-ui, sans-serif; letter-spacing: -0.02em; }
+      .s5-tag { margin-top: 60px; font-size: 64px; font-weight: 700; }
+      .s5-foot { margin-top: 44px; font-size: 32px; color: var(--ink-300); }
+      .s5-strip {
+        position: absolute; left: 0; right: 0; bottom: 70px; height: 26px; opacity: 0.5;
+        background: repeating-linear-gradient(90deg, var(--hole) 0 22px, transparent 22px 50px);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="30" data-width="1920" data-height="1080">
+
+      <!-- ============ SCENE 1 — HOOK ============ -->
+      <div id="s1" class="scene">
+        <div id="s1-a" class="s1-frame still still-rain"></div>
+        <div id="s1-b" class="s1-frame still still-plat"></div>
+        <div class="s1-scrim"></div>
+        <div class="s1-bar top"></div>
+        <div class="s1-bar bottom"></div>
+        <div class="s1-time"><i>16:43</i><span id="t41">16:41</span><span id="t42">16:42</span><span id="t43">16:43</span></div>
+        <div id="s1-sub" class="s1-sub">如果那天我有說出口就好了。</div>
+        <div class="s1-line">
+          <h1 id="s1-l1">那一句，<br />打到你。</h1>
+        </div>
+        <div class="s1-line">
+          <h3 id="s1-l2">下一秒，<br />劇情就把它<span class="hl">帶走了</span>。</h3>
+        </div>
+      </div>
+
+      <!-- ============ SCENE 2 — TWIST ============ -->
+      <div id="s2" class="scene">
+        <div class="backdrop still still-rain"></div>
+        <div id="s2-head" class="head">
+          <div class="eyebrow">畫面 · 秒數 · 台詞 · 心得</div>
+          <h2>按一下，<span class="hl">這一刻</span>就留下來。</h2>
+        </div>
+        <div id="s2-keys" class="keys">
+          <div class="key">⌥</div><div class="key">⇧</div><div class="key">N</div>
+        </div>
+        <div id="s2-panel" class="panel" style="top: 300px">
+          <div class="p-top">
+            <div class="p-thumb"><div class="still still-rain"></div></div>
+            <div class="p-info">
+              <div class="p-title">雨停之前</div>
+              <div class="p-time"><span>16:43</span></div>
+              <div class="field">如果那天我有說出口就好了。</div>
+            </div>
+          </div>
+          <div class="field note" id="s2-note"><span class="ch">這</span><span class="ch">句</span><span class="ch">要</span><span class="ch">寫</span><span class="ch">進</span><span class="ch">下</span><span class="ch">一</span><span class="ch">篇</span><span class="ch">文</span><span class="ch">章</span><span class="ch">，</span><span class="ch">後</span><span class="ch">悔</span><span class="ch">比</span><span class="ch">錯</span><span class="ch">過</span><span class="ch">更</span><span class="ch">痛</span><span class="caret"></span></div>
+          <div class="p-hint">Enter 存檔並繼續播放　·　Esc 取消</div>
+        </div>
+        <div id="s2-flash" class="flash"></div>
+      </div>
+
+      <!-- ============ SCENE 3 — MECHANIC ============ -->
+      <div id="s3" class="scene">
+        <div class="backdrop still still-rain"></div>
+        <div id="s3-head" class="head">
+          <div class="eyebrow">同一部片的前兩則，就在上面</div>
+          <h2>看過的每一刻，<span class="hl">串成你的底片</span>。</h2>
+        </div>
+        <div id="s3-film" class="film">
+          <div class="frame a2"><div class="still still-lab"></div><span class="code">12:05</span></div>
+          <div class="arrow">›</div>
+          <div id="s3-f2" class="frame a1"><div class="still still-roof"></div><span class="code">15:25</span><div id="s3-ring2" class="ring"></div></div>
+          <div class="arrow">›</div>
+          <div class="frame now"><div class="still still-rain"></div><span class="code">16:43</span><div id="s3-ringnow" class="ring" style="opacity: 1"></div></div>
+          <div class="film-cap"><b>15:25</b>轉折點，記下來寫文</div>
+        </div>
+        <div id="s3-viewing" class="viewing">正在看 15:25 那一則，可以直接修改</div>
+        <div id="s3-panel" class="panel" style="top: 556px; padding: 30px 40px">
+          <div class="p-top">
+            <div class="p-thumb" style="width: 480px; height: 270px">
+              <div id="s3-th-now" class="still still-rain"></div>
+              <div id="s3-th-old" class="still still-roof" style="opacity: 0"></div>
+            </div>
+            <div class="p-info">
+              <div class="p-title">雨停之前</div>
+              <div class="p-time"><span id="s3-tn">16:43</span><span id="s3-to" style="opacity: 0">15:25</span></div>
+              <div class="field" style="min-height: 120px">
+                <span id="s3-bn">這句要寫進下一篇文章，後悔比錯過更痛</span>
+                <span id="s3-bo" class="alt" style="opacity: 0">轉折點，記下來寫文</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <svg id="s3-cursor" class="cursor" viewBox="0 0 24 24" style="left: 1100px; top: 900px"><path d="M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.4-6.6L4 20z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round" /></svg>
+      </div>
+
+      <!-- ============ SCENE 4 — RANGE ============ -->
+      <div id="s4" class="scene">
+        <div id="s4-head" class="head">
+          <div class="eyebrow">筆記本：勾選，然後分享</div>
+          <h2>寫文章、傳給家人、<span class="hl">回到那一秒</span>。</h2>
+        </div>
+        <div class="nb">
+          <div class="nb-bar">
+            <div class="nb-count"><span id="s4-c0" class="zero">勾選筆記後可以分享</span><span id="s4-c3" class="three">已選 3 則</span></div>
+            <div class="nb-btn">複製圖卡</div>
+          </div>
+          <div class="card" id="s4-k1"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-lab"></div><div class="c-text"><div class="c-time">12:05</div><div class="c-body">他其實早就知道</div></div><div class="sel"></div></div>
+          <div class="card" id="s4-k2"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-roof"></div><div class="c-text"><div class="c-time">15:25</div><div class="c-body">轉折點，記下來寫文</div></div><div class="sel"></div></div>
+          <div class="card" id="s4-k3"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-rain"></div><div class="c-text"><div class="c-time">16:43</div><div class="c-body">後悔比錯過更痛</div></div><div class="sel"></div></div>
+        </div>
+        <div class="outs">
+          <div id="s4-line" class="line-card">
+            <div class="lc-img still still-rain"></div>
+            <div class="lc-time">16:43</div>
+            <div class="lc-quote">「如果那天我有說出口就好了。」</div>
+            <div class="lc-title">雨停之前 · 後悔比錯過更痛</div>
+          </div>
+          <div id="s4-html" class="tile html"><div class="t-icon">&lt;/&gt;</div><div class="t-name">網頁檔</div><div class="t-sub">手機點開就能看</div></div>
+          <div id="s4-md" class="tile md"><div class="t-icon">MD</div><div class="t-name">Markdown</div><div class="t-sub">直接貼進部落格</div></div>
+          <div id="s4-tag" class="tag">LINE 圖卡　·　網頁檔　·　Markdown</div>
+          <div id="s4-jump" class="jump">▶ 點秒數，跳回 16:43</div>
+        </div>
+        <svg id="s4-cursor" class="cursor" viewBox="0 0 24 24" style="left: 700px; top: 980px"><path d="M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.4-6.6L4 20z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round" /></svg>
+      </div>
+
+      <!-- ============ SCENE 5 — HEART ============ -->
+      <div id="s5" class="scene">
+        <div class="s5">
+          <div class="s5-mark">
+            <div id="s5-icon" class="s5-icon"></div>
+            <div id="s5-word" class="s5-word">scenenote</div>
+          </div>
+          <div id="s5-tag" class="s5-tag">把看劇時的<span class="hl">心動</span>，留成筆記。</div>
+          <div id="s5-foot" class="s5-foot">Netflix 看劇筆記 · Chrome 擴充功能 · 筆記只存在你的電腦裡</div>
+        </div>
+        <div id="s5-strip" class="s5-strip" data-layout-allow-overflow></div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      /* ================= SCENE 1 (Hook) 0.0 → 5.2 ================= */
+      tl.set("#s1", { display: "block", opacity: 1 }, 0);
+      tl.set("#s1-b", { opacity: 0 }, 0);
+      tl.set("#s1-a", { scale: 1.06 }, 0);
+      gsap.set(["#s1-l1", "#s1-l2", "#s1-sub"], { opacity: 0, y: 24 });
+      gsap.set(["#t42", "#t43"], { opacity: 0 });
+      tl.set("#t41", { opacity: 1 }, 0);
+      tl.to("#s1-a", { scale: 1, duration: 5.2, ease: "none" }, 0);
+      tl.to("#s1-sub", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.4);
+      tl.to("#s1-l1", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.0);
+      tl.set("#t41", { opacity: 0 }, 1.6);
+      tl.set("#t42", { opacity: 1 }, 1.6);
+      tl.set("#t42", { opacity: 0 }, 2.9);
+      tl.set("#t43", { opacity: 1 }, 2.9);
+      // The story moves on: subtitle drifts away, the next shot takes over.
+      tl.to("#s1-l1", { opacity: 0, y: -20, duration: 0.4, ease: "power1.in" }, 2.8);
+      tl.to("#s1-sub", { opacity: 0, x: 220, filter: "blur(10px)", duration: 0.8, ease: "power2.in" }, 2.9);
+      tl.to("#s1-b", { opacity: 1, duration: 0.8, ease: "power1.inOut" }, 3.0);
+      tl.to("#s1-l2", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 3.3);
+      tl.to("#s1", { opacity: 0, duration: 0.5, ease: "power1.in" }, 4.8);
+      tl.set("#s1", { display: "none" }, 5.35);
+
+      /* ================= SCENE 2 (Twist) 5.2 → 11.6 ================= */
+      tl.set("#s2", { opacity: 0, display: "none" }, 0);
+      tl.set("#s2-panel", { opacity: 0, y: 40, scale: 0.96 }, 0);
+      tl.set("#s2-head", { opacity: 0, y: 20 }, 0);
+      tl.set("#s2-keys .key", { opacity: 0, y: 30 }, 0);
+      tl.set("#s2-note .ch", { opacity: 0 }, 0);
+      tl.set("#s2", { display: "block" }, 5.1);
+      tl.to("#s2", { opacity: 1, duration: 0.4 }, 5.2);
+      tl.to("#s2-keys .key", { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: "back.out(1.6)" }, 5.4);
+      tl.to("#s2-keys .key", { y: 12, duration: 0.12, ease: "power1.in" }, 6.2);
+      tl.to("#s2-flash", { opacity: 0.85, duration: 0.08 }, 6.3);
+      tl.to("#s2-flash", { opacity: 0, duration: 0.35 }, 6.38);
+      tl.to("#s2-keys", { opacity: 0, duration: 0.25 }, 6.4);
+      tl.to("#s2-panel", { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" }, 6.5);
+      tl.to("#s2-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 6.8);
+      tl.to("#s2-note .ch", { opacity: 1, duration: 0.01, stagger: 0.12 }, 7.4);
+      tl.to("#s2", { opacity: 0, duration: 0.45, ease: "power1.in" }, 11.2);
+      tl.set("#s2", { display: "none" }, 11.7);
+
+      /* ================= SCENE 3 (Mechanic) 11.6 → 18.2 ================= */
+      tl.set("#s3", { opacity: 0, display: "none" }, 0);
+      tl.set("#s3-film", { opacity: 0, x: 120 }, 0);
+      tl.set("#s3-head", { opacity: 0, y: 20 }, 0);
+      tl.set("#s3-cursor", { opacity: 0, x: 0, y: 0 }, 0);
+      tl.set("#s3", { display: "block" }, 11.5);
+      tl.to("#s3", { opacity: 1, duration: 0.45 }, 11.6);
+      tl.to("#s3-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 11.8);
+      tl.to("#s3-film", { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" }, 12.1);
+      // Cursor glides to the 15:25 frame and clicks it.
+      tl.to("#s3-cursor", { opacity: 1, duration: 0.3 }, 13.3);
+      tl.to("#s3-cursor", { x: -420, y: -560, duration: 1.0, ease: "power2.inOut" }, 13.4);
+      tl.to("#s3-cursor", { scale: 0.82, duration: 0.1, yoyo: true, repeat: 1 }, 14.5);
+      tl.to("#s3-ring2", { opacity: 1, duration: 0.2 }, 14.6);
+      tl.to("#s3-ringnow", { opacity: 0, duration: 0.2 }, 14.6);
+      tl.to("#s3-th-old", { opacity: 1, duration: 0.35 }, 14.65);
+      tl.to(["#s3-tn", "#s3-bn"], { opacity: 0, duration: 0.25 }, 14.65);
+      tl.to(["#s3-to", "#s3-bo"], { opacity: 1, duration: 0.3 }, 14.75);
+      tl.to("#s3-viewing", { opacity: 1, duration: 0.35 }, 14.8);
+      tl.to("#s3-cursor", { opacity: 0, duration: 0.4 }, 16.0);
+      tl.to("#s3", { opacity: 0, duration: 0.45, ease: "power1.in" }, 17.8);
+      tl.set("#s3", { display: "none" }, 18.3);
+
+      /* ================= SCENE 4 (Range) 18.2 → 24.6 ================= */
+      tl.set("#s4", { opacity: 0, display: "none" }, 0);
+      tl.set("#s4-head", { opacity: 0, y: 20 }, 0);
+      tl.set(".nb", { opacity: 0, x: -40 }, 0);
+      tl.set("#s4-cursor", { opacity: 0, x: 0, y: 0 }, 0);
+      tl.set("#s4", { display: "block" }, 18.1);
+      tl.to("#s4", { opacity: 1, duration: 0.45 }, 18.2);
+      tl.to("#s4-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 18.35);
+      tl.to(".nb", { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 18.5);
+      tl.to("#s4-cursor", { opacity: 1, duration: 0.25 }, 19.0);
+      [["#s4-k1", -160], ["#s4-k2", 15], ["#s4-k3", 190]].forEach(([card, dy], i) => {
+        const at = 19.1 + i * 0.5;
+        tl.to("#s4-cursor", { x: -60, y: dy - 470, duration: 0.35, ease: "power2.inOut" }, at);
+        tl.to(card + " .tick", { opacity: 1, duration: 0.12 }, at + 0.38);
+        tl.to(card + " .sel", { opacity: 1, duration: 0.15 }, at + 0.38);
+      });
+      tl.to("#s4-c0", { opacity: 0, duration: 0.15 }, 20.1);
+      tl.to("#s4-c3", { opacity: 1, duration: 0.2 }, 20.15);
+      tl.to("#s4-cursor", { opacity: 0, duration: 0.3 }, 20.4);
+      tl.fromTo("#s4-line", { opacity: 0, x: -200, rotation: -8 }, { opacity: 1, x: 0, rotation: -3, duration: 0.6, ease: "back.out(1.4)" }, 20.4);
+      tl.fromTo("#s4-html", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 20.7);
+      tl.fromTo("#s4-md", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 20.9);
+      tl.to("#s4-tag", { opacity: 1, duration: 0.4 }, 21.4);
+      tl.fromTo("#s4-jump", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 22.0);
+      tl.to("#s4-jump", { scale: 1.05, duration: 0.3, yoyo: true, repeat: 1, ease: "sine.inOut" }, 22.7);
+      tl.to("#s4", { opacity: 0, duration: 0.45, ease: "power1.in" }, 24.2);
+      tl.set("#s4", { display: "none" }, 24.7);
+
+      /* ================= SCENE 5 (Heart) 24.6 → 30.0 ================= */
+      tl.set("#s5", { opacity: 0, display: "none" }, 0);
+      tl.set("#s5-icon", { opacity: 0, scale: 0.7 }, 0);
+      tl.set("#s5-word", { opacity: 0, x: -16 }, 0);
+      tl.set(["#s5-tag", "#s5-foot"], { opacity: 0, y: 24 }, 0);
+      tl.set("#s5-strip", { x: 0 }, 0);
+      tl.set("#s5", { display: "block" }, 24.5);
+      tl.to("#s5", { opacity: 1, duration: 0.5 }, 24.6);
+      tl.to("#s5-icon", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 24.8);
+      tl.to("#s5-word", { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" }, 25.0);
+      tl.to("#s5-tag", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 25.6);
+      tl.to("#s5-foot", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 26.6);
+      tl.to("#s5-strip", { x: -100, duration: 5.4, ease: "none" }, 24.6);
+      tl.to({}, { duration: 0.1 }, 29.9);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

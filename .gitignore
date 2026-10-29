@@ -24,3 +24,9 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# promo video build output
+docs/design/promo-*/renders/
+docs/design/promo-*/snapshots/
+docs/design/promo-*/.hyperframes/
+docs/design/promo-review.html
