@@ -107,11 +107,6 @@
         gap: 6px;
         cursor: pointer;
       }
-      .select-all input {
-        width: 18px;
-        height: 18px;
-        margin: 0;
-      }
       .selection-count {
         color: var(--muted);
         font-variant-numeric: tabular-nums;
@@ -201,10 +196,22 @@
         background: var(--surface);
       }
       .note input[type='checkbox'],
-      .group-select input {
-        width: 18px;
-        height: 18px;
-        margin: 2px 0 0;
+      .group-select input,
+      .select-all input {
+        width: 22px;
+        height: 22px;
+        margin: 0;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+      .note {
+        cursor: pointer;
+      }
+      .note textarea {
+        cursor: text;
+      }
+      .note:hover:not(:has(.note-select:checked)) {
+        border-color: var(--muted);
       }
       .thumb-column {
         display: grid;

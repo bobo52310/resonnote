@@ -243,6 +243,37 @@ describe('selection bar', () => {
     expect(q<HTMLInputElement>('.select-all input').checked).toBe(false);
   });
 
+  it('toggles a note by clicking anywhere on its card', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    noteEl('a').click();
+    expect(noteBox('a').checked).toBe(true);
+    expect(count()).toBe('已選 1 則');
+    noteEl('a').querySelector<HTMLElement>('.note-main')!.click();
+    expect(noteBox('a').checked).toBe(false);
+    expect(count()).toBe('勾選筆記後，可以複製圖卡或匯出');
+  });
+
+  it('keeps the box group in step when a card click selects the whole group', async () => {
+    await renderNotebook(root, mockDeps(twoVideos()));
+    noteEl('c').click();
+    const groupAll = root.querySelector<HTMLInputElement>('.group[data-video-id="80000000"] .group-select input')!;
+    expect(groupAll.checked).toBe(true);
+  });
+
+  it('does not toggle when clicking the text box, the time, the delete button or the box itself', async () => {
+    const deps = mockDeps(twoVideos(), { getImage: vi.fn(async () => jpegBuffer()) });
+    await renderNotebook(root, deps);
+    const card = noteEl('a');
+    card.querySelector<HTMLTextAreaElement>('textarea.body')!.click();
+    card.querySelector<HTMLButtonElement>('.time')!.click();
+    card.querySelector<HTMLButtonElement>('.delete')!.click();
+    card.querySelector<HTMLButtonElement>('.thumb-zoom')!.click();
+    expect(noteBox('a').checked).toBe(false);
+    // a direct click on the box toggles once, not twice
+    noteBox('a').click();
+    expect(noteBox('a').checked).toBe(true);
+  });
+
   it('disables the bar 全選 when there are no notes', async () => {
     await renderNotebook(root, mockDeps([]));
     expect(q<HTMLInputElement>('.select-all input').disabled).toBe(true);

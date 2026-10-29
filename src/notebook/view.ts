@@ -253,6 +253,12 @@ function showNoImage(slot: HTMLElement): void {
   slot.textContent = '沒有圖';
 }
 
+/** Sets a box and fires `change`, so the group box and the bar follow as for a real click. */
+function setCheckedAndNotify(box: HTMLInputElement, checked: boolean): void {
+  box.checked = checked;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
 /** Brings a group's 「全選」 box in line with its notes' boxes. */
 function syncGroupSelect(group: HTMLElement): void {
   const all = group.querySelector<HTMLInputElement>('.group-select input');
@@ -459,6 +465,16 @@ function buildNote(
   const actions = create(doc, 'div', 'note-actions');
   actions.append(remove);
   main.append(actions);
+
+  // A click anywhere on the card toggles its box, except on things that do something of their
+  // own (the picture, the time, the text box, the buttons) and except when ending a text selection.
+  article.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element)) return;
+    if (e.target.closest('button, a, input, textarea, select, label') !== null) return;
+    const picked = doc.getSelection();
+    if (picked !== null && !picked.isCollapsed && article.contains(picked.anchorNode)) return;
+    setCheckedAndNotify(select, !select.checked);
+  });
 
   article.append(select, thumbColumn, main);
   return article;
