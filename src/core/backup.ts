@@ -11,7 +11,7 @@ const LAST_BACKUP_KEY = 'lastBackupAt';
 const REMINDER_AFTER_DAYS = 14;
 const DAY_MS = 86_400_000;
 
-/** Thrown when a file is not a scenenote backup (not a zip, no notes.json, wrong shape). */
+/** Thrown when a file is not a ResonNote backup (not a zip, no notes.json, wrong shape). */
 export class BackupFormatError extends Error {
   constructor(message: string) {
     super(message);
@@ -105,7 +105,7 @@ function toNote(value: unknown): Note | null {
   return note;
 }
 
-/** Reads a backup zip. Throws {@link BackupFormatError} if it is not a valid scenenote backup. */
+/** Reads a backup zip. Throws {@link BackupFormatError} if it is not a valid ResonNote backup. */
 export function parseBackupZip(data: Uint8Array): {
   notes: Note[];
   images: Map<string, Uint8Array>;

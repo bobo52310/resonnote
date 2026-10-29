@@ -1,4 +1,4 @@
-# scenenote promo — visual identity
+# ResonNote (共鳴筆記) promo — visual identity
 
 Taken from the extension's own UI (note overlay, film strip, notebook), so the video looks like the product.
 

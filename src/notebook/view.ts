@@ -29,7 +29,7 @@ const CONFIRM_DELETE_MS = 3000;
 /** How long the typing has to pause before the body is saved (a tab can be closed at any time). */
 const SAVE_DEBOUNCE_MS = 500;
 const EMPTY_TEXT = '還沒有筆記。在 Netflix 播放時按 ⌥⇧N 記下第一則。';
-const MSG_NOT_A_BACKUP = '這不是 scenenote 的備份檔，或檔案已損壞';
+const MSG_NOT_A_BACKUP = '這不是 ResonNote 的備份檔，或檔案已損壞';
 
 interface ViewState {
   deps: NotebookDeps;
@@ -138,7 +138,7 @@ async function runBackup(state: ViewState): Promise<void> {
   try {
     const bytes = await exportAllBackup();
     const now = state.deps.now();
-    const name = `scenenote-backup-${localDateStamp(now)}.zip`;
+    const name = `resonnote-backup-${localDateStamp(now)}.zip`;
     downloadBytes(name, bytes, 'application/zip');
     await setLastBackupAt(now.toISOString());
     await refreshBackupBar(state);

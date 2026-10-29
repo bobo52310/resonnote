@@ -858,7 +858,7 @@ describe('backup', () => {
     await vi.waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(1));
 
     const [name, data, mime] = vi.mocked(downloadBytes).mock.calls[0]!;
-    expect(name).toBe('scenenote-backup-20261028.zip');
+    expect(name).toBe('resonnote-backup-20261028.zip');
     expect(mime).toBe('application/zip');
     const files = unzipSync(data as Uint8Array);
     expect(Object.keys(files).sort()).toEqual(['images/a.jpg', 'notes.json']);
@@ -918,11 +918,11 @@ describe('backup', () => {
     expect(q<HTMLInputElement>('input[type="file"]').value).toBe('');
   });
 
-  it('says the file is not a scenenote backup when it cannot be read as one', async () => {
+  it('says the file is not a ResonNote backup when it cannot be read as one', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await renderNotebook(root, realDeps());
     await chooseFile(new TextEncoder().encode('this is not a zip'));
-    await vi.waitFor(() => expect(status()).toBe('這不是 scenenote 的備份檔，或檔案已損壞'));
+    await vi.waitFor(() => expect(status()).toBe('這不是 ResonNote 的備份檔，或檔案已損壞'));
   });
 
   it('prefixes other failures with 還原失敗：', async () => {

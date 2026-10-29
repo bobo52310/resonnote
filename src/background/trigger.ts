@@ -14,7 +14,7 @@ export interface TriggerDeps {
 export const RELOAD_BADGE = '!';
 export const RELOAD_TITLE = '請重新整理這個 Netflix 分頁後再按一次';
 /** The button's normal tooltip; must equal `action.default_title` in wxt.config.ts. */
-export const DEFAULT_ACTION_TITLE = '記下這一刻（scenenote）';
+export const DEFAULT_ACTION_TITLE = '記下這一刻（ResonNote）';
 
 export type TriggerOutcome = 'notebook' | 'busy' | 'no-video' | 'shown';
 

@@ -1,6 +1,10 @@
-# scenenote
+# ResonNote 共鳴筆記
 
-在 Netflix 播放頁按快捷鍵，一鍵記下畫面、秒數、台詞與心得的 Chrome 擴充功能。
+看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得的 Chrome 擴充功能（支援 Netflix）。
+
+> 這一秒打動你，就把它留下來。
+
+專案代號與 repo 名稱仍是 `scenenote`（資料庫名稱、內部訊息也沿用，舊筆記與舊備份都能照常讀取）。
 
 擴充功能 ID：`bldeoidbgkcdnmiholglmknnimdhnhff`
 
