@@ -1,12 +1,13 @@
 # TODO — scenenote
 
-> 2026-10-28：v1 程式完成（431 項自動測試通過）。2026-10-29 已合併進 `main`（本機）；**還沒推 GitHub**（沒有 remote）。
+> 2026-10-28：v1 程式完成（431 項自動測試通過）。2026-10-29 已合併進 `main`，並推上 GitHub private repo：https://github.com/bobo52310/scenenote
 
 ## 🔴 下一步
 
 - [ ] 照 `docs/acceptance-2026-10-28.md` 在真的 Netflix 上跑一遍驗收，逐項勾通過／不通過
 - [x] 合併進 `main`（2026-10-29）
-- [ ] 決定要不要建 GitHub private repo（建了記得回 Notion「22 DB Side Project Ideas」補 GitHub 欄）
+- [x] 建 GitHub private repo 並推上去（2026-10-29）
+- [ ] 回 Notion「22 DB Side Project Ideas」的 scenenote 卡片補 GitHub 欄
 
 ## 只有實機能確認的事
 
