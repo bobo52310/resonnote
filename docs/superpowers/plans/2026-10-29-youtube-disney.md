@@ -140,8 +140,8 @@ export function runContentScript(opts: ContentScriptOptions): void;
 
 ## Task 5：文件
 
-- [ ] README：標題敘述、安裝第 3 步（三個平台的分頁都要重新整理）、使用方式（三平台的播放頁網址）、已知限制（每個平台列出退路；YouTube 廣告中不記、Disney+ 連結不帶秒數、Disney+ 沒有低解析度備案、YouTube 頁面按鈕第一次用原畫面不含字幕）。
-- [ ] `docs/acceptance-2026-10-29-youtube-disney.md`：真人驗收清單（重新載入擴充功能後；YouTube 一般／劇院／全螢幕／Shorts、開關字幕、頁面按鈕第一次用、跳回同分頁與新分頁；Disney+ 電影與影集、季集、開關字幕、跳回新分頁停在正確秒數、匯出連結文字；Netflix 回歸：記一則、跳回）。
-- [ ] `TODO.md`：把「Disney+、YouTube 轉接層」移到完成，加上這版的待驗收與延後項目。
-- [ ] v1 spec §2 範圍表加一句指向新 spec。
-- [ ] Commit：`docs: YouTube and Disney+ support`
+- [x] README：標題敘述、安裝第 3 步（三個平台的分頁都要重新整理）、使用方式（三平台的播放頁網址）、已知限制（每個平台列出退路；YouTube 廣告中不記、Disney+ 連結不帶秒數、Disney+ 沒有低解析度備案、YouTube 頁面按鈕第一次用原畫面不含字幕）。
+- [x] `docs/acceptance-2026-10-29-youtube-disney.md`：真人驗收清單（重新載入擴充功能後；YouTube 一般／劇院／全螢幕／Shorts、開關字幕、頁面按鈕第一次用、跳回同分頁與新分頁；Disney+ 電影與影集、季集、開關字幕、跳回新分頁停在正確秒數、匯出連結文字；Netflix 回歸：記一則、跳回）。
+- [x] `TODO.md`：把「Disney+、YouTube 轉接層」移到完成，加上這版的待驗收與延後項目。
+- [x] v1 spec §2 範圍表加一句指向新 spec。
+- [x] Commit：`docs: YouTube and Disney+ support`
