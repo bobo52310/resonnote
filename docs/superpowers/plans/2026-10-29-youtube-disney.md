@@ -117,13 +117,13 @@ export function runContentScript(opts: ContentScriptOptions): void;
 
 **Files:** `src/platforms/youtube/{subtitle,page-bridge,adapter}.ts`、`src/entrypoints/youtube.content.ts`、`src/entrypoints/youtube-bridge.content.ts`、`tests/platforms/youtube/*`。
 
-- [ ] 照 spec §2.1、§3.3「YouTube 轉接層」實作。播放器元素：`location` 是 `/shorts/` 用 `#shorts-player`，否則 `#movie_player`。
-- [ ] page-bridge（main world）：`playback` → `{ videoId, timeMs, title, ad }`（`getVideoData().video_id` 與網址 id 不同時以播放器的為準但仍要非空；`ad` 來自 `classList.contains('ad-showing')`）；`pause`/`play`/`seek`（`seekTo(ms / 1000, true)`）；`frame` → canvas 畫 `<video>`（`videoWidth`×`videoHeight`）→ `toBlob('image/jpeg', 0.9)` → `Uint8Array`；畫不出來回 `null`。用 `Symbol.for('scenenote.page-bridge')` 防重複安裝（照 Netflix）。
-- [ ] adapter：`getPlayback` 廣告中回 `null`；橋接沒回答時退回網址 id＋`<video>.currentTime`＋清理過的分頁標題（`missing: ['playerApi','title']`；標題清不出東西時用 `YouTube <id>`）。`pause`/`play`/`seek` 橋接失敗退回 `<video>`。`getVideoRect` 用該播放器裡的 `video.html5-main-video`，用 `contentRect`（同 Netflix）。`hidePlayerUi` 以播放器元素為 root（全螢幕時若 `fullscreenElement` 不包含播放器，就用 `fullscreenElement`），keep＝`'video, .ytp-caption-window-container, #lln-main-subs'`。`getTrickplayFrame` 回 `null`。`grabFrame` 走橋接 `frame`（逾時 3000 ms）。
-- [ ] subtitle：spec §2.1 的結構；略過含 `svg` 的 `.caption-window`；每個 `.caption-visual-line` 取文字（`.ytp-caption-segment` 串接），行與行、視窗與視窗以單一空白相接並 trim；空的話用 `extractLanguageReactorSubtitle`。
-- [ ] entrypoints：`matches: ['https://www.youtube.com/*']`；bridge 用 `world: 'MAIN'`、`runAt: 'document_idle'`；content 用 `runContentScript({ platform: 'youtube', …, quickButtonAnchor: 播放器元素 })`，`isWatchPage` 用 YouTube 的 `parseWatchVideoId(location.href) !== null`。
-- [ ] 測試：字幕（單行、多行、兩個視窗、含 svg 的語言標籤視窗被略過、沒字幕、Language Reactor 退路）；橋接（假 `movie_player` 物件：playback、廣告、seek 秒數換算、shorts 用 `#shorts-player`、方法不存在時回 null/false）；adapter（橋接 mock：正常、廣告、退路、標題清理「(107) 片名 - YouTube」→「片名」、`<video>` 選擇在 shorts 頁有兩個 video 時選對）。
-- [ ] Commit：`feat: YouTube adapter`
+- [x] 照 spec §2.1、§3.3「YouTube 轉接層」實作。播放器元素：`location` 是 `/shorts/` 用 `#shorts-player`，否則 `#movie_player`。
+- [x] page-bridge（main world）：`playback` → `{ videoId, timeMs, title, ad }`（`getVideoData().video_id` 與網址 id 不同時以播放器的為準但仍要非空；`ad` 來自 `classList.contains('ad-showing')`）；`pause`/`play`/`seek`（`seekTo(ms / 1000, true)`）；`frame` → canvas 畫 `<video>`（`videoWidth`×`videoHeight`）→ `toBlob('image/jpeg', 0.9)` → `Uint8Array`；畫不出來回 `null`。用 `Symbol.for('scenenote.page-bridge')` 防重複安裝（照 Netflix）。
+- [x] adapter：`getPlayback` 廣告中回 `null`；橋接沒回答時退回網址 id＋`<video>.currentTime`＋清理過的分頁標題（`missing: ['playerApi','title']`；標題清不出東西時用 `YouTube <id>`）。`pause`/`play`/`seek` 橋接失敗退回 `<video>`。`getVideoRect` 用該播放器裡的 `video.html5-main-video`，用 `contentRect`（同 Netflix）。`hidePlayerUi` 以播放器元素為 root（全螢幕時若 `fullscreenElement` 不包含播放器，就用 `fullscreenElement`），keep＝`'video, .ytp-caption-window-container, #lln-main-subs'`。`getTrickplayFrame` 回 `null`。`grabFrame` 走橋接 `frame`（逾時 3000 ms）。
+- [x] subtitle：spec §2.1 的結構；略過含 `svg` 的 `.caption-window`；每個 `.caption-visual-line` 取文字（`.ytp-caption-segment` 串接），行與行、視窗與視窗以單一空白相接並 trim；空的話用 `extractLanguageReactorSubtitle`。
+- [x] entrypoints：`matches: ['https://www.youtube.com/*']`；bridge 用 `world: 'MAIN'`、`runAt: 'document_idle'`；content 用 `runContentScript({ platform: 'youtube', …, quickButtonAnchor: 播放器元素 })`，`isWatchPage` 用 YouTube 的 `parseWatchVideoId(location.href) !== null`。
+- [x] 測試：字幕（單行、多行、兩個視窗、含 svg 的語言標籤視窗被略過、沒字幕、Language Reactor 退路）；橋接（假 `movie_player` 物件：playback、廣告、seek 秒數換算、shorts 用 `#shorts-player`、方法不存在時回 null/false）；adapter（橋接 mock：正常、廣告、退路、標題清理「(107) 片名 - YouTube」→「片名」、`<video>` 選擇在 shorts 頁有兩個 video 時選對）。
+- [x] Commit：`feat: YouTube adapter`
 
 ## Task 4：Disney+ 轉接層（可與 Task 3 平行）
 
