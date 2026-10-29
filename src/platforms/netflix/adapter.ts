@@ -2,6 +2,7 @@ import { contentRect } from '../../core/capture-math';
 import type { Missing, Playback, Rect } from '../../core/types';
 import type { PlatformAdapter } from '../types';
 import { callBridge, warnOnce } from './bridge-protocol';
+import { hidePlayerUi } from './hide-ui';
 import { extractSubtitle } from './subtitle';
 import { parseWatchVideoId, watchUrl } from './url';
 
@@ -155,6 +156,15 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
       } catch (error) {
         warnOnce('getVideoRect', error);
         return null;
+      }
+    },
+
+    hidePlayerUi() {
+      try {
+        return hidePlayerUi(doc.fullscreenElement ?? doc.body);
+      } catch (error) {
+        warnOnce('hidePlayerUi', error);
+        return () => {};
       }
     },
 

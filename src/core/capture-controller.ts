@@ -14,12 +14,18 @@ export interface CaptureControllerDeps {
   /** Where the overlay goes: `document.fullscreenElement ?? document.body`. */
   mount: () => Element;
   dpr: () => number;
+  /** Resolves once the page has painted what was just changed, so a screenshot will show it. */
+  nextFrame: () => Promise<void>;
   now: () => Date;
   uuid: () => string;
 }
 
 export interface CaptureController {
-  /** Reads the page (playback, subtitle, video position). Does not touch the video. */
+  /**
+   * Reads the page (playback, subtitle, video position) and hides the player's controls until
+   * `show` (or a safety timeout) so the screenshot taken next shows only the scene. Does not
+   * touch the video.
+   */
   begin(): Promise<BeginResult>;
   /**
    * Pauses, picks the picture and opens the note overlay. Resolves once the overlay is on
@@ -46,6 +52,9 @@ interface Picture {
   missing: Missing | null;
 }
 
+/** Brings the controls back if `show` never comes (for example the screenshot step failed). */
+export const PLAYER_UI_RESTORE_MS = 3000;
+
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -58,6 +67,33 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
   let working = false;
 
   const isBusy = () => working || (overlay?.isOpen() ?? false);
+
+  let restoreUiTimer: ReturnType<typeof setTimeout> | null = null;
+  let restoreUiNow: (() => void) | null = null;
+
+  function restoreUi(): void {
+    if (restoreUiTimer !== null) clearTimeout(restoreUiTimer);
+    restoreUiTimer = null;
+    const restore = restoreUiNow;
+    restoreUiNow = null;
+    try {
+      restore?.();
+    } catch (error) {
+      console.warn('[scenenote] could not show the player controls again', error);
+    }
+  }
+
+  async function hideUiForScreenshot(): Promise<void> {
+    restoreUi();
+    try {
+      restoreUiNow = adapter.hidePlayerUi();
+    } catch (error) {
+      console.warn('[scenenote] could not hide the player controls', error);
+      return;
+    }
+    restoreUiTimer = setTimeout(restoreUi, PLAYER_UI_RESTORE_MS);
+    await deps.nextFrame();
+  }
 
   async function begin(): Promise<BeginResult> {
     if (isBusy()) return { status: 'busy' };
@@ -78,6 +114,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         rect: adapter.getVideoRect(),
         dpr: deps.dpr(),
       };
+      await hideUiForScreenshot();
       return { status: 'ok' };
     } finally {
       working = false;
@@ -149,6 +186,8 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
   }
 
   async function show(dataUrl: string | null): Promise<void> {
+    // The screenshot has been taken by now (or failed): the controls can come back.
+    restoreUi();
     const state = snapshot;
     if (state === null || isBusy()) return;
     snapshot = null;

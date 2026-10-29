@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createCaptureController,
+  PLAYER_UI_RESTORE_MS,
   type CaptureControllerDeps,
 } from '../../src/core/capture-controller';
 import type { ToBackground } from '../../src/core/messages';
@@ -65,7 +66,10 @@ interface Harness {
     play: Mock<PlatformAdapter['play']>;
     getVideoRect: Mock<PlatformAdapter['getVideoRect']>;
     getTrickplayFrame: Mock<PlatformAdapter['getTrickplayFrame']>;
+    hidePlayerUi: Mock<PlatformAdapter['hidePlayerUi']>;
   };
+  restoreUi: Mock<() => void>;
+  nextFrame: Mock<() => Promise<void>>;
   overlay: ReturnType<typeof fakeOverlay>;
   openOverlay: Mock<(opts: OverlayOptions) => OverlayHandle>;
   cropAndCheck: Mock<CaptureControllerDeps['cropAndCheck']>;
@@ -100,7 +104,17 @@ function setup(): Harness {
       async () => new Uint8Array([0xff, 0xd8, 1, 2]),
     ),
     watchUrl: vi.fn<PlatformAdapter['watchUrl']>(() => 'https://example.test'),
+    hidePlayerUi: vi.fn<PlatformAdapter['hidePlayerUi']>(() => {
+      calls.push('hideUi');
+      return restoreUi;
+    }),
   };
+  const restoreUi = vi.fn(() => {
+    calls.push('restoreUi');
+  });
+  const nextFrame = vi.fn(async () => {
+    calls.push('nextFrame');
+  });
   const openOverlay = vi.fn((_opts: OverlayOptions) => {
     calls.push('openOverlay');
     return overlay.handle;
@@ -128,12 +142,15 @@ function setup(): Harness {
     sendToBackground,
     mount: () => mountEl,
     dpr: () => 2,
+    nextFrame,
     now: () => new Date('2026-10-28T10:00:00.000Z'),
     uuid: () => 'note-1',
   };
   return {
     deps,
     adapter,
+    restoreUi,
+    nextFrame,
     overlay,
     openOverlay,
     cropAndCheck,
@@ -164,6 +181,11 @@ async function capture(
   return { controller, opts };
 }
 
+/** The recorded calls without the controls hide/restore steps (covered in their own tests). */
+function videoCalls(): string[] {
+  return h.calls.filter((call) => !['hideUi', 'nextFrame', 'restoreUi'].includes(call));
+}
+
 function savedMessages(): SaveMessage[] {
   return h.sendToBackground.mock.calls
     .map(([msg]) => msg)
@@ -175,6 +197,55 @@ function lastNote(): Note {
   if (!msg) throw new Error('no save message was sent');
   return msg.note;
 }
+
+describe('player controls in the screenshot', () => {
+  it('hides the controls and waits for a painted frame before begin answers', async () => {
+    const controller = createCaptureController(h.deps);
+    expect(await controller.begin()).toEqual({ status: 'ok' });
+    expect(h.calls).toEqual(['hideUi', 'nextFrame']);
+    expect(h.restoreUi).not.toHaveBeenCalled();
+  });
+
+  it('shows the controls again as soon as show arrives, before pausing', async () => {
+    await capture();
+    expect(h.calls.slice(0, 4)).toEqual(['hideUi', 'nextFrame', 'restoreUi', 'pause']);
+    expect(h.restoreUi).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hide anything when there is no video', async () => {
+    h.adapter.getPlayback.mockResolvedValue(null);
+    const controller = createCaptureController(h.deps);
+    expect(await controller.begin()).toEqual({ status: 'no-video' });
+    expect(h.adapter.hidePlayerUi).not.toHaveBeenCalled();
+  });
+
+  it('shows the controls again after a while when show never arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = createCaptureController(h.deps);
+      await controller.begin();
+      vi.advanceTimersByTime(PLAYER_UI_RESTORE_MS - 1);
+      expect(h.restoreUi).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(h.restoreUi).toHaveBeenCalledTimes(1);
+      // A late show must not restore twice.
+      await controller.show(SCREENSHOT);
+      expect(h.restoreUi).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still answers ok when hiding the controls throws', async () => {
+    h.adapter.hidePlayerUi.mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const controller = createCaptureController(h.deps);
+    expect(await controller.begin()).toEqual({ status: 'ok' });
+    await controller.show(SCREENSHOT);
+    expect(h.openOverlay).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('begin', () => {
   it('begin returns busy while overlay is open', async () => {
@@ -314,7 +385,7 @@ describe('show: choosing the picture', () => {
 describe('show: opening the overlay', () => {
   it('pauses the video before the overlay opens', async () => {
     await capture();
-    expect(h.calls).toEqual(['pause', 'openOverlay']);
+    expect(videoCalls()).toEqual(['pause', 'openOverlay']);
   });
 
   it('passes heading, time, subtitle and mount to the overlay', async () => {
@@ -393,7 +464,7 @@ describe('saving', () => {
     });
     expect(h.overlay.handle.close).toHaveBeenCalledTimes(1);
     expect(h.overlay.handle.showError).not.toHaveBeenCalled();
-    expect(h.calls).toEqual(['pause', 'openOverlay', 'play']);
+    expect(videoCalls()).toEqual(['pause', 'openOverlay', 'play']);
   });
 
   it('trims trailing whitespace and newlines off the typed subtitle and body, keeping the start', async () => {

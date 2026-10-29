@@ -33,6 +33,13 @@ export default defineContentScript({
         browser.runtime.sendMessage<ToBackground, SaveResult | void>(msg),
       mount: () => document.fullscreenElement ?? document.body,
       dpr: () => window.devicePixelRatio,
+      // Two frames: the first runs before the style change is painted, the second after.
+      // The timeout covers a tab that is not painting (requestAnimationFrame never fires).
+      nextFrame: () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          setTimeout(resolve, 100);
+        }),
       now: () => new Date(),
       uuid: () => crypto.randomUUID(),
     });

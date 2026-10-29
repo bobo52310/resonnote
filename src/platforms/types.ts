@@ -18,6 +18,11 @@ export interface PlatformAdapter {
   seek(timeMs: number): Promise<boolean>;
   /** The area of the viewport (CSS px) covered by the video picture, letterbox bars excluded. */
   getVideoRect(): Rect | null;
+  /**
+   * Hides the player's own buttons and scrubber (not the video or subtitles) for a screenshot.
+   * Returns the function that shows them again.
+   */
+  hidePlayerUi(): () => void;
   /** JPEG bytes of the scrubber preview image at `timeMs`. */
   getTrickplayFrame(timeMs: number): Promise<Uint8Array | null>;
   watchUrl(videoId: string, timeMs: number): string;
