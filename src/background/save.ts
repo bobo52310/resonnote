@@ -1,4 +1,4 @@
-import { putImage, putNote } from '../core/db';
+import { getNote, putImage, putNote } from '../core/db';
 import { dataUrlToBytes, type SaveResult, type ToBackground } from '../core/messages';
 
 /**
@@ -18,6 +18,30 @@ export async function handleSave(
     return { ok: true };
   } catch (error) {
     console.error('[scenenote] saving the note failed', error);
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Stores edits made to an earlier note from the overlay. `updatedAt` moves on, so backups and
+ * the notebook see the newer text. Never throws.
+ */
+export async function handleUpdate(
+  msg: Extract<ToBackground, { type: 'scenenote/update' }>,
+  now: () => Date = () => new Date(),
+): Promise<SaveResult> {
+  try {
+    const note = await getNote(msg.id);
+    if (!note) return { ok: false, error: '找不到這則筆記' };
+    await putNote({
+      ...note,
+      subtitle: msg.subtitle.trimEnd(),
+      body: msg.body.trimEnd(),
+      updatedAt: now().toISOString(),
+    });
+    return { ok: true };
+  } catch (error) {
+    console.error('[scenenote] updating the note failed', error);
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

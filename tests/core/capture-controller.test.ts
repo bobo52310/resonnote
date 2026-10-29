@@ -203,6 +203,31 @@ function lastNote(): Note {
   return msg.note;
 }
 
+describe('edits of earlier notes', () => {
+  it('sends them to the background as an update', async () => {
+    const { opts } = await capture();
+    opts.onEditPrevious!('old', { subtitle: '台詞', body: '新心得' });
+    await vi.waitFor(() =>
+      expect(h.sendToBackground).toHaveBeenCalledWith({
+        type: 'scenenote/update',
+        id: 'old',
+        subtitle: '台詞',
+        body: '新心得',
+      }),
+    );
+    expect(h.overlay.handle.showError).not.toHaveBeenCalled();
+  });
+
+  it('shows an error in the overlay when the update fails', async () => {
+    const { opts } = await capture();
+    h.sendToBackground.mockResolvedValueOnce({ ok: false, error: '找不到這則筆記' });
+    opts.onEditPrevious!('old', { subtitle: '', body: 'x' });
+    await vi.waitFor(() =>
+      expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則的修改沒有存到：找不到這則筆記'),
+    );
+  });
+});
+
 describe('hint from the page button', () => {
   it('adds the use-the-shortcut-once note when the button could not take a screenshot', async () => {
     // without the hint: only the usual scrubber-image note

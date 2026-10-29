@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleSave } from '../../src/background/save';
+import { handleSave, handleUpdate } from '../../src/background/save';
 import { closeDb, getImage, getNote, listNotes } from '../../src/core/db';
 import { bytesToDataUrl, dataUrlToBytes, type ToBackground } from '../../src/core/messages';
 import type { Note } from '../../src/core/types';
@@ -97,5 +97,26 @@ describe('data URL codec', () => {
     );
     expect(() => dataUrlToBytes('data:text/plain,hello')).toThrow();
     expect(() => dataUrlToBytes('')).toThrow();
+  });
+});
+
+describe('handleUpdate', () => {
+  it('stores the new subtitle and thoughts and moves updatedAt on', async () => {
+    await handleSave(msg(makeNote(), null));
+    const result = await handleUpdate(
+      { type: 'scenenote/update', id: 'note-1', subtitle: '新台詞  ', body: '改過的心得\n\n' },
+      () => new Date('2026-10-29T08:00:00.000Z'),
+    );
+    expect(result).toEqual({ ok: true });
+    const stored = await getNote('note-1');
+    expect(stored).toMatchObject({ subtitle: '新台詞', body: '改過的心得', title: '造山者', timeMs: 1003469 });
+    expect(stored?.updatedAt).toBe('2026-10-29T08:00:00.000Z');
+    expect(stored?.createdAt).toBe('2026-10-28T10:00:00.000Z');
+  });
+
+  it('fails without creating anything for an unknown note', async () => {
+    const result = await handleUpdate({ type: 'scenenote/update', id: 'missing', subtitle: '', body: '' });
+    expect(result).toEqual({ ok: false, error: '找不到這則筆記' });
+    expect(await listNotes()).toEqual([]);
   });
 });

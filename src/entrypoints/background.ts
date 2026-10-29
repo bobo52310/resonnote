@@ -1,6 +1,6 @@
 import { jumpTo, type JumpDeps } from '../background/jump';
 import { listRecent, RECENT_THUMB_WIDTH } from '../background/recent';
-import { handleSave } from '../background/save';
+import { handleSave, handleUpdate } from '../background/save';
 import { getImage, listNotes } from '../core/db';
 import { downscaleJpeg } from '../export/image';
 import { handleTrigger, type TriggerDeps } from '../background/trigger';
@@ -138,6 +138,21 @@ export default defineBackground(() => {
           sendResponse({ ok: false, error: String(error) } satisfies JumpResult);
         },
       );
+      return true;
+    }
+
+    if (
+      message['type'] === 'scenenote/update' &&
+      typeof message['id'] === 'string' &&
+      typeof message['subtitle'] === 'string' &&
+      typeof message['body'] === 'string'
+    ) {
+      void handleUpdate({
+        type: 'scenenote/update',
+        id: message['id'],
+        subtitle: message['subtitle'],
+        body: message['body'],
+      }).then(sendResponse);
       return true;
     }
 

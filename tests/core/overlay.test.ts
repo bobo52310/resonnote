@@ -561,6 +561,111 @@ describe('film strip of earlier notes', () => {
   });
 });
 
+describe('switching to an earlier note from the film strip', () => {
+  const earlier = (id: string, timeMs: number, body: string, thumb: string | null = `data:image/jpeg;base64,${id}`) => ({
+    id,
+    timeMs,
+    subtitle: `台詞${id}`,
+    body,
+    thumb,
+  });
+  const frameAt = (time: string) =>
+    Array.from(shadow().querySelectorAll<HTMLElement>('.frame')).find(
+      (f) => f.querySelector('.frame-time')?.textContent === time,
+    )!;
+  const mainThumb = () => el<HTMLImageElement>('[data-role="thumb"]');
+
+  function setup() {
+    const onEditPrevious = vi.fn();
+    const h = open({ onEditPrevious });
+    h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('a', 725_000, '')]);
+    return { h, onEditPrevious };
+  }
+
+  it('puts the clicked note in the panel and marks its frame', () => {
+    setup();
+    note().value = '這一刻打到一半';
+    frameAt('15:25').click();
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+    expect(subtitle().value).toBe('台詞b');
+    expect(note().value).toBe('伏筆');
+    expect(mainThumb().getAttribute('src')).toBe('data:image/jpeg;base64,b');
+    expect(frameAt('15:25').getAttribute('aria-current')).toBe('true');
+    expect(frameAt('16:43').hasAttribute('aria-current')).toBe(false);
+    expect(el('[data-role="viewing"]').hidden).toBe(false);
+    expect(el('[data-role="viewing"]').textContent).toContain('正在看 15:25 那一則');
+  });
+
+  it('brings back what was typed for this moment', () => {
+    setup();
+    note().value = '這一刻打到一半';
+    subtitle().value = '改過的台詞';
+    frameAt('12:05').click();
+    frameAt('16:43').click();
+    expect(note().value).toBe('這一刻打到一半');
+    expect(subtitle().value).toBe('改過的台詞');
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(mainThumb().getAttribute('src')).toBe('blob:thumb-1');
+    expect(el('[data-role="viewing"]').hidden).toBe(true);
+  });
+
+  it('stores edits of an earlier note when switching away or pressing Enter, and stays open', async () => {
+    const { h, onEditPrevious } = setup();
+    frameAt('15:25').click();
+    note().value = '伏筆，後來回收';
+    frameAt('12:05').click();
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '伏筆，後來回收' });
+    note().value = '補一句';
+    press(note(), { key: 'Enter' });
+    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { subtitle: '台詞a', body: '補一句' });
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('does not report an earlier note that was only looked at', () => {
+    const { onEditPrevious } = setup();
+    frameAt('15:25').click();
+    el<HTMLButtonElement>('[data-role="back"]').click();
+    expect(onEditPrevious).not.toHaveBeenCalled();
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+  });
+
+  it('drops the edits and comes back on Esc, without closing', async () => {
+    const { h, onEditPrevious } = setup();
+    frameAt('15:25').click();
+    note().value = '不要了';
+    press(note(), { key: 'Escape' });
+    expect(onEditPrevious).not.toHaveBeenCalled();
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(await isPending(h.result)).toBe(true);
+    // a second Esc, now on this moment, cancels as usual
+    press(note(), { key: 'Escape' });
+    await expect(h.result).resolves.toEqual({ action: 'cancel' });
+  });
+
+  it('remembers the edit when coming back to the same earlier note', () => {
+    setup();
+    frameAt('15:25').click();
+    note().value = '第二次改';
+    frameAt('16:43').click();
+    frameAt('15:25').click();
+    expect(note().value).toBe('第二次改');
+  });
+
+  it('hides the picture box for an earlier note without one', () => {
+    const h = open();
+    h.showPrevious([earlier('x', 1000, '', null)]);
+    frameAt('0:01').click();
+    expect(mainThumb().classList.contains('blank')).toBe(true);
+  });
+
+  it('switches with the keyboard too', () => {
+    setup();
+    frameAt('15:25').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+  });
+});
+
 describe('clicking the dimmed backdrop', () => {
   const host = () => mount.querySelector<HTMLElement>('[data-scenenote-overlay]')!;
   function clickFrom(down: Element, up: Element = down) {

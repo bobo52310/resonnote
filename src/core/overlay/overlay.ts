@@ -40,6 +40,8 @@ export interface OverlayOptions {
   subtitle: string;
   missing: Missing[];
   onOpenNotebook: () => void;
+  /** An earlier note (opened from the film strip) was edited in the overlay and should be stored. */
+  onEditPrevious?: (id: string, changes: { subtitle: string; body: string }) => void;
 }
 
 const HOST_ATTRIBUTE = 'data-scenenote-overlay';
@@ -151,7 +153,53 @@ const OVERLAY_CSS = `
 }
 .frame.now {
   height: 104px;
+}
+.frame {
+  cursor: pointer;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+.frame:hover,
+.frame:focus-visible {
+  border-color: rgba(255, 181, 71, 0.8);
+  opacity: 1;
+  outline: none;
+}
+/* The note the panel is showing. */
+.frame[aria-current='true'] {
   border-color: #e50914;
+  opacity: 1;
+}
+.viewing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 181, 71, 0.14);
+  color: #ffd79a;
+  font-size: 13px;
+}
+.viewing[hidden] {
+  display: none;
+}
+.viewing span {
+  flex: 1;
+}
+.back {
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 215, 154, 0.5);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.back:hover {
+  background: rgba(255, 215, 154, 0.15);
+}
+.thumb.blank {
+  visibility: hidden;
 }
 .frame.now img {
   filter: none;
@@ -339,11 +387,12 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   panel.setAttribute('tabindex', '-1');
   const top = create('div', 'top');
 
+  let mainThumb: HTMLImageElement | null = null;
   if (opts.thumbUrl !== null) {
-    const thumb = create('img', 'thumb', 'thumb');
-    thumb.setAttribute('src', opts.thumbUrl);
-    thumb.alt = '';
-    top.appendChild(thumb);
+    mainThumb = create('img', 'thumb', 'thumb');
+    mainThumb.setAttribute('src', opts.thumbUrl);
+    mainThumb.alt = '';
+    top.appendChild(mainThumb);
   }
 
   const info = create('div', 'info');
@@ -364,10 +413,21 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   noteEl.setAttribute('aria-label', '心得');
   noteEl.placeholder = '寫下這一刻的心得（可以留空）';
 
+  const HINT_NOW = 'Enter 存檔並繼續播放　Shift+Enter 換行　Esc 或點外面取消';
+  const HINT_EARLIER = 'Enter 存修改並回到這一刻　Shift+Enter 換行　Esc 不存修改、回到這一刻';
   const hint = create('div', 'hint');
-  hint.textContent = 'Enter 存檔並繼續播放　Shift+Enter 換行　Esc 或點外面取消';
+  hint.textContent = HINT_NOW;
 
-  panel.append(top, noteEl, hint);
+  // Shown while an earlier note from the film strip is in the panel instead of this moment.
+  const viewing = create('div', 'viewing', 'viewing');
+  viewing.hidden = true;
+  const viewingText = create('span');
+  const backButton = create('button', 'back', 'back');
+  backButton.type = 'button';
+  backButton.textContent = '回到這一刻';
+  viewing.append(viewingText, backButton);
+
+  panel.append(viewing, top, noteEl, hint);
 
   if (opts.missing.length > 0) {
     const list = create('ul', 'missing', 'missing');
@@ -420,6 +480,57 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     }
   };
 
+  // --- earlier notes from the film strip -----------------------------------
+  /** The earlier note in the panel, or null while it shows this moment. */
+  let viewed: RecentNote | null = null;
+  /** What was typed for this moment, kept while an earlier note is in the panel. */
+  let nowDraft = { subtitle: opts.subtitle, body: '' };
+  /** Called after every switch so the film strip can mark the note in the panel. */
+  let markCurrent: () => void = () => {};
+
+  /** Hands edits of the earlier note in the panel to the caller, if there are any. */
+  const commitViewed = (): void => {
+    if (viewed === null) return;
+    const subtitle = subtitleEl.value.trimEnd();
+    const body = noteEl.value.trimEnd();
+    if (subtitle === viewed.subtitle.trimEnd() && body === viewed.body.trimEnd()) return;
+    viewed.subtitle = subtitle;
+    viewed.body = body;
+    opts.onEditPrevious?.(viewed.id, { subtitle, body });
+  };
+
+  /** Puts `target` (null: this moment) in the panel; edits of the earlier one are kept if `keep`. */
+  const switchTo = (target: RecentNote | null, keep: boolean): void => {
+    if (target === viewed) return;
+    if (viewed === null) nowDraft = { subtitle: subtitleEl.value, body: noteEl.value };
+    else if (keep) commitViewed();
+    viewed = target;
+    if (target === null) {
+      subtitleEl.value = nowDraft.subtitle;
+      noteEl.value = nowDraft.body;
+      time.textContent = opts.time;
+      mainThumb?.setAttribute('src', opts.thumbUrl ?? '');
+      mainThumb?.classList.remove('blank');
+      noteEl.placeholder = '寫下這一刻的心得（可以留空）';
+      viewing.hidden = true;
+      hint.textContent = HINT_NOW;
+    } else {
+      const at = formatTime(target.timeMs);
+      subtitleEl.value = target.subtitle;
+      noteEl.value = target.body;
+      time.textContent = at;
+      mainThumb?.setAttribute('src', target.thumb ?? '');
+      mainThumb?.classList.toggle('blank', target.thumb === null);
+      noteEl.placeholder = '這一則的心得（可以留空）';
+      viewingText.textContent = `正在看 ${at} 那一則，可以直接修改`;
+      viewing.hidden = false;
+      hint.textContent = HINT_EARLIER;
+    }
+    markCurrent();
+    noteEl.focus();
+  };
+  backButton.addEventListener('click', () => switchTo(null, true));
+
   // --- keyboard -----------------------------------------------------------
   panel.addEventListener('keydown', (e) => {
     e.stopPropagation();
@@ -428,12 +539,17 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     if (e.key === 'Escape') {
       if (composing) return; // Esc only dismisses the IME candidate window
       e.preventDefault();
-      settle({ action: 'cancel' });
+      // With an earlier note in the panel, Esc only drops its edits and comes back to this moment.
+      if (viewed !== null) switchTo(null, false);
+      else settle({ action: 'cancel' });
       return;
     }
 
     if (e.key === 'Enter' && !e.shiftKey && !composing) {
-      if (e.target === noteEl) {
+      if (e.target === noteEl && viewed !== null) {
+        e.preventDefault();
+        switchTo(null, true);
+      } else if (e.target === noteEl) {
         e.preventDefault();
         settle({ action: 'save', subtitle: subtitleEl.value, body: noteEl.value });
       } else if (e.target === subtitleEl) {
@@ -469,7 +585,11 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     if (pressedOnBackdrop) e.preventDefault();
   });
   host.addEventListener('click', (e) => {
-    if (pressedOnBackdrop && onBackdrop(e)) settle({ action: 'cancel' });
+    if (pressedOnBackdrop && onBackdrop(e)) {
+      // Leaving the overlay keeps what was changed in an earlier note, like switching does.
+      commitViewed();
+      settle({ action: 'cancel' });
+    }
     pressedOnBackdrop = false;
   });
 
@@ -535,23 +655,28 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     isOpen: () => open && host.isConnected,
     showPrevious(notes) {
       if (!open || opts.thumbUrl === null) return;
+      if (viewed !== null) switchTo(null, true);
       panel.querySelector('.film')?.remove();
-      const shown = notes.slice(0, 2);
+      // Copies: edits made in the overlay are written into them.
+      const shown = notes.slice(0, 2).map((note) => ({ ...note }));
       if (shown.length === 0) return;
 
       const film = create('div', 'film', 'film');
       const body = create('div', 'film-body');
       const frames = create('div', 'frames');
       const caption = create('div', 'film-caption');
-      const describe = (time: string, words: string) => (words === '' ? time : `${time}　${words}`);
-      const showCaption = (time: string, words: string) => {
+      const wordsOf = (note: RecentNote) => note.body.trim() || note.subtitle.trim();
+      const showCaption = (at: string, words: string) => {
         const code = create('b');
-        code.textContent = time;
+        code.textContent = at;
         caption.replaceChildren(code, doc.createTextNode(words));
       };
+      const entries: Array<{ frame: HTMLElement; note: RecentNote | null }> = [];
 
-      const addFrame = (thumb: string | null, time: string, words: string, extra: (el: HTMLElement) => void) => {
+      const addFrame = (note: RecentNote | null) => {
         const frame = create('figure', 'frame');
+        const thumb = note === null ? opts.thumbUrl : note.thumb;
+        const at = note === null ? opts.time : formatTime(note.timeMs);
         if (thumb !== null) {
           const img = create('img');
           img.setAttribute('src', thumb);
@@ -559,32 +684,52 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
           frame.appendChild(img);
         }
         const code = create('span', 'frame-time');
-        code.textContent = time;
+        code.textContent = at;
         frame.appendChild(code);
-        frame.title = describe(time, words);
-        frame.addEventListener('mouseenter', () => showCaption(time, words));
-        extra(frame);
+        frame.tabIndex = 0;
+        frame.setAttribute('role', 'button');
+        frame.setAttribute('aria-label', note === null ? `回到這一刻 ${at}` : `切換到 ${at} 那一則`);
+        frame.addEventListener('mouseenter', () => {
+          const words = note === null ? '這一刻' : wordsOf(note);
+          showCaption(at, words);
+        });
+        frame.addEventListener('click', () => switchTo(note, true));
+        frame.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.stopPropagation();
+          switchTo(note, true);
+        });
         if (frames.childElementCount > 0) {
           const arrow = create('span', 'arrow');
           arrow.textContent = '›';
           frames.appendChild(arrow);
         }
         frames.appendChild(frame);
+        entries.push({ frame, note });
+        return frame;
       };
 
       // Oldest first, so the strip reads left to right like the film runs.
       [...shown].reverse().forEach((note, i) => {
-        const words = note.body.trim() || note.subtitle.trim();
-        addFrame(note.thumb, formatTime(note.timeMs), words, (el) => {
-          el.setAttribute('data-role', 'previous');
-          el.setAttribute('data-age', String(shown.length - i));
-        });
+        const frame = addFrame(note);
+        frame.setAttribute('data-role', 'previous');
+        frame.setAttribute('data-age', String(shown.length - i));
       });
-      addFrame(opts.thumbUrl, opts.time, '這一刻', (el) => el.classList.add('now'));
+      addFrame(null).classList.add('now');
+
+      markCurrent = () => {
+        for (const { frame, note } of entries) {
+          if (note === viewed) frame.setAttribute('aria-current', 'true');
+          else frame.removeAttribute('aria-current');
+          frame.title = note === null ? `${opts.time}　這一刻` : `${formatTime(note.timeMs)}　${wordsOf(note)}`.trim();
+        }
+      };
+      markCurrent();
+
       // At rest the caption tells the latest earlier note; hovering a frame shows that one.
       const latest = shown[0]!;
-      const showLatest = () =>
-        showCaption(formatTime(latest.timeMs), latest.body.trim() || latest.subtitle.trim());
+      const showLatest = () => showCaption(formatTime(latest.timeMs), wordsOf(latest));
       showLatest();
       frames.addEventListener('mouseleave', showLatest);
 

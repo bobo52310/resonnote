@@ -155,9 +155,10 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     return { source: 'none', dataUrl: null, width: 0, height: 0, missing: 'image' };
   }
 
-  async function send(note: Note, imageDataUrl: string | null): Promise<SaveResult> {
+  /** Sends a write to the background and reads its answer; no answer counts as a failure. */
+  async function request(msg: ToBackground): Promise<SaveResult> {
     try {
-      const reply = await deps.sendToBackground({ type: 'scenenote/save', note, imageDataUrl });
+      const reply = await deps.sendToBackground(msg);
       if (reply && reply.ok) return { ok: true };
       if (reply && !reply.ok) return reply;
       // No reply at all: nobody confirmed the write, so do not close the overlay on it.
@@ -166,6 +167,9 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
       return { ok: false, error: errorMessage(error) };
     }
   }
+
+  const send = (note: Note, imageDataUrl: string | null) =>
+    request({ type: 'scenenote/save', note, imageDataUrl });
 
   /** Runs until the user saves or cancels; a failed save keeps the overlay open for another try. */
   async function converse(
@@ -215,6 +219,8 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         createdAt,
         updatedAt: createdAt,
       });
+      // Assigned right below; the overlay only calls back after a user action.
+      let editedHandle: OverlayHandle | null = null;
       const handle = deps.openOverlay({
         mount: deps.mount(),
         thumbUrl: picture.dataUrl,
@@ -222,6 +228,11 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         time: formatTime(state.playback.timeMs),
         subtitle: state.subtitle,
         missing,
+        onEditPrevious: (id, changes) => {
+          void request({ type: 'scenenote/update', id, ...changes }).then((outcome) => {
+            if (!outcome.ok) editedHandle?.showError('那一則的修改沒有存到：' + outcome.error);
+          });
+        },
         onOpenNotebook: () => {
           deps.sendToBackground({ type: 'scenenote/open-notebook' }).catch((error: unknown) => {
             console.warn('[scenenote] could not open the notebook', error);
@@ -229,6 +240,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         },
       });
       overlay = handle;
+      editedHandle = handle;
       // Not awaited: the earlier notes slide in when they are ready, the user can type meanwhile.
       void deps
         .loadRecent(state.playback.videoId)
