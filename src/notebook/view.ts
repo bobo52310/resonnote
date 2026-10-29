@@ -505,11 +505,11 @@ function buildGroup(
   selectAll.append(all, create(doc, 'span', undefined, '全選'));
 
   const head = create(doc, 'header', 'group-head');
-  // The platform name sits under the heading in the same chip style as the 低解析度 label.
+  // The platform name sits beside the heading, outside the <h2> so the heading stays the title alone.
   const title = create(doc, 'div', 'group-title');
   title.append(
     create(doc, 'h2', undefined, group.heading),
-    create(doc, 'span', 'platform-tag lowres', PLATFORM_INFO[group.platform].label),
+    create(doc, 'span', 'platform-tag', PLATFORM_INFO[group.platform].label),
   );
   head.append(title, selectAll);
   section.append(head);

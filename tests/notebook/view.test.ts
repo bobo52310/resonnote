@@ -366,8 +366,8 @@ describe('grouping and note rows', () => {
     expect(tagOf('n')).toEqual({ platform: 'netflix', tag: 'Netflix', heading: '黑暗榮耀 第1季第3集' });
     expect(tagOf('y')).toEqual({ platform: 'youtube', tag: 'YouTube', heading: '拖延症大師' });
     expect(tagOf('d')).toEqual({ platform: 'disney', tag: 'Disney+', heading: '尚公主' });
-    // The tag takes the look of the 低解析度 label.
-    expect(q('.platform-tag').classList.contains('lowres')).toBe(true);
+    // The platform tag is not the 低解析度 warning label.
+    expect(q('.platform-tag').classList.contains('lowres')).toBe(false);
   });
 
   it('shows two groups when two platforms share an id string', async () => {
