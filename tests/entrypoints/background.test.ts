@@ -1,7 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { closeDb, putNote } from '../../src/core/db';
+import { closeDb, getNote, putNote } from '../../src/core/db';
 import type { RecentNote } from '../../src/core/messages';
 import type { Note } from '../../src/core/types';
 import background from '../../src/entrypoints/background';
@@ -110,5 +110,19 @@ describe('scenenote/jump', () => {
     expect(create).toHaveBeenLastCalledWith({
       url: 'https://www.youtube.com/watch?v=arj7oStGLkU&t=61s',
     });
+  });
+});
+
+describe('scenenote/delete', () => {
+  it('deletes the note and answers ok', async () => {
+    await putNote(makeNote('gone'));
+    await putNote(makeNote('kept'));
+    expect(await ask({ type: 'scenenote/delete', id: 'gone' })).toEqual({ ok: true });
+    expect(await getNote('gone')).toBeUndefined();
+    expect(await getNote('kept')).toBeDefined();
+  });
+
+  it.each([[7], [null], [undefined]])('ignores a message whose id is %j', async (id) => {
+    expect(await ask({ type: 'scenenote/delete', id })).toBe('ignored');
   });
 });

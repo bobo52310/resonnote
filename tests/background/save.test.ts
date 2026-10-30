@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleSave, handleUpdate } from '../../src/background/save';
+import { handleDelete, handleSave, handleUpdate } from '../../src/background/save';
 import { closeDb, getImage, getNote, listNotes } from '../../src/core/db';
 import { bytesToDataUrl, dataUrlToBytes, type ToBackground } from '../../src/core/messages';
 import type { Note } from '../../src/core/types';
@@ -118,5 +118,32 @@ describe('handleUpdate', () => {
     const result = await handleUpdate({ type: 'scenenote/update', id: 'missing', subtitle: '', body: '' });
     expect(result).toEqual({ ok: false, error: '找不到這則筆記' });
     expect(await listNotes()).toEqual([]);
+  });
+});
+
+describe('handleDelete', () => {
+  it('removes the note and its image, and leaves the other notes alone', async () => {
+    await handleSave(msg(makeNote(), toDataUrl(BYTES)));
+    await handleSave(msg(makeNote({ id: 'note-2' }), toDataUrl(BYTES)));
+    const result = await handleDelete({ type: 'scenenote/delete', id: 'note-1' });
+    expect(result).toEqual({ ok: true });
+    expect(await getNote('note-1')).toBeUndefined();
+    expect(await getImage('note-1')).toBeUndefined();
+    expect(await getNote('note-2')).toBeDefined();
+    expect(await getImage('note-2')).toBeDefined();
+  });
+
+  it('is fine with a note that is already gone', async () => {
+    expect(await handleDelete({ type: 'scenenote/delete', id: 'missing' })).toEqual({ ok: true });
+    expect(await listNotes()).toEqual([]);
+  });
+
+  it('reports a database failure instead of throwing', async () => {
+    const failing = { open: () => { throw new Error('quota exceeded'); } };
+    await closeDb();
+    globalThis.indexedDB = failing as unknown as IDBFactory;
+    const result = await handleDelete({ type: 'scenenote/delete', id: 'note-1' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('quota exceeded');
   });
 });

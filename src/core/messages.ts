@@ -30,6 +30,8 @@ export type ToBackground =
   | { type: 'scenenote/recent'; platform: Platform; videoId: string; limit: number }
   /** Edits made to an earlier note from the overlay's film strip. */
   | { type: 'scenenote/update'; id: string; subtitle: string; body: string }
+  /** An earlier note deleted from the overlay's film strip. */
+  | { type: 'scenenote/delete'; id: string }
   /** The on-page 「記下這一刻」 button: same as the shortcut, for the tab that sent it. */
   | { type: 'scenenote/trigger' }
   /** The shortcut as the user has set it (for example 「⌥⇧N」), or '' when none is set. */
