@@ -1,20 +1,30 @@
 import { jumpTo, type JumpDeps } from '../background/jump';
 import { listRecent, RECENT_THUMB_WIDTH } from '../background/recent';
-import { handleSave, handleUpdate } from '../background/save';
+import { handleDelete, handleSave, handleUpdate } from '../background/save';
 import { getImage, listNotes } from '../core/db';
 import { downscaleJpeg } from '../export/image';
 import { handleTrigger, type TriggerDeps } from '../background/trigger';
 import type { JumpResult, ToBackground } from '../core/messages';
+import { isPlatform } from '../platforms/registry';
 
 const CAPTURE_COMMAND = 'capture-scene';
 
 type SaveMessage = Extract<ToBackground, { type: 'scenenote/save' }>;
-type JumpMessage = Extract<ToBackground, { type: 'scenenote/jump' }>;
-type RecentMessage = Extract<ToBackground, { type: 'scenenote/recent' }>;
+/** Messages from before the platforms existed name none: they are Netflix's. */
+type WithOptionalPlatform<T extends { platform: unknown }> = Omit<T, 'platform'> &
+  Partial<Pick<T, 'platform'>>;
+type JumpMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'scenenote/jump' }>>;
+type RecentMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'scenenote/recent' }>>;
+
+/** True when `platform` is absent (= Netflix) or names a platform we know. */
+function hasKnownPlatform(message: Record<string, unknown>): boolean {
+  return message['platform'] === undefined || isPlatform(message['platform']);
+}
 
 function isRecentMessage(message: Record<string, unknown>): message is RecentMessage {
   return (
     message['type'] === 'scenenote/recent' &&
+    hasKnownPlatform(message) &&
     typeof message['videoId'] === 'string' &&
     typeof message['limit'] === 'number' &&
     Number.isInteger(message['limit'])
@@ -38,6 +48,7 @@ function isSaveMessage(message: Record<string, unknown>): message is SaveMessage
 function isJumpMessage(message: Record<string, unknown>): message is JumpMessage {
   return (
     message['type'] === 'scenenote/jump' &&
+    hasKnownPlatform(message) &&
     typeof message['videoId'] === 'string' &&
     typeof message['timeMs'] === 'number' &&
     Number.isFinite(message['timeMs'])
@@ -58,11 +69,9 @@ export default defineBackground(() => {
   };
 
   const jumpDeps: JumpDeps = {
-    queryNetflixTabs: async () => {
-      // The second pattern covers locale-prefixed watch pages (/tw/watch/…); jumpTo checks the id.
-      const tabs = await browser.tabs.query({
-        url: ['https://www.netflix.com/watch/*', 'https://www.netflix.com/*/watch/*'],
-      });
+    queryTabs: async (patterns) => {
+      // The patterns may be broader than the watch pages; jumpTo checks the id.
+      const tabs = await browser.tabs.query({ url: patterns });
       return tabs.flatMap((tab) =>
         tab.id === undefined ? [] : [{ id: tab.id, windowId: tab.windowId, url: tab.url }],
       );
@@ -72,12 +81,12 @@ export default defineBackground(() => {
       await browser.windows.update(windowId, { focused: true });
     },
     sendToTab: (tabId, msg) => browser.tabs.sendMessage(tabId, msg),
-    createTab: async (url) => {
-      await browser.tabs.create({ url });
-    },
+    createTab: async (url) => (await browser.tabs.create({ url })).id,
     updateTabUrl: async (tabId, url) => {
       await browser.tabs.update(tabId, { url });
     },
+    wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
   };
 
   const trigger = async (tab: { id?: number; windowId: number; url?: string }): Promise<void> => {
@@ -103,7 +112,7 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!isRecord(message)) return;
 
-    // The 「記下這一刻」 button on a Netflix page: the tab is the one that sent it.
+    // The 「記下這一刻」 button on a watch page: the tab is the one that sent it.
     if (message['type'] === 'scenenote/trigger') {
       const tab = sender.tab;
       if (tab?.id === undefined) return;
@@ -131,7 +140,8 @@ export default defineBackground(() => {
     }
 
     if (isJumpMessage(message)) {
-      jumpTo({ videoId: message.videoId, timeMs: message.timeMs }, jumpDeps).then(
+      const platform = message.platform ?? 'netflix';
+      jumpTo({ platform, videoId: message.videoId, timeMs: message.timeMs }, jumpDeps).then(
         (result) => sendResponse({ ok: true, result } satisfies JumpResult),
         (error: unknown) => {
           console.error('[scenenote] could not jump back', error);
@@ -156,9 +166,14 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message['type'] === 'scenenote/delete' && typeof message['id'] === 'string') {
+      void handleDelete({ type: 'scenenote/delete', id: message['id'] }).then(sendResponse);
+      return true;
+    }
+
     if (isRecentMessage(message)) {
       const limit = Math.min(Math.max(message.limit, 0), 5);
-      void listRecent(message.videoId, limit, {
+      void listRecent(message.platform ?? 'netflix', message.videoId, limit, {
         listNotes,
         getImage,
         shrink: (bytes) => downscaleJpeg(bytes, RECENT_THUMB_WIDTH),

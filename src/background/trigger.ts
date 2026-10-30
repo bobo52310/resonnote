@@ -1,5 +1,5 @@
 import type { ToContent } from '../core/messages';
-import { parseWatchVideoId } from '../platforms/netflix/url';
+import { detectWatchPage, PLATFORM_INFO } from '../platforms/registry';
 
 export interface TriggerDeps {
   sendToTab: (tabId: number, msg: ToContent) => Promise<unknown>;
@@ -10,9 +10,12 @@ export interface TriggerDeps {
   setBadge: (tabId: number, text: string, title: string) => Promise<void>;
 }
 
-/** Shown on the toolbar button of a Netflix tab the content script cannot be reached on. */
+/** Shown on the toolbar button of a watch tab the content script cannot be reached on. */
 export const RELOAD_BADGE = '!';
-export const RELOAD_TITLE = '請重新整理這個 Netflix 分頁後再按一次';
+/** The tooltip that goes with the badge; `label` is the platform's name (Netflix, YouTube, Disney+). */
+export function reloadTitle(label: string): string {
+  return `請重新整理這個 ${label} 分頁後再按一次`;
+}
 /** The button's normal tooltip; must equal `action.default_title` in wxt.config.ts. */
 export const DEFAULT_ACTION_TITLE = '記下這一刻（ResonNote）';
 
@@ -39,10 +42,10 @@ async function updateBadge(
 }
 
 /**
- * Shortcut / toolbar click. On a Netflix watch page: the content script is asked to begin
- * FIRST (it reads the page and refuses when the overlay is already open), and only then is the
- * screenshot taken, so the overlay can never be in the picture and a second press cannot
- * capture. Anywhere else the notebook opens.
+ * Shortcut / toolbar click. On a watch page (Netflix, YouTube or Disney+): the content script is
+ * asked to begin FIRST (it reads the page and refuses when the overlay is already open), and only
+ * then is the screenshot taken, so the overlay can never be in the picture and a second press
+ * cannot capture. Anywhere else the notebook opens.
  *
  * `'no-video'` also covers a page the content script cannot be reached on (for example a tab
  * that was already open when the extension was loaded, which needs a reload). That case also puts
@@ -60,22 +63,25 @@ export async function handleTrigger(
   source: 'shortcut' | 'button' = 'shortcut',
 ): Promise<TriggerOutcome> {
   const tabId = tab.id;
-  if (parseWatchVideoId(tab.url) === null || tabId === undefined) {
+  const page = detectWatchPage(tab.url);
+  if (page === null || tabId === undefined) {
     await deps.openNotebook();
     return 'notebook';
   }
+  const { label } = PLATFORM_INFO[page.platform];
+  const reloadHint = reloadTitle(label);
 
   let status: string | null;
   try {
     status = beginStatus(await deps.sendToTab(tabId, { type: 'scenenote/begin' }));
   } catch (error) {
-    console.warn('[scenenote] could not reach the page; reload the Netflix tab', error);
-    await updateBadge(deps, tabId, RELOAD_BADGE, RELOAD_TITLE);
+    console.warn(`[scenenote] could not reach the page; reload the ${label} tab`, error);
+    await updateBadge(deps, tabId, RELOAD_BADGE, reloadHint);
     return 'no-video';
   }
   if (status === null) {
     // Nobody answered properly: same cure as for a page that cannot be reached.
-    await updateBadge(deps, tabId, RELOAD_BADGE, RELOAD_TITLE);
+    await updateBadge(deps, tabId, RELOAD_BADGE, reloadHint);
     return 'no-video';
   }
   // The page answered, so any earlier "reload me" badge is out of date. Not awaited: the

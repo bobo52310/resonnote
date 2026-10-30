@@ -3,12 +3,16 @@ import type { ToContent } from '../../src/core/messages';
 import {
   DEFAULT_ACTION_TITLE,
   RELOAD_BADGE,
-  RELOAD_TITLE,
   handleTrigger,
+  reloadTitle,
 } from '../../src/background/trigger';
 import config from '../../wxt.config';
 
 const WATCH_URL = 'https://www.netflix.com/watch/83053998?t=600';
+const YOUTUBE_URL = 'https://www.youtube.com/watch?v=arj7oStGLkU&t=60s';
+const SHORTS_URL = 'https://www.youtube.com/shorts/arj7oStGLkU';
+const DISNEY_URL = 'https://www.disneyplus.com/zh-hant/play/4b3a1c2e-9f00-4d6b-8a21-0123456789ab';
+const RELOAD_TITLE = '請重新整理這個 Netflix 分頁後再按一次';
 const SCREENSHOT = 'data:image/jpeg;base64,U0hPVA==';
 
 type Deps = Parameters<typeof handleTrigger>[1];
@@ -39,6 +43,11 @@ describe('handleTrigger', () => {
     ['another site', 'https://example.com'],
     ['an unknown url', undefined],
     ['a lookalike host', 'https://www.netflix.com.evil.test/watch/83053998'],
+    ['the YouTube home page', 'https://www.youtube.com/'],
+    ['a YouTube search page', 'https://www.youtube.com/results?search_query=cats'],
+    ['YouTube Music', 'https://music.youtube.com/watch?v=arj7oStGLkU'],
+    ['the Disney+ home page', 'https://www.disneyplus.com/zh-hant/home'],
+    ['a Disney+ detail page', 'https://www.disneyplus.com/zh-hant/browse/entity-4b3a1c2e-9f00-4d6b-8a21-0123456789ab'],
   ])('opens notebook for non-watch urls (%s)', async (_label, url) => {
     const t = setup();
     const result = await handleTrigger({ id: 7, windowId: 1, url }, t.deps);
@@ -127,6 +136,61 @@ describe('handleTrigger', () => {
   });
 });
 
+describe.each([
+  ['YouTube watch page', YOUTUBE_URL, 'YouTube'],
+  ['YouTube Shorts page', SHORTS_URL, 'YouTube'],
+  ['Disney+ play page', DISNEY_URL, 'Disney+'],
+])('on a %s', (_label, url, platformName) => {
+  it('goes through the capture flow, not the notebook', async () => {
+    const t = setup();
+    const result = await handleTrigger({ id: 7, windowId: 3, url }, t.deps);
+    expect(result).toBe('shown');
+    expect(t.calls).toEqual(['scenenote/begin', 'capture', 'scenenote/show']);
+    expect(t.captureVisibleTab).toHaveBeenCalledWith(3);
+    expect(t.openNotebook).not.toHaveBeenCalled();
+  });
+
+  it('puts the platform name in the reload hint when the content script cannot be reached', async () => {
+    const t = setup();
+    t.sendToTab.mockRejectedValueOnce(new Error('Could not establish connection.'));
+    expect(await handleTrigger({ id: 7, windowId: 1, url }, t.deps)).toBe('no-video');
+    expect(t.setBadge).toHaveBeenCalledTimes(1);
+    expect(t.setBadge).toHaveBeenCalledWith(7, '!', `請重新整理這個 ${platformName} 分頁後再按一次`);
+  });
+
+  it('puts the platform name in the reload hint when the answer is not a status object', async () => {
+    const t = setup();
+    t.sendToTab.mockResolvedValueOnce(undefined);
+    expect(await handleTrigger({ id: 7, windowId: 1, url }, t.deps)).toBe('no-video');
+    expect(t.setBadge).toHaveBeenCalledWith(7, '!', `請重新整理這個 ${platformName} 分頁後再按一次`);
+  });
+
+  it('clears the badge once the page answers', async () => {
+    const t = setup();
+    await handleTrigger({ id: 7, windowId: 1, url }, t.deps);
+    expect(t.setBadge).toHaveBeenCalledWith(7, '', DEFAULT_ACTION_TITLE);
+  });
+
+  it('asks the overlay to explain a refused screenshot from the page button', async () => {
+    const t = setup();
+    t.captureVisibleTab.mockRejectedValueOnce(new Error('activeTab permission not in effect'));
+    await handleTrigger({ id: 7, windowId: 1, url }, t.deps, 'button');
+    expect(t.sendToTab).toHaveBeenLastCalledWith(7, {
+      type: 'scenenote/show',
+      dataUrl: null,
+      hint: 'use-shortcut-once',
+    });
+  });
+});
+
+describe('reloadTitle', () => {
+  it('names the platform of the tab to reload', () => {
+    expect(reloadTitle('Netflix')).toBe('請重新整理這個 Netflix 分頁後再按一次');
+    expect(reloadTitle('YouTube')).toBe('請重新整理這個 YouTube 分頁後再按一次');
+    expect(reloadTitle('Disney+')).toBe('請重新整理這個 Disney+ 分頁後再按一次');
+  });
+});
+
 describe('the button on the page', () => {
   const lastShow = (t: ReturnType<typeof setup>) =>
     t.sendToTab.mock.calls.map(([, msg]) => msg).filter((msg) => msg.type === 'scenenote/show').at(-1);
@@ -160,7 +224,7 @@ describe('the reload badge (page opened before the extension was loaded)', () =>
     expect(t.setBadge).toHaveBeenCalledTimes(1);
     expect(t.setBadge).toHaveBeenCalledWith(7, '!', '請重新整理這個 Netflix 分頁後再按一次');
     expect(RELOAD_BADGE).toBe('!');
-    expect(RELOAD_TITLE).toBe('請重新整理這個 Netflix 分頁後再按一次');
+    expect(reloadTitle('Netflix')).toBe(RELOAD_TITLE);
   });
 
   it.each([[undefined], [null], ['ok']])('also when the answer is not a status object (%j)', async (answer) => {

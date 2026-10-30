@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { hidePlayerUi } from '../../../src/platforms/netflix/hide-ui';
+import { hidePlayerUi as hide } from '../../src/core/hide-ui';
+
+/** Netflix's keep list, as the Netflix adapter passes it. */
+const KEEP = 'video, .player-timedtext, #lln-main-subs';
+const hidePlayerUi = (root: Element) => hide(root, KEEP);
 
 // Shaped like Netflix's player: the video and subtitles share a canvas, the controls are siblings.
 const PLAYER = `
@@ -72,5 +76,23 @@ describe('hidePlayerUi', () => {
     hidePlayerUi(byClass('watch-video--player-view'));
     expect(opacity(byClass('watch-video--bottom-controls-container'))).toBe('0');
     expect(opacity(document.getElementById('other-page-thing')!)).toBe('');
+  });
+});
+
+describe('hidePlayerUi keep selector', () => {
+  it('keeps whatever the caller names, and hides what it does not', () => {
+    document.body.innerHTML = `
+      <div id="player">
+        <div class="stage"><video></video><div class="ytp-caption-window-container">字幕</div></div>
+        <div class="ytp-chrome-bottom">bar</div>
+        <div class="player-timedtext">not kept here</div>
+      </div>`;
+    const restore = hide(document.getElementById('player')!, 'video, .ytp-caption-window-container');
+    expect(opacity(byClass('ytp-chrome-bottom'))).toBe('0');
+    expect(opacity(byClass('player-timedtext'))).toBe('0');
+    expect(opacity(byClass('stage'))).toBe('');
+    expect(opacity(byClass('ytp-caption-window-container'))).toBe('');
+    restore();
+    expect(opacity(byClass('ytp-chrome-bottom'))).toBe('');
   });
 });

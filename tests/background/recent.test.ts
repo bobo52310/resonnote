@@ -35,7 +35,7 @@ describe('listRecent', () => {
       makeNote('newest', { createdAt: '2026-10-28T11:00:00.000Z', timeMs: 300 }),
       makeNote('middle', { createdAt: '2026-10-28T10:00:00.000Z', timeMs: 200 }),
     ];
-    const result = await listRecent('83053998', 2, deps(notes));
+    const result = await listRecent('netflix', '83053998', 2, deps(notes));
     expect(result.map((n) => n.id)).toEqual(['newest', 'middle']);
     expect(result[0]).toEqual({
       id: 'newest',
@@ -46,6 +46,28 @@ describe('listRecent', () => {
     });
   });
 
+  it('keeps notes of another platform apart even when the id string is the same', async () => {
+    // An 11-digit string is a well-formed id on both Netflix and YouTube.
+    const notes = [
+      makeNote('netflix-note', { videoId: '12345678901', platform: 'netflix' }),
+      makeNote('youtube-note', {
+        videoId: '12345678901',
+        platform: 'youtube',
+        createdAt: '2026-10-28T12:00:00.000Z',
+      }),
+      makeNote('disney-note', { videoId: '12345678901', platform: 'disney' }),
+    ];
+    expect((await listRecent('netflix', '12345678901', 5, deps(notes))).map((n) => n.id)).toEqual([
+      'netflix-note',
+    ]);
+    expect((await listRecent('youtube', '12345678901', 5, deps(notes))).map((n) => n.id)).toEqual([
+      'youtube-note',
+    ]);
+    expect((await listRecent('disney', '12345678901', 5, deps(notes))).map((n) => n.id)).toEqual([
+      'disney-note',
+    ]);
+  });
+
   it('gives no picture to a note without one, or whose picture cannot be read', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const notes = [
@@ -53,7 +75,7 @@ describe('listRecent', () => {
       makeNote('broken'),
     ];
     const d = deps(notes, { shrink: vi.fn(async () => Promise.reject(new Error('bad jpeg'))) });
-    const result = await listRecent('83053998', 2, d);
+    const result = await listRecent('netflix', '83053998', 2, d);
     expect(result.map((n) => [n.id, n.thumb])).toEqual([
       ['none', null],
       ['broken', null],
@@ -64,6 +86,6 @@ describe('listRecent', () => {
   it('returns an empty list instead of throwing when the notes cannot be read', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const d = deps([], { listNotes: vi.fn(async () => Promise.reject(new Error('db closed'))) });
-    expect(await listRecent('83053998', 2, d)).toEqual([]);
+    expect(await listRecent('netflix', '83053998', 2, d)).toEqual([]);
   });
 });

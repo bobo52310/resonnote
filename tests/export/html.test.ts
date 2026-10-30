@@ -48,6 +48,34 @@ describe('buildHtml', () => {
     expect(html).toContain('data:image/jpeg');
   });
 
+  it('links a YouTube note to the video at that second, with the text for it', () => {
+    const note = makeNote('y', { platform: 'youtube', videoId: 'arj7oStGLkU' });
+    const html = buildHtml('t', [note], new Map());
+    // The & of the link is escaped inside the attribute.
+    expect(html).toContain('href="https://www.youtube.com/watch?v=arj7oStGLkU&amp;t=1003s"');
+    expect(html).toContain('>在 YouTube 從 16:43 開始看</a>');
+    expect(html).not.toContain('netflix.com');
+  });
+
+  it('links a Disney+ note to the title without a time and says where the moment is', () => {
+    const id = '4b3a1c2e-9f00-4d6b-8a21-0123456789ab';
+    const html = buildHtml('t', [makeNote('d', { platform: 'disney', videoId: id })], new Map());
+    expect(html).toContain(`href="https://www.disneyplus.com/play/${id}"`);
+    expect(html).toContain('>在 Disney+ 打開（這一刻在 16:43）</a>');
+    expect(html).not.toContain('netflix.com');
+  });
+
+  it('uses each note own platform when one page mixes platforms', () => {
+    const notes = [
+      makeNote('n'),
+      makeNote('y', { platform: 'youtube', videoId: 'arj7oStGLkU', title: '別的片' }),
+    ];
+    const html = buildHtml('三則', notes, new Map());
+    expect(html).toContain('在 Netflix 從 16:43 開始看');
+    expect(html).toContain('在 YouTube 從 16:43 開始看');
+    expect(count(html, 'class="watch"')).toBe(2);
+  });
+
   it('renders as many articles as notes', () => {
     const notes = [makeNote('a'), makeNote('b', { timeMs: 5000 }), makeNote('c', { title: '別部' })];
     const html = buildHtml('三則', notes, new Map());

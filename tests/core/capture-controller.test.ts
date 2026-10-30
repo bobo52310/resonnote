@@ -4,7 +4,7 @@ import {
   PLAYER_UI_RESTORE_MS,
   type CaptureControllerDeps,
 } from '../../src/core/capture-controller';
-import type { ToBackground } from '../../src/core/messages';
+import type { RecentNote, ToBackground } from '../../src/core/messages';
 import {
   openOverlay as realOpenOverlay,
   type OverlayHandle,
@@ -17,6 +17,8 @@ import type { PlatformAdapter } from '../../src/platforms/types';
 const CROPPED = 'data:image/jpeg;base64,Q1JPUA==';
 const TRICKPLAY = 'data:image/jpeg;base64,VFJJQ0s=';
 const SCREENSHOT = 'data:image/jpeg;base64,U0hPVA==';
+const FRAME = 'data:image/jpeg;base64,RlJBTUU=';
+const FRAME_BYTES = new Uint8Array([0xff, 0xd8, 9, 9]);
 const RECT: Rect = { x: 0, y: 100, width: 1280, height: 720 };
 const PLAYBACK: Playback = { videoId: '83053998', title: '造山者', timeMs: 1003469 };
 
@@ -139,6 +141,7 @@ function setup(): Harness {
 
   const deps: CaptureControllerDeps = {
     adapter,
+    platform: 'netflix',
     cropAndCheck,
     jpegBytesToDataUrl,
     openOverlay,
@@ -228,6 +231,95 @@ describe('edits of earlier notes', () => {
   });
 });
 
+describe('deleting earlier notes from the overlay', () => {
+  const EARLIER = [{ id: 'old', timeMs: 900_000, subtitle: '早安', body: '伏筆', thumb: TRICKPLAY }];
+  const OLDER = [{ id: 'older', timeMs: 60_000, subtitle: '', body: '', thumb: TRICKPLAY }];
+  const showPrevious = () => h.overlay.handle.showPrevious as Mock<OverlayHandle['showPrevious']>;
+
+  it('sends the delete to the background, then reloads the strip', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue(OLDER);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledWith(EARLIER));
+
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith(OLDER));
+    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'scenenote/delete', id: 'old' });
+    expect(h.loadRecent).toHaveBeenCalledTimes(2);
+    expect(h.loadRecent).toHaveBeenLastCalledWith(PLAYBACK.videoId);
+    expect(h.overlay.handle.showError).not.toHaveBeenCalled();
+    // the reload comes after the delete was answered
+    const order = [
+      h.sendToBackground.mock.invocationCallOrder.at(-1)!,
+      h.loadRecent.mock.invocationCallOrder.at(-1)!,
+    ];
+    expect(order[0]).toBeLessThan(order[1]!);
+  });
+
+  it('shows the error in the overlay when the delete fails, and still reloads the strip', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue(EARLIER);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+
+    h.sendToBackground.mockResolvedValueOnce({ ok: false, error: '資料庫忙線' });
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() =>
+      expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則沒有刪掉：資料庫忙線'),
+    );
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(2));
+    expect(h.loadRecent).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a missing answer as a failure too', async () => {
+    const { opts } = await capture();
+    h.sendToBackground.mockResolvedValueOnce(undefined);
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() =>
+      expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則沒有刪掉：背景程式沒有回應'),
+    );
+  });
+
+  it('hands over an empty list too, so the strip can go away', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue([]);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith([]));
+  });
+
+  it('only applies the newest reload when answers come back out of order', async () => {
+    const slow = defer<RecentNote[]>();
+    const quick = defer<RecentNote[]>();
+    h.loadRecent
+      .mockResolvedValueOnce(EARLIER)
+      .mockReturnValueOnce(slow.promise)
+      .mockReturnValueOnce(quick.promise);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+
+    opts.onDeletePrevious!('first');
+    await vi.waitFor(() => expect(h.loadRecent).toHaveBeenCalledTimes(2));
+    opts.onDeletePrevious!('second');
+    await vi.waitFor(() => expect(h.loadRecent).toHaveBeenCalledTimes(3));
+
+    quick.resolve(OLDER);
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith(OLDER));
+    slow.resolve(EARLIER);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(showPrevious()).toHaveBeenCalledTimes(2);
+    expect(showPrevious()).toHaveBeenLastCalledWith(OLDER);
+  });
+
+  it('only warns when a reload fails', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockRejectedValueOnce(new Error('gone'));
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(console.warn).toHaveBeenCalled());
+    expect(showPrevious()).toHaveBeenCalledTimes(1);
+    expect(h.overlay.handle.showError).not.toHaveBeenCalled();
+  });
+});
+
 describe('hint from the page button', () => {
   it('adds the use-the-shortcut-once note when the button could not take a screenshot', async () => {
     // without the hint: only the usual scrubber-image note
@@ -242,6 +334,46 @@ describe('hint from the page button', () => {
     await controller.begin();
     await controller.show(null, 'use-shortcut-once');
     expect(h.openOverlay.mock.calls[0]![0].missing).toEqual(['fullFrame', 'useShortcutOnce']);
+  });
+
+  /** Runs begin + show(null, hint) and returns the "what is missing" list the overlay got. */
+  async function missingWithHint(setUp: () => void): Promise<Missing[]> {
+    h = setup();
+    setUp();
+    const controller = createCaptureController(h.deps);
+    await controller.begin();
+    await controller.show(null, 'use-shortcut-once');
+    return h.openOverlay.mock.calls[0]![0].missing;
+  }
+
+  it('does not add the tip when the picture is a frame drawn from the video', async () => {
+    const missing = await missingWithHint(() => {
+      h.adapter.grabFrame = vi.fn(async () => FRAME_BYTES);
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it('adds the tip when there is no picture at all', async () => {
+    const missing = await missingWithHint(() => {
+      h.adapter.getTrickplayFrame.mockResolvedValue(null);
+    });
+    expect(missing).toEqual(['image', 'useShortcutOnce']);
+  });
+
+  it('adds the tip when the frame was blocked and the scrubber image was used', async () => {
+    const missing = await missingWithHint(() => {
+      h.adapter.grabFrame = vi.fn(async () => FRAME_BYTES);
+      h.cropAndCheck.mockResolvedValue({ dataUrl: CROPPED, width: 1920, height: 1080, blocked: true });
+    });
+    expect(missing).toEqual(['fullFrame', 'useShortcutOnce']);
+  });
+
+  it('does not add the tip when the tab screenshot was usable', async () => {
+    h = setup();
+    const controller = createCaptureController(h.deps);
+    await controller.begin();
+    await controller.show(SCREENSHOT, 'use-shortcut-once');
+    expect(h.openOverlay.mock.calls[0]![0].missing).toEqual([]);
   });
 
   it('reports busy while the overlay is open', async () => {
@@ -459,6 +591,118 @@ describe('show: choosing the picture', () => {
     const { opts } = await capture();
     expect(opts.thumbUrl).toBeNull();
     expect(opts.missing).toContain('image');
+  });
+});
+
+describe('show: the frame drawn from the video', () => {
+  /** An adapter that can draw the <video>; the frame decodes to 1920x1080, the scrubber image to 320x180. */
+  function withFrame(bytes: Uint8Array | null = FRAME_BYTES) {
+    const grabFrame = vi.fn<NonNullable<PlatformAdapter['grabFrame']>>(async () => bytes);
+    h.adapter.grabFrame = grabFrame;
+    h.jpegBytesToDataUrl.mockImplementation(async (given) =>
+      given === FRAME_BYTES
+        ? { dataUrl: FRAME, width: 1920, height: 1080 }
+        : { dataUrl: TRICKPLAY, width: 320, height: 180 },
+    );
+    return grabFrame;
+  }
+
+  async function saved() {
+    h.overlay.press({ action: 'save', subtitle: '', body: '' });
+    await vi.waitFor(() => expect(savedMessages()).toHaveLength(1));
+    return savedMessages()[0]!;
+  }
+
+  it('is used when the tab screenshot is not available, without marking anything missing', async () => {
+    withFrame();
+    const { opts } = await capture(null);
+    const msg = await saved();
+
+    expect(msg.note.image).toEqual({ source: 'frame', width: 1920, height: 1080 });
+    expect(msg.imageDataUrl).toBe(FRAME);
+    expect(opts.thumbUrl).toBe(FRAME);
+    expect(opts.missing).toEqual([]);
+    expect(h.adapter.getTrickplayFrame).not.toHaveBeenCalled();
+  });
+
+  it('is checked for a black picture as a whole image at scale 1', async () => {
+    withFrame();
+    await capture(null);
+    expect(h.cropAndCheck).toHaveBeenCalledTimes(1);
+    expect(h.cropAndCheck).toHaveBeenCalledWith(FRAME, { x: 0, y: 0, width: 1920, height: 1080 }, 1);
+  });
+
+  it('is used when the tab screenshot was cropped to a blocked (black) picture', async () => {
+    withFrame();
+    h.cropAndCheck.mockResolvedValueOnce({ dataUrl: CROPPED, width: 2560, height: 1440, blocked: true });
+    await capture();
+    expect((await saved()).note.image.source).toBe('frame');
+    expect(h.cropAndCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it('is not asked for when the tab screenshot is usable', async () => {
+    const grabFrame = withFrame();
+    await capture();
+    expect((await saved()).note.image.source).toBe('tab');
+    expect(grabFrame).not.toHaveBeenCalled();
+  });
+
+  it('gives way to the scrubber image when the frame is black (DRM)', async () => {
+    withFrame();
+    h.cropAndCheck.mockResolvedValue({ dataUrl: CROPPED, width: 1920, height: 1080, blocked: true });
+    const { opts } = await capture(null);
+    const msg = await saved();
+
+    expect(msg.note.image).toEqual({ source: 'trickplay', width: 320, height: 180 });
+    expect(msg.imageDataUrl).toBe(TRICKPLAY);
+    expect(opts.missing).toEqual(['fullFrame']);
+  });
+
+  it('gives way to the scrubber image when the adapter has no frame', async () => {
+    withFrame(null);
+    await capture(null);
+    expect((await saved()).note.image.source).toBe('trickplay');
+    expect(h.cropAndCheck).not.toHaveBeenCalled();
+  });
+
+  it('gives way to the scrubber image when grabbing the frame throws', async () => {
+    const grabFrame = withFrame();
+    grabFrame.mockRejectedValue(new Error('canvas tainted'));
+    await capture(null);
+    expect((await saved()).note.image.source).toBe('trickplay');
+  });
+
+  it('gives way to the scrubber image when the frame cannot be decoded or checked', async () => {
+    withFrame();
+    h.cropAndCheck.mockRejectedValue(new Error('decode failed'));
+    await capture(null);
+    expect((await saved()).note.image.source).toBe('trickplay');
+  });
+
+  it('saves without a picture when the frame is black and there is no scrubber image', async () => {
+    withFrame();
+    h.cropAndCheck.mockResolvedValue({ dataUrl: CROPPED, width: 1920, height: 1080, blocked: true });
+    h.adapter.getTrickplayFrame.mockResolvedValue(null);
+    const { opts } = await capture(null);
+    expect((await saved()).note.image).toEqual({ source: 'none', width: 0, height: 0 });
+    expect(opts.missing).toEqual(['image']);
+  });
+
+  it('is tried when the video rect is unknown (no crop of the screenshot)', async () => {
+    withFrame();
+    h.adapter.getVideoRect.mockReturnValue(null);
+    await capture();
+    expect((await saved()).note.image.source).toBe('frame');
+  });
+});
+
+describe('platform', () => {
+  it.each(['netflix', 'youtube', 'disney'] as const)('writes %s into the saved note', async (platform) => {
+    h.deps.platform = platform;
+    await capture();
+    h.overlay.press({ action: 'save', subtitle: '', body: '' });
+    await vi.waitFor(() => expect(savedMessages()).toHaveLength(1));
+    expect(lastNote().platform).toBe(platform);
   });
 });
 

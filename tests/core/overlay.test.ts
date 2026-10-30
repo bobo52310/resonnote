@@ -80,7 +80,7 @@ describe('MISSING_LABELS', () => {
       image: '沒有截到圖',
       subtitle: '沒抓到台詞',
       title: '沒抓到片名',
-      playerApi: 'Netflix 播放器介面讀不到，秒數改從影片讀',
+      playerApi: '播放器介面讀不到，秒數改從影片讀',
       useShortcutOnce:
         '畫面上的按鈕截不到完整畫面：請先在這個分頁按一次快捷鍵或工具列的 ResonNote 圖示，之後按鈕就能截完整畫面',
     });
@@ -559,6 +559,26 @@ describe('film strip of earlier notes', () => {
     expect(shadow().querySelectorAll('.film')).toHaveLength(1);
     expect(frames()).toHaveLength(2);
   });
+
+  it('refills the same strip element, so its slide-in does not play again', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 925_000), earlier('b', 725_000)]);
+    const film = el('.film');
+    h.showPrevious([earlier('a', 925_000), earlier('c', 60_000)]);
+    expect(el('.film')).toBe(film);
+    expect(times()).toEqual(['1:00', '15:25', '16:43']);
+    expect(el('.film-caption').textContent).toBe('15:25台詞');
+  });
+
+  it('takes the strip away when it is refilled with nothing, and brings one back for the next list', () => {
+    const h = open();
+    h.showPrevious([earlier('a', 1000)]);
+    h.showPrevious([]);
+    expect(shadow().querySelector('.film')).toBeNull();
+    h.showPrevious([earlier('b', 2000)]);
+    expect(shadow().querySelectorAll('.film')).toHaveLength(1);
+    expect(times()).toEqual(['0:02', '16:43']);
+  });
 });
 
 describe('switching to an earlier note from the film strip', () => {
@@ -663,6 +683,298 @@ describe('switching to an earlier note from the film strip', () => {
     setup();
     frameAt('15:25').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     expect(el('[data-role="time"]').textContent).toBe('15:25');
+  });
+});
+
+describe('refilling the strip while an earlier note is in the panel', () => {
+  const earlier = (id: string, timeMs: number, body: string) => ({
+    id,
+    timeMs,
+    subtitle: `台詞${id}`,
+    body,
+    thumb: `data:image/jpeg;base64,${id}`,
+  });
+  const frameAt = (time: string) =>
+    Array.from(shadow().querySelectorAll<HTMLElement>('.frame')).find(
+      (f) => f.querySelector('.frame-time')?.textContent === time,
+    )!;
+
+  it('keeps the panel on a note that is still in the new list, with the text as typed', () => {
+    const onEditPrevious = vi.fn();
+    const h = open({ onEditPrevious });
+    h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('a', 725_000, '')]);
+    frameAt('15:25').click();
+    note().value = '打到一半';
+    h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('c', 60_000, '')]);
+
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+    expect(el('[data-role="viewing"]').hidden).toBe(false);
+    expect(note().value).toBe('打到一半');
+    expect(frameAt('15:25').getAttribute('aria-current')).toBe('true');
+    expect(frameAt('16:43').hasAttribute('aria-current')).toBe(false);
+    expect(onEditPrevious).not.toHaveBeenCalled();
+
+    // The panel now works on the new copy: leaving it stores the typed text.
+    el<HTMLButtonElement>('[data-role="back"]').click();
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+  });
+
+  it('goes back to this moment, keeping the edits, when the note is no longer in the list', () => {
+    const onEditPrevious = vi.fn();
+    const h = open({ onEditPrevious });
+    h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('a', 725_000, '')]);
+    frameAt('15:25').click();
+    note().value = '打到一半';
+    h.showPrevious([earlier('a', 725_000, ''), earlier('c', 60_000, '')]);
+
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(el('[data-role="viewing"]').hidden).toBe(true);
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+  });
+
+  it('goes back to this moment when it is refilled with nothing', () => {
+    const h = open();
+    h.showPrevious([earlier('b', 925_000, '伏筆')]);
+    frameAt('15:25').click();
+    h.showPrevious([]);
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(shadow().querySelector('.film')).toBeNull();
+  });
+});
+
+describe('deleting an earlier note from the film strip', () => {
+  const earlier = (id: string, timeMs: number, body: string) => ({
+    id,
+    timeMs,
+    subtitle: `台詞${id}`,
+    body,
+    thumb: `data:image/jpeg;base64,${id}`,
+  });
+  const frames = () => Array.from(shadow().querySelectorAll<HTMLElement>('.frame'));
+  const times = () => frames().map((f) => f.querySelector('.frame-time')?.textContent);
+  const frameAt = (time: string) =>
+    frames().find((f) => f.querySelector('.frame-time')?.textContent === time)!;
+  const deleteButton = () => el<HTMLButtonElement>('[data-role="delete-previous"]');
+
+  function setup(overrides: Partial<Parameters<typeof openOverlay>[0]> = {}) {
+    const onDeletePrevious = vi.fn<(id: string) => void>();
+    const onEditPrevious = vi.fn();
+    const h = open({ onDeletePrevious, onEditPrevious, ...overrides });
+    h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('a', 725_000, '')]);
+    return { h, onDeletePrevious, onEditPrevious };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('has no button when the caller gave no way to delete', () => {
+    const h = open();
+    h.showPrevious([earlier('b', 925_000, '伏筆')]);
+    frameAt('15:25').click();
+    expect(shadow().querySelector('[data-role="delete-previous"]')).toBeNull();
+  });
+
+  it('puts the button in the banner, before the way back, and shows it only with an earlier note', () => {
+    setup();
+    const banner = el('[data-role="viewing"]');
+    expect(banner.hidden).toBe(true);
+    expect(Array.from(banner.querySelectorAll('button')).map((b) => b.dataset['role'])).toEqual([
+      'delete-previous',
+      'back',
+    ]);
+    expect(deleteButton().textContent).toBe('刪除這一則');
+    expect(deleteButton().type).toBe('button');
+    frameAt('15:25').click();
+    expect(banner.hidden).toBe(false);
+  });
+
+  it('asks for a second click first', () => {
+    const { onDeletePrevious } = setup();
+    frameAt('15:25').click();
+    deleteButton().click();
+    expect(onDeletePrevious).not.toHaveBeenCalled();
+    expect(deleteButton().textContent).toBe('確定刪除？');
+    expect(deleteButton().classList.contains('confirming')).toBe(true);
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+    expect(times()).toEqual(['12:05', '15:25', '16:43']);
+  });
+
+  it('deletes on the second click: back to this moment, frame gone, one callback with the id', () => {
+    let stripWhenCalled: Array<string | null | undefined> = [];
+    const onDeletePrevious = vi.fn<(id: string) => void>(() => {
+      stripWhenCalled = times();
+    });
+    const { onEditPrevious } = setup({ onDeletePrevious });
+    note().value = '這一刻打到一半';
+    frameAt('15:25').click();
+    note().value = '要刪掉的修改';
+    deleteButton().click();
+    deleteButton().click();
+
+    expect(onDeletePrevious).toHaveBeenCalledTimes(1);
+    expect(onDeletePrevious).toHaveBeenCalledWith('b');
+    // the strip was already redrawn when the caller heard of it
+    expect(stripWhenCalled).toEqual(['12:05', '16:43']);
+    expect(times()).toEqual(['12:05', '16:43']);
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(note().value).toBe('這一刻打到一半');
+    expect(el('[data-role="viewing"]').hidden).toBe(true);
+    // the edits of the deleted note are dropped, not stored
+    expect(onEditPrevious).not.toHaveBeenCalled();
+  });
+
+  it('can delete two notes in a row, and the strip is gone after the last one', async () => {
+    const { h, onDeletePrevious } = setup();
+    frameAt('15:25').click();
+    deleteButton().click();
+    deleteButton().click();
+    frameAt('12:05').click();
+    expect(el('[data-role="time"]').textContent).toBe('12:05');
+    deleteButton().click();
+    deleteButton().click();
+
+    expect(onDeletePrevious.mock.calls).toEqual([['b'], ['a']]);
+    expect(shadow().querySelector('.film')).toBeNull();
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('goes back to the first label after 3 seconds without a second click', () => {
+    vi.useFakeTimers();
+    const { onDeletePrevious } = setup();
+    frameAt('15:25').click();
+    deleteButton().click();
+    vi.advanceTimersByTime(2999);
+    expect(deleteButton().textContent).toBe('確定刪除？');
+    vi.advanceTimersByTime(1);
+    expect(deleteButton().textContent).toBe('刪除這一則');
+    expect(deleteButton().classList.contains('confirming')).toBe(false);
+
+    // the next click starts the question again instead of deleting
+    deleteButton().click();
+    expect(onDeletePrevious).not.toHaveBeenCalled();
+    expect(deleteButton().textContent).toBe('確定刪除？');
+  });
+
+  it('starts a fresh 3 seconds for the next note after a delete', () => {
+    vi.useFakeTimers();
+    const { onDeletePrevious } = setup();
+    frameAt('15:25').click();
+    deleteButton().click();
+    vi.advanceTimersByTime(2000);
+    deleteButton().click();
+    expect(onDeletePrevious).toHaveBeenCalledTimes(1);
+    // nothing is left running to touch the next note's button
+    frameAt('12:05').click();
+    deleteButton().click();
+    vi.advanceTimersByTime(2000);
+    expect(deleteButton().textContent).toBe('確定刪除？');
+  });
+
+  describe('forgets the question when the panel moves on', () => {
+    const arm = () => {
+      vi.useFakeTimers();
+      const setupResult = setup();
+      frameAt('15:25').click();
+      deleteButton().click();
+      expect(deleteButton().classList.contains('confirming')).toBe(true);
+      return setupResult;
+    };
+    const expectReset = () => {
+      expect(deleteButton().textContent).toBe('刪除這一則');
+      expect(deleteButton().classList.contains('confirming')).toBe(false);
+    };
+
+    it('on another frame', () => {
+      const { onDeletePrevious } = arm();
+      frameAt('12:05').click();
+      expectReset();
+      frameAt('15:25').click();
+      deleteButton().click();
+      expect(onDeletePrevious).not.toHaveBeenCalled();
+    });
+
+    it('on 回到這一刻', () => {
+      const { onDeletePrevious } = arm();
+      el<HTMLButtonElement>('[data-role="back"]').click();
+      frameAt('15:25').click();
+      expectReset();
+      deleteButton().click();
+      expect(onDeletePrevious).not.toHaveBeenCalled();
+    });
+
+    it('on Esc, which only goes back to this moment', async () => {
+      const { h, onDeletePrevious } = arm();
+      press(note(), { key: 'Escape' });
+      expect(el('[data-role="time"]').textContent).toBe('16:43');
+      expect(await isPending(h.result)).toBe(true);
+      frameAt('15:25').click();
+      expectReset();
+      deleteButton().click();
+      expect(onDeletePrevious).not.toHaveBeenCalled();
+    });
+
+    it('on a refill that keeps the same note', () => {
+      const { h, onDeletePrevious } = arm();
+      h.showPrevious([earlier('b', 925_000, '伏筆'), earlier('c', 60_000, '')]);
+      expect(el('[data-role="time"]').textContent).toBe('15:25');
+      expectReset();
+      deleteButton().click();
+      expect(onDeletePrevious).not.toHaveBeenCalled();
+    });
+
+    it('and leaves no timer running', () => {
+      arm();
+      const waiting = vi.getTimerCount();
+      frameAt('12:05').click();
+      expect(vi.getTimerCount()).toBe(waiting - 1);
+    });
+  });
+
+  it('close() stops the question timer', () => {
+    vi.useFakeTimers();
+    const { h } = setup();
+    const idle = vi.getTimerCount();
+    frameAt('15:25').click();
+    deleteButton().click();
+    expect(vi.getTimerCount()).toBe(idle + 1);
+    h.close();
+    expect(vi.getTimerCount()).toBe(idle);
+  });
+
+  it('does not delete anything when the button is clicked while this moment is in the panel', () => {
+    const { onDeletePrevious } = setup();
+    deleteButton().click();
+    deleteButton().click();
+    expect(onDeletePrevious).not.toHaveBeenCalled();
+    expect(times()).toEqual(['12:05', '15:25', '16:43']);
+  });
+
+  it('leaves Enter and Space on the focused button to the browser, which clicks it', async () => {
+    const { h, onDeletePrevious } = setup();
+    frameAt('15:25').click();
+    const reachedPage: string[] = [];
+    const onPageKey = (e: KeyboardEvent) => reachedPage.push(e.key);
+    document.addEventListener('keydown', onPageKey);
+    try {
+      for (const key of ['Enter', ' ']) {
+        const ev = press(deleteButton(), { key });
+        // not intercepted: the default action (a click on the button) is not prevented
+        expect(ev.defaultPrevented).toBe(false);
+      }
+    } finally {
+      document.removeEventListener('keydown', onPageKey);
+    }
+    expect(reachedPage).toEqual([]);
+    // keydown alone neither deletes nor saves; the click the browser makes from it does
+    expect(onDeletePrevious).not.toHaveBeenCalled();
+    expect(await isPending(h.result)).toBe(true);
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+    deleteButton().click();
+    deleteButton().click();
+    expect(onDeletePrevious).toHaveBeenCalledWith('b');
   });
 });
 

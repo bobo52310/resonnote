@@ -1,4 +1,4 @@
-import type { Note } from './types';
+import type { Note, Platform } from './types';
 
 /** Answer to `scenenote/begin`: whether a capture may go ahead. */
 export type BeginResult = { status: 'ok' } | { status: 'busy' } | { status: 'no-video' };
@@ -12,22 +12,35 @@ export type ToContent =
       /** Set when the on-page button could not take a screenshot (no shortcut used in this tab yet). */
       hint?: 'use-shortcut-once';
     }
-  | { type: 'scenenote/seek'; timeMs: number };
+  | {
+      type: 'scenenote/seek';
+      timeMs: number;
+      /**
+       * The title the seek is meant for. A page that plays something else (the tab moved on while
+       * a retry was pending) declines, so the wrong video is never moved or paused.
+       */
+      videoId?: string;
+    };
 
 /** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
 export type ToBackground =
   | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
   | { type: 'scenenote/open-notebook' }
-  | { type: 'scenenote/jump'; videoId: string; timeMs: number }
-  | { type: 'scenenote/recent'; videoId: string; limit: number }
+  | { type: 'scenenote/jump'; platform: Platform; videoId: string; timeMs: number }
+  | { type: 'scenenote/recent'; platform: Platform; videoId: string; limit: number }
   /** Edits made to an earlier note from the overlay's film strip. */
   | { type: 'scenenote/update'; id: string; subtitle: string; body: string }
+  /** An earlier note deleted from the overlay's film strip. */
+  | { type: 'scenenote/delete'; id: string }
   /** The on-page 「記下這一刻」 button: same as the shortcut, for the tab that sent it. */
   | { type: 'scenenote/trigger' }
   /** The shortcut as the user has set it (for example 「⌥⇧N」), or '' when none is set. */
   | { type: 'scenenote/shortcut' };
 
-/** One earlier note of the same video, as the note overlay shows it behind the new picture. */
+/**
+ * One earlier note of the same video (same platform and videoId), as the note overlay shows it
+ * behind the new picture.
+ */
 export interface RecentNote {
   id: string;
   timeMs: number;

@@ -1,4 +1,4 @@
-import { getNote, putImage, putNote } from '../core/db';
+import { deleteNote, getNote, putImage, putNote } from '../core/db';
 import { dataUrlToBytes, type SaveResult, type ToBackground } from '../core/messages';
 
 /**
@@ -42,6 +42,22 @@ export async function handleUpdate(
     return { ok: true };
   } catch (error) {
     console.error('[scenenote] updating the note failed', error);
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Deletes an earlier note and its image, as asked from the overlay's film strip. A note that is
+ * already gone counts as deleted. Never throws.
+ */
+export async function handleDelete(
+  msg: Extract<ToBackground, { type: 'scenenote/delete' }>,
+): Promise<SaveResult> {
+  try {
+    await deleteNote(msg.id);
+    return { ok: true };
+  } catch (error) {
+    console.error('[scenenote] deleting the note failed', error);
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

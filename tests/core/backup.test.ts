@@ -122,18 +122,33 @@ describe('parseBackupZip note validation', () => {
     return zipSync({ 'notes.json': strToU8(JSON.stringify({ version: 1, notes: [raw] })) });
   }
 
-  it('rejects a platform other than netflix', () => {
-    const zip = zipWithRawNote((raw) => (raw.platform = 'hulu'));
+  it('accepts every known platform and keeps it', () => {
+    for (const platform of ['netflix', 'youtube', 'disney'] as const) {
+      const note = makeNote('a', { platform, videoId: platform === 'youtube' ? 'arj7oStGLkU' : '1' });
+      expect(parseBackupZip(createBackupZip([note], new Map())).notes).toEqual([note]);
+    }
+  });
+
+  it.each([['hulu'], ['Netflix'], ['disney+'], [''], ['toString'], [1], [null]])(
+    'rejects an unknown platform (%j)',
+    (platform) => {
+      const zip = zipWithRawNote((raw) => (raw.platform = platform));
+      expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
+    },
+  );
+
+  it('rejects a note without a platform', () => {
+    const zip = zipWithRawNote((raw) => delete raw.platform);
     expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
   });
 
-  it('rejects an image.source outside tab | trickplay | none', () => {
+  it('rejects an image.source outside tab | frame | trickplay | none', () => {
     const zip = zipWithRawNote((raw) => ((raw.image as Record<string, unknown>).source = 'screen'));
     expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
   });
 
-  it('accepts every valid image.source', () => {
-    for (const source of ['tab', 'trickplay', 'none'] as const) {
+  it('accepts every valid image.source, frame included', () => {
+    for (const source of ['tab', 'frame', 'trickplay', 'none'] as const) {
       const note = makeNote('a', { image: { source, width: 1, height: 1 } });
       expect(parseBackupZip(createBackupZip([note], new Map())).notes).toEqual([note]);
     }
@@ -234,6 +249,24 @@ describe('restoreBackup', () => {
     expect(second.written).toBe(0);
     expect(second.skipped).toBe(2);
     expect(await listNotes()).toHaveLength(2);
+  });
+
+  it('restores notes of every platform, including a YouTube frame picture', async () => {
+    const youtube = makeNote('y', {
+      platform: 'youtube',
+      videoId: 'arj7oStGLkU',
+      image: { source: 'frame', width: 1920, height: 1080 },
+    });
+    const disney = makeNote('d', { platform: 'disney', videoId: '4b3a1c2e-9f00-4d6b-8a21-0123456789ab' });
+
+    const result = await restoreBackup(
+      createBackupZip([youtube, disney, makeNote('n')], new Map([['y', jpeg(4, 5)]])),
+    );
+
+    expect(result).toEqual({ written: 3, skipped: 0 });
+    expect(await getNote('y')).toEqual(youtube);
+    expect(await getNote('d')).toEqual(disney);
+    expect(new Uint8Array((await getImage('y'))!)).toEqual(jpeg(4, 5));
   });
 
   it('imports a note whose image is missing', async () => {

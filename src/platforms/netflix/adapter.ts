@@ -1,10 +1,13 @@
 import { contentRect } from '../../core/capture-math';
+import { hidePlayerUi } from '../../core/hide-ui';
 import type { Missing, Playback, Rect } from '../../core/types';
+import { askBridge, warnOnce } from '../bridge-protocol';
 import type { PlatformAdapter } from '../types';
-import { callBridge, warnOnce } from './bridge-protocol';
-import { hidePlayerUi } from './hide-ui';
 import { extractSubtitle } from './subtitle';
 import { parseWatchVideoId, watchUrl } from './url';
+
+/** Part of the picture, so they stay on screen: the video and both subtitle layers. */
+const KEEP_ON_SCREEN = 'video, .player-timedtext, #lln-main-subs';
 
 /** The first scrubber-image request may have to download the whole BIF file (several MB). */
 const TRICKPLAY_TIMEOUT_MS = 10_000;
@@ -41,16 +44,6 @@ function parseMeta(value: unknown): Meta | null {
   if (finiteNumber(episode)) meta.episode = episode;
   if (typeof episodeTitle === 'string' && episodeTitle !== '') meta.episodeTitle = episodeTitle;
   return meta;
-}
-
-/** `callBridge` that cannot reject. */
-async function ask<T>(...args: Parameters<typeof callBridge>): Promise<T | null> {
-  try {
-    return await callBridge<T>(...args);
-  } catch (error) {
-    warnOnce('bridge call', error);
-    return null;
-  }
 }
 
 function toBytes(value: unknown): Uint8Array | null {
@@ -90,7 +83,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
   return {
     async getPlayback() {
       try {
-        const answer = parseBridgePlayback(await ask<unknown>('playback'));
+        const answer = parseBridgePlayback(await askBridge<unknown>('playback'));
         if (answer === null) return fallbackPlayback();
 
         const missing: Missing[] = [];
@@ -108,7 +101,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
     },
 
     async pause() {
-      if ((await ask<boolean>('pause')) === true) return true;
+      if ((await askBridge<boolean>('pause')) === true) return true;
       try {
         const video = findVideo();
         if (video === null) return false;
@@ -121,7 +114,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
     },
 
     async play() {
-      if ((await ask<boolean>('play')) === true) return true;
+      if ((await askBridge<boolean>('play')) === true) return true;
       try {
         const video = findVideo();
         if (video === null) return false;
@@ -136,7 +129,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
     async seek(timeMs) {
       // No <video> fallback: setting currentTime makes Netflix show a playback error.
       if (!finiteNumber(timeMs)) return false;
-      return (await ask<boolean>('seek', timeMs)) === true;
+      return (await askBridge<boolean>('seek', timeMs)) === true;
     },
 
     getVideoRect(): Rect | null {
@@ -161,7 +154,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
 
     hidePlayerUi() {
       try {
-        return hidePlayerUi(doc.fullscreenElement ?? doc.body);
+        return hidePlayerUi(doc.fullscreenElement ?? doc.body, KEEP_ON_SCREEN);
       } catch (error) {
         warnOnce('hidePlayerUi', error);
         return () => {};
@@ -170,7 +163,7 @@ export function createNetflixAdapter(doc: Document): PlatformAdapter {
 
     async getTrickplayFrame(timeMs) {
       if (!finiteNumber(timeMs)) return null;
-      return toBytes(await ask<unknown>('trickplay', timeMs, TRICKPLAY_TIMEOUT_MS));
+      return toBytes(await askBridge<unknown>('trickplay', timeMs, TRICKPLAY_TIMEOUT_MS));
     },
 
     watchUrl,

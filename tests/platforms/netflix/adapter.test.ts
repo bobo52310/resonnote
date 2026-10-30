@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { contentRect } from '../../../src/core/capture-math';
 import { createNetflixAdapter } from '../../../src/platforms/netflix/adapter';
-import { callBridge } from '../../../src/platforms/netflix/bridge-protocol';
+import { askBridge } from '../../../src/platforms/bridge-protocol';
 import { installPageBridge } from '../../../src/platforms/netflix/page-bridge';
 
-vi.mock('../../../src/platforms/netflix/bridge-protocol', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../../src/platforms/netflix/bridge-protocol')>()),
-  callBridge: vi.fn(),
+vi.mock('../../../src/platforms/bridge-protocol', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/platforms/bridge-protocol')>()),
+  askBridge: vi.fn(),
 }));
 
-const bridge = vi.mocked(callBridge);
+const bridge = vi.mocked(askBridge);
 
 /** Answers each bridge op from a table; ops that are missing from the table answer null (no bridge). */
 function answerBridge(answers: Partial<Record<string, unknown>>) {
-  bridge.mockImplementation((async (op: string) => answers[op] ?? null) as typeof callBridge);
+  bridge.mockImplementation((async (op: string) => answers[op] ?? null) as typeof askBridge);
 }
 
 function setUrl(url: string) {
@@ -134,7 +134,14 @@ describe('getPlayback', () => {
 
   it('does not throw when the bridge call itself fails', async () => {
     addVideo({ currentTime: 1 });
-    bridge.mockRejectedValue(new Error('boom'));
+    const actual = await vi.importActual<typeof import('../../../src/platforms/bridge-protocol')>(
+      '../../../src/platforms/bridge-protocol',
+    );
+    // The real askBridge, with a page that refuses to take the request.
+    bridge.mockImplementation(actual.askBridge);
+    vi.spyOn(window, 'postMessage').mockImplementation(() => {
+      throw new Error('boom');
+    });
     expect((await createNetflixAdapter(document).getPlayback())?.missing).toContain('playerApi');
   });
 });
@@ -255,10 +262,10 @@ describe('getSubtitleText / watchUrl', () => {
 
 describe('with the real page bridge', () => {
   it('works end to end', async () => {
-    const actual = await vi.importActual<typeof import('../../../src/platforms/netflix/bridge-protocol')>(
-      '../../../src/platforms/netflix/bridge-protocol',
+    const actual = await vi.importActual<typeof import('../../../src/platforms/bridge-protocol')>(
+      '../../../src/platforms/bridge-protocol',
     );
-    bridge.mockImplementation(actual.callBridge);
+    bridge.mockImplementation(actual.askBridge);
     installPageBridge(window);
 
     const player = {

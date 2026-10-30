@@ -26,7 +26,7 @@ vi.mock('../../src/export/download', () => ({ downloadBytes: vi.fn() }));
 
 const NOW = new Date('2026-10-28T12:00:00.000Z');
 const DAY = 86_400_000;
-const EMPTY_TEXT = '還沒有筆記。在 Netflix 播放時按 ⌥⇧N 記下第一則。';
+const EMPTY_TEXT = '還沒有筆記。在 Netflix、YouTube 或 Disney+ 播放時按 ⌥⇧N 記下第一則。';
 
 function makeNote(id: string, overrides: Partial<Note> = {}): Note {
   return {
@@ -342,6 +342,57 @@ describe('grouping and note rows', () => {
     expect(noteEl('a').querySelector('.subtitle')).toBeNull();
   });
 
+  it('puts the platform name beside each group heading, outside the heading text', async () => {
+    const notes = [
+      makeNote('n', { videoId: '81234567' }),
+      makeNote('y', { platform: 'youtube', videoId: 'arj7oStGLkU', title: '拖延症大師', season: undefined, episode: undefined }),
+      makeNote('d', {
+        platform: 'disney',
+        videoId: '4b3a1c2e-9f00-4d6b-8a21-0123456789ab',
+        title: '尚公主',
+        season: undefined,
+        episode: undefined,
+      }),
+    ];
+    await renderNotebook(root, mockDeps(notes));
+    const tagOf = (noteId: string) => {
+      const group = noteEl(noteId).closest('.group')!;
+      return {
+        platform: (group as HTMLElement).dataset['platform'],
+        tag: group.querySelector('.platform-tag')?.textContent,
+        heading: group.querySelector('h2')?.textContent,
+      };
+    };
+    expect(tagOf('n')).toEqual({ platform: 'netflix', tag: 'Netflix', heading: '黑暗榮耀 第1季第3集' });
+    expect(tagOf('y')).toEqual({ platform: 'youtube', tag: 'YouTube', heading: '拖延症大師' });
+    expect(tagOf('d')).toEqual({ platform: 'disney', tag: 'Disney+', heading: '尚公主' });
+    // The platform tag is not the 低解析度 warning label.
+    expect(q('.platform-tag').classList.contains('lowres')).toBe(false);
+  });
+
+  it('shows two groups when two platforms share an id string', async () => {
+    const notes = [
+      makeNote('n', { platform: 'netflix', videoId: '12345678901' }),
+      makeNote('y', { platform: 'youtube', videoId: '12345678901', title: '別的片' }),
+    ];
+    await renderNotebook(root, mockDeps(notes));
+    expect(root.querySelectorAll('.group')).toHaveLength(2);
+    expect(noteEl('n').closest('.group')).not.toBe(noteEl('y').closest('.group'));
+  });
+
+  it('names the note platform in the tooltip of the time button', async () => {
+    const notes = [
+      makeNote('n'),
+      makeNote('y', { platform: 'youtube', videoId: 'arj7oStGLkU' }),
+      makeNote('d', { platform: 'disney', videoId: '4b3a1c2e-9f00-4d6b-8a21-0123456789ab' }),
+    ];
+    await renderNotebook(root, mockDeps(notes));
+    const titleOf = (id: string) => noteEl(id).querySelector<HTMLButtonElement>('.time')!.title;
+    expect(titleOf('n')).toBe('跳到 Netflix 的這一刻');
+    expect(titleOf('y')).toBe('跳到 YouTube 的這一刻');
+    expect(titleOf('d')).toBe('跳到 Disney+ 的這一刻');
+  });
+
   it('calls deps.jump with the note when the time is clicked', async () => {
     const note = makeNote('a');
     const deps = mockDeps([note]);
@@ -417,7 +468,7 @@ describe('thumbnails', () => {
     expect(noteEl('a').querySelector('.lowres')?.textContent).toBe('低解析度');
   });
 
-  it.each([['tab'], ['none']] as const)('has no 低解析度 label for a %s note', async (source) => {
+  it.each([['tab'], ['frame'], ['none']] as const)('has no 低解析度 label for a %s note', async (source) => {
     const note = makeNote('a', { image: { source, width: 1280, height: 720 } });
     await renderNotebook(root, mockDeps([note], { getImage: vi.fn(async () => jpegBuffer()) }));
     expect(noteEl('a').querySelector('.lowres')).toBeNull();

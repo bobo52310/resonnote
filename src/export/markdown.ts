@@ -1,7 +1,7 @@
 import { strToU8, zipSync, type Zippable } from 'fflate';
 import { formatTime } from '../core/format';
 import type { Note } from '../core/types';
-import { watchUrl } from '../platforms/netflix/url';
+import { PLATFORM_INFO, watchLinkText } from '../platforms/registry';
 import { groupByHeading } from './group';
 
 const MARKDOWN_FILE = 'notes.md';
@@ -24,7 +24,8 @@ function noteBlocks(note: Note, hasImage: (id: string) => boolean): string[] {
     );
   }
   if (note.body !== '') blocks.push(note.body);
-  blocks.push(`[在 Netflix 從 ${time} 開始看](${watchUrl(note.videoId, note.timeMs)})`);
+  const link = PLATFORM_INFO[note.platform].watchUrl(note.videoId, note.timeMs);
+  blocks.push(`[${watchLinkText(note.platform, note.timeMs)}](${link})`);
   return blocks;
 }
 

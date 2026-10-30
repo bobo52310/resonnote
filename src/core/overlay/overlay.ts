@@ -7,7 +7,7 @@ export const MISSING_LABELS: Record<Missing, string> = {
   image: '沒有截到圖',
   subtitle: '沒抓到台詞',
   title: '沒抓到片名',
-  playerApi: 'Netflix 播放器介面讀不到，秒數改從影片讀',
+  playerApi: '播放器介面讀不到，秒數改從影片讀',
   useShortcutOnce: '畫面上的按鈕截不到完整畫面：請先在這個分頁按一次快捷鍵或工具列的 ResonNote 圖示，之後按鈕就能截完整畫面',
 };
 
@@ -27,7 +27,10 @@ export interface OverlayHandle {
   isOpen(): boolean;
   /**
    * Stacks up to two earlier notes of the same video behind the new picture, newest nearest.
-   * Does nothing when the overlay has no picture or is closed.
+   * Can be called again to refill the strip (after a delete): the strip element stays, and an
+   * empty list takes it away. An earlier note in the panel stays there if the new list still has
+   * it, otherwise the panel goes back to this moment. Does nothing when the overlay has no
+   * picture or is closed.
    */
   showPrevious(notes: RecentNote[]): void;
 }
@@ -42,9 +45,19 @@ export interface OverlayOptions {
   onOpenNotebook: () => void;
   /** An earlier note (opened from the film strip) was edited in the overlay and should be stored. */
   onEditPrevious?: (id: string, changes: { subtitle: string; body: string }) => void;
+  /**
+   * An earlier note (in the panel, after a second click on 刪除這一則) should be deleted. The
+   * overlay has already dropped it from the strip. Without this there is no delete button.
+   */
+  onDeletePrevious?: (id: string) => void;
 }
 
 const HOST_ATTRIBUTE = 'data-scenenote-overlay';
+
+/** How long 「確定刪除？」 waits for the second click before the button goes back. */
+const CONFIRM_DELETE_MS = 3000;
+const DELETE_LABEL = '刪除這一則';
+const DELETE_CONFIRM_LABEL = '確定刪除？';
 
 const OVERLAY_CSS = `
 :host {
@@ -186,7 +199,8 @@ const OVERLAY_CSS = `
 .viewing span {
   flex: 1;
 }
-.back {
+.back,
+.delete-previous {
   padding: 2px 10px;
   border: 1px solid rgba(255, 215, 154, 0.5);
   border-radius: 4px;
@@ -195,8 +209,16 @@ const OVERLAY_CSS = `
   font: inherit;
   cursor: pointer;
 }
-.back:hover {
+.back:hover,
+.delete-previous:hover {
   background: rgba(255, 215, 154, 0.15);
+}
+/* First click of the two-click delete: a warning until the second click or the timeout. */
+.delete-previous.confirming,
+.delete-previous.confirming:hover {
+  border-color: #b3141c;
+  background: #b3141c;
+  color: #fff;
 }
 .thumb.blank {
   visibility: hidden;
@@ -425,7 +447,16 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   const backButton = create('button', 'back', 'back');
   backButton.type = 'button';
   backButton.textContent = '回到這一刻';
-  viewing.append(viewingText, backButton);
+  // Only with a way to delete; hidden along with the banner while this moment is in the panel.
+  const deleteButton =
+    opts.onDeletePrevious === undefined ? null : create('button', 'delete-previous', 'delete-previous');
+  viewing.append(viewingText);
+  if (deleteButton !== null) {
+    deleteButton.type = 'button';
+    deleteButton.textContent = DELETE_LABEL;
+    viewing.append(deleteButton);
+  }
+  viewing.append(backButton);
 
   panel.append(viewing, top, noteEl, hint);
 
@@ -488,6 +519,20 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   /** Called after every switch so the film strip can mark the note in the panel. */
   let markCurrent: () => void = () => {};
 
+  /** The earlier notes the strip shows (the overlay's own copies), newest first. */
+  let stripNotes: RecentNote[] = [];
+  /** Running while 刪除這一則 waits for its second click. */
+  let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Takes 「確定刪除？」 back: the next click on the button asks again. */
+  const resetConfirm = (): void => {
+    if (confirmTimer !== null) clearTimeout(confirmTimer);
+    confirmTimer = null;
+    if (deleteButton === null) return;
+    deleteButton.textContent = DELETE_LABEL;
+    deleteButton.classList.remove('confirming');
+  };
+
   /** Hands edits of the earlier note in the panel to the caller, if there are any. */
   const commitViewed = (): void => {
     if (viewed === null) return;
@@ -502,6 +547,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   /** Puts `target` (null: this moment) in the panel; edits of the earlier one are kept if `keep`. */
   const switchTo = (target: RecentNote | null, keep: boolean): void => {
     if (target === viewed) return;
+    resetConfirm();
     if (viewed === null) nowDraft = { subtitle: subtitleEl.value, body: noteEl.value };
     else if (keep) commitViewed();
     viewed = target;
@@ -530,6 +576,119 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     noteEl.focus();
   };
   backButton.addEventListener('click', () => switchTo(null, true));
+
+  // --- film strip -----------------------------------------------------------
+  /**
+   * Draws the strip for `shown` (the overlay's own copies: edits made in the overlay are written
+   * into them), or takes it away when there are none.
+   */
+  const renderStrip = (shown: RecentNote[]): void => {
+    stripNotes = shown;
+    let film = panel.querySelector<HTMLElement>('.film');
+    if (shown.length === 0) {
+      film?.remove();
+      markCurrent = () => {};
+      return;
+    }
+
+    const body = create('div', 'film-body');
+    const frames = create('div', 'frames');
+    const caption = create('div', 'film-caption');
+    const wordsOf = (note: RecentNote) => note.body.trim() || note.subtitle.trim();
+    const showCaption = (at: string, words: string) => {
+      const code = create('b');
+      code.textContent = at;
+      caption.replaceChildren(code, doc.createTextNode(words));
+    };
+    const entries: Array<{ frame: HTMLElement; note: RecentNote | null }> = [];
+
+    const addFrame = (note: RecentNote | null) => {
+      const frame = create('figure', 'frame');
+      const thumb = note === null ? opts.thumbUrl : note.thumb;
+      const at = note === null ? opts.time : formatTime(note.timeMs);
+      if (thumb !== null) {
+        const img = create('img');
+        img.setAttribute('src', thumb);
+        img.alt = '';
+        frame.appendChild(img);
+      }
+      const code = create('span', 'frame-time');
+      code.textContent = at;
+      frame.appendChild(code);
+      frame.tabIndex = 0;
+      frame.setAttribute('role', 'button');
+      frame.setAttribute('aria-label', note === null ? `回到這一刻 ${at}` : `切換到 ${at} 那一則`);
+      frame.addEventListener('mouseenter', () => {
+        const words = note === null ? '這一刻' : wordsOf(note);
+        showCaption(at, words);
+      });
+      frame.addEventListener('click', () => switchTo(note, true));
+      frame.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        switchTo(note, true);
+      });
+      if (frames.childElementCount > 0) {
+        const arrow = create('span', 'arrow');
+        arrow.textContent = '›';
+        frames.appendChild(arrow);
+      }
+      frames.appendChild(frame);
+      entries.push({ frame, note });
+      return frame;
+    };
+
+    // Oldest first, so the strip reads left to right like the film runs.
+    [...shown].reverse().forEach((note, i) => {
+      const frame = addFrame(note);
+      frame.setAttribute('data-role', 'previous');
+      frame.setAttribute('data-age', String(shown.length - i));
+    });
+    addFrame(null).classList.add('now');
+
+    markCurrent = () => {
+      for (const { frame, note } of entries) {
+        if (note === viewed) frame.setAttribute('aria-current', 'true');
+        else frame.removeAttribute('aria-current');
+        frame.title = note === null ? `${opts.time}　這一刻` : `${formatTime(note.timeMs)}　${wordsOf(note)}`.trim();
+      }
+    };
+    markCurrent();
+
+    // At rest the caption tells the latest earlier note; hovering a frame shows that one.
+    const latest = shown[0]!;
+    const showLatest = () => showCaption(formatTime(latest.timeMs), wordsOf(latest));
+    showLatest();
+    frames.addEventListener('mouseleave', showLatest);
+
+    body.append(frames, caption);
+    // Reuse the strip element when there is one: a new element would slide in again.
+    if (film === null) {
+      film = create('div', 'film', 'film');
+      film.append(body);
+      panel.insertBefore(film, panel.firstChild);
+    } else {
+      film.replaceChildren(body);
+    }
+  };
+
+  if (deleteButton !== null) {
+    deleteButton.addEventListener('click', () => {
+      const target = viewed;
+      if (target === null) return;
+      if (confirmTimer === null) {
+        deleteButton.textContent = DELETE_CONFIRM_LABEL;
+        deleteButton.classList.add('confirming');
+        confirmTimer = setTimeout(resetConfirm, CONFIRM_DELETE_MS);
+        return;
+      }
+      // Edits of a note that is going away are not worth keeping.
+      switchTo(null, false);
+      renderStrip(stripNotes.filter((note) => note.id !== target.id));
+      opts.onDeletePrevious?.(target.id);
+    });
+  }
 
   // --- keyboard -----------------------------------------------------------
   panel.addEventListener('keydown', (e) => {
@@ -648,6 +807,7 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     close() {
       if (!open) return;
       open = false;
+      resetConfirm();
       removeGuards();
       host.remove();
     },
@@ -655,87 +815,15 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     isOpen: () => open && host.isConnected,
     showPrevious(notes) {
       if (!open || opts.thumbUrl === null) return;
-      if (viewed !== null) switchTo(null, true);
-      panel.querySelector('.film')?.remove();
       // Copies: edits made in the overlay are written into them.
       const shown = notes.slice(0, 2).map((note) => ({ ...note }));
-      if (shown.length === 0) return;
-
-      const film = create('div', 'film', 'film');
-      const body = create('div', 'film-body');
-      const frames = create('div', 'frames');
-      const caption = create('div', 'film-caption');
-      const wordsOf = (note: RecentNote) => note.body.trim() || note.subtitle.trim();
-      const showCaption = (at: string, words: string) => {
-        const code = create('b');
-        code.textContent = at;
-        caption.replaceChildren(code, doc.createTextNode(words));
-      };
-      const entries: Array<{ frame: HTMLElement; note: RecentNote | null }> = [];
-
-      const addFrame = (note: RecentNote | null) => {
-        const frame = create('figure', 'frame');
-        const thumb = note === null ? opts.thumbUrl : note.thumb;
-        const at = note === null ? opts.time : formatTime(note.timeMs);
-        if (thumb !== null) {
-          const img = create('img');
-          img.setAttribute('src', thumb);
-          img.alt = '';
-          frame.appendChild(img);
-        }
-        const code = create('span', 'frame-time');
-        code.textContent = at;
-        frame.appendChild(code);
-        frame.tabIndex = 0;
-        frame.setAttribute('role', 'button');
-        frame.setAttribute('aria-label', note === null ? `回到這一刻 ${at}` : `切換到 ${at} 那一則`);
-        frame.addEventListener('mouseenter', () => {
-          const words = note === null ? '這一刻' : wordsOf(note);
-          showCaption(at, words);
-        });
-        frame.addEventListener('click', () => switchTo(note, true));
-        frame.addEventListener('keydown', (e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          e.preventDefault();
-          e.stopPropagation();
-          switchTo(note, true);
-        });
-        if (frames.childElementCount > 0) {
-          const arrow = create('span', 'arrow');
-          arrow.textContent = '›';
-          frames.appendChild(arrow);
-        }
-        frames.appendChild(frame);
-        entries.push({ frame, note });
-        return frame;
-      };
-
-      // Oldest first, so the strip reads left to right like the film runs.
-      [...shown].reverse().forEach((note, i) => {
-        const frame = addFrame(note);
-        frame.setAttribute('data-role', 'previous');
-        frame.setAttribute('data-age', String(shown.length - i));
-      });
-      addFrame(null).classList.add('now');
-
-      markCurrent = () => {
-        for (const { frame, note } of entries) {
-          if (note === viewed) frame.setAttribute('aria-current', 'true');
-          else frame.removeAttribute('aria-current');
-          frame.title = note === null ? `${opts.time}　這一刻` : `${formatTime(note.timeMs)}　${wordsOf(note)}`.trim();
-        }
-      };
-      markCurrent();
-
-      // At rest the caption tells the latest earlier note; hovering a frame shows that one.
-      const latest = shown[0]!;
-      const showLatest = () => showCaption(formatTime(latest.timeMs), wordsOf(latest));
-      showLatest();
-      frames.addEventListener('mouseleave', showLatest);
-
-      body.append(frames, caption);
-      film.append(body);
-      panel.insertBefore(film, panel.firstChild);
+      const inPanel = viewed;
+      const kept = inPanel === null ? undefined : shown.find((note) => note.id === inPanel.id);
+      resetConfirm();
+      // An earlier note that is still there stays in the panel, with the text as typed.
+      if (kept !== undefined) viewed = kept;
+      else if (inPanel !== null) switchTo(null, true);
+      renderStrip(shown);
     },
   };
 }
