@@ -4,7 +4,7 @@ import {
   PLAYER_UI_RESTORE_MS,
   type CaptureControllerDeps,
 } from '../../src/core/capture-controller';
-import type { ToBackground } from '../../src/core/messages';
+import type { RecentNote, ToBackground } from '../../src/core/messages';
 import {
   openOverlay as realOpenOverlay,
   type OverlayHandle,
@@ -228,6 +228,95 @@ describe('edits of earlier notes', () => {
     await vi.waitFor(() =>
       expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則的修改沒有存到：找不到這則筆記'),
     );
+  });
+});
+
+describe('deleting earlier notes from the overlay', () => {
+  const EARLIER = [{ id: 'old', timeMs: 900_000, subtitle: '早安', body: '伏筆', thumb: TRICKPLAY }];
+  const OLDER = [{ id: 'older', timeMs: 60_000, subtitle: '', body: '', thumb: TRICKPLAY }];
+  const showPrevious = () => h.overlay.handle.showPrevious as Mock<OverlayHandle['showPrevious']>;
+
+  it('sends the delete to the background, then reloads the strip', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue(OLDER);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledWith(EARLIER));
+
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith(OLDER));
+    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'scenenote/delete', id: 'old' });
+    expect(h.loadRecent).toHaveBeenCalledTimes(2);
+    expect(h.loadRecent).toHaveBeenLastCalledWith(PLAYBACK.videoId);
+    expect(h.overlay.handle.showError).not.toHaveBeenCalled();
+    // the reload comes after the delete was answered
+    const order = [
+      h.sendToBackground.mock.invocationCallOrder.at(-1)!,
+      h.loadRecent.mock.invocationCallOrder.at(-1)!,
+    ];
+    expect(order[0]).toBeLessThan(order[1]!);
+  });
+
+  it('shows the error in the overlay when the delete fails, and still reloads the strip', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue(EARLIER);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+
+    h.sendToBackground.mockResolvedValueOnce({ ok: false, error: '資料庫忙線' });
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() =>
+      expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則沒有刪掉：資料庫忙線'),
+    );
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(2));
+    expect(h.loadRecent).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a missing answer as a failure too', async () => {
+    const { opts } = await capture();
+    h.sendToBackground.mockResolvedValueOnce(undefined);
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() =>
+      expect(h.overlay.handle.showError).toHaveBeenCalledWith('那一則沒有刪掉：背景程式沒有回應'),
+    );
+  });
+
+  it('hands over an empty list too, so the strip can go away', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockResolvedValue([]);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith([]));
+  });
+
+  it('only applies the newest reload when answers come back out of order', async () => {
+    const slow = defer<RecentNote[]>();
+    const quick = defer<RecentNote[]>();
+    h.loadRecent
+      .mockResolvedValueOnce(EARLIER)
+      .mockReturnValueOnce(slow.promise)
+      .mockReturnValueOnce(quick.promise);
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+
+    opts.onDeletePrevious!('first');
+    await vi.waitFor(() => expect(h.loadRecent).toHaveBeenCalledTimes(2));
+    opts.onDeletePrevious!('second');
+    await vi.waitFor(() => expect(h.loadRecent).toHaveBeenCalledTimes(3));
+
+    quick.resolve(OLDER);
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith(OLDER));
+    slow.resolve(EARLIER);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(showPrevious()).toHaveBeenCalledTimes(2);
+    expect(showPrevious()).toHaveBeenLastCalledWith(OLDER);
+  });
+
+  it('only warns when a reload fails', async () => {
+    h.loadRecent.mockResolvedValueOnce(EARLIER).mockRejectedValueOnce(new Error('gone'));
+    const { opts } = await capture();
+    await vi.waitFor(() => expect(showPrevious()).toHaveBeenCalledTimes(1));
+    opts.onDeletePrevious!('old');
+    await vi.waitFor(() => expect(console.warn).toHaveBeenCalled());
+    expect(showPrevious()).toHaveBeenCalledTimes(1);
+    expect(h.overlay.handle.showError).not.toHaveBeenCalled();
   });
 });
 

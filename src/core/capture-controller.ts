@@ -195,6 +195,30 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
   const send = (note: Note, imageDataUrl: string | null) =>
     request({ type: 'scenenote/save', note, imageDataUrl });
 
+  // Numbers the strip reloads. Only the newest one is applied: a slower, older answer would put
+  // back a note that was deleted since.
+  let stripLoads = 0;
+
+  /**
+   * Loads the newest earlier notes of the video into the overlay's film strip. Failures are only
+   * logged: the strip is a convenience. An empty list is handed over only when asked, so the strip
+   * can go away after the last note was deleted.
+   */
+  async function reloadStrip(
+    handle: OverlayHandle,
+    videoId: string,
+    { applyEmpty }: { applyEmpty: boolean },
+  ): Promise<void> {
+    const load = ++stripLoads;
+    try {
+      const notes = await deps.loadRecent(videoId);
+      if (load !== stripLoads) return;
+      if (notes.length > 0 || applyEmpty) handle.showPrevious(notes);
+    } catch (error) {
+      console.warn('[scenenote] could not load the earlier notes', error);
+    }
+  }
+
   /** Runs until the user saves or cancels; a failed save keeps the overlay open for another try. */
   async function converse(
     handle: OverlayHandle,
@@ -260,6 +284,15 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
             if (!outcome.ok) editedHandle?.showError('那一則的修改沒有存到：' + outcome.error);
           });
         },
+        onDeletePrevious: (id) => {
+          void request({ type: 'scenenote/delete', id }).then(async (outcome) => {
+            if (!outcome.ok) editedHandle?.showError('那一則沒有刪掉：' + outcome.error);
+            // Either way the strip shows what is stored now: a note that was not deleted comes back.
+            if (editedHandle !== null) {
+              await reloadStrip(editedHandle, state.playback.videoId, { applyEmpty: true });
+            }
+          });
+        },
         onOpenNotebook: () => {
           deps.sendToBackground({ type: 'scenenote/open-notebook' }).catch((error: unknown) => {
             console.warn('[scenenote] could not open the notebook', error);
@@ -269,14 +302,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
       overlay = handle;
       editedHandle = handle;
       // Not awaited: the earlier notes slide in when they are ready, the user can type meanwhile.
-      void deps
-        .loadRecent(state.playback.videoId)
-        .then((notes) => {
-          if (notes.length > 0) handle.showPrevious(notes);
-        })
-        .catch((error: unknown) => {
-          console.warn('[scenenote] could not load the earlier notes', error);
-        });
+      void reloadStrip(handle, state.playback.videoId, { applyEmpty: false });
       // Not awaited: the user may take minutes, and the caller only needs to know the overlay is up.
       void converse(handle, makeNote, picture.dataUrl).catch((error: unknown) => {
         console.error('[scenenote] the note overlay failed', error);
