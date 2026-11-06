@@ -1,0 +1,97 @@
+---
+/**
+ * The ResonNote mark (docs/brand/icon.svg): corner brackets that are both a viewfinder and
+ * Chinese quote marks, around a red "this moment" dot. `animated` closes the brackets and
+ * lights the dot once.
+ */
+interface Props {
+  size?: number;
+  animated?: boolean;
+  class?: string;
+}
+const { size = 32, animated = false, class: className = '' } = Astro.props;
+const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
+---
+
+<svg
+  class:list={['brand-mark', { 'is-animated': animated }, className]}
+  width={size}
+  height={size}
+  viewBox="0 0 128 128"
+  aria-hidden="true"
+  focusable="false"
+>
+  <defs>
+    <linearGradient id={gradientId} x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#2a241c"></stop>
+      <stop offset="1" stop-color="#14110d"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill={`url(#${gradientId})`}></rect>
+  <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#3a3229" stroke-width="3"></rect>
+  <path class="bracket bracket-a" d="M28 62V28h34" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path class="bracket bracket-b" d="M100 66v34H66" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  {animated && <circle class="halo" cx="64" cy="64" r="20" fill="none" stroke="#f2483a" stroke-width="4"></circle>}
+  <circle class="dot" cx="64" cy="64" r="20" fill="#f2483a"></circle>
+</svg>
+
+<style>
+  .brand-mark {
+    flex: none;
+    display: block;
+  }
+  .brand-mark .bracket,
+  .brand-mark .dot,
+  .brand-mark .halo {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .brand-mark .halo {
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .is-animated .bracket-a {
+      animation: close-a 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+    }
+    .is-animated .bracket-b {
+      animation: close-b 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+    }
+    .is-animated .dot {
+      animation: light 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.85s both;
+    }
+    .is-animated .halo {
+      animation: halo 1.2s ease-out 1.15s both;
+    }
+  }
+  @keyframes close-a {
+    from {
+      transform: translate(-16px, -16px);
+      opacity: 0.2;
+    }
+  }
+  @keyframes close-b {
+    from {
+      transform: translate(16px, 16px);
+      opacity: 0.2;
+    }
+  }
+  @keyframes light {
+    from {
+      transform: scale(0);
+      fill: #5a2a24;
+    }
+    60% {
+      transform: scale(1.18);
+    }
+  }
+  @keyframes halo {
+    from {
+      opacity: 0.9;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(2.1);
+    }
+  }
+</style>

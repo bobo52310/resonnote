@@ -1,0 +1,56 @@
+---
+import BrandMark from './BrandMark.astro';
+import GitHubIcon from './GitHubIcon.astro';
+import IntroVideo from './IntroVideo.astro';
+import { SITE } from '../site';
+---
+
+<section class="hero relative overflow-hidden" aria-labelledby="hero-title">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="container-page relative grid items-center gap-12 pt-12 pb-20 md:pt-16 lg:grid-cols-12 lg:gap-10 lg:pt-20 lg:pb-28">
+    <div class="lg:col-span-5">
+      <div class="flex items-center gap-3">
+        <BrandMark size={52} animated />
+        <p class="text-sm leading-snug text-ink-300">
+          Chrome 擴充功能<br /><span class="text-ink-500">Netflix · YouTube · Disney+</span>
+        </p>
+      </div>
+      <h1
+        id="hero-title"
+        class="cjk-keep mt-8 text-[2.5rem] leading-[1.18] font-black tracking-[0.01em] sm:text-6xl lg:text-[3.2rem] xl:text-[3.7rem]"
+      >
+        這一秒<span class="hl">打動你</span>，<br />就把它留下來。
+      </h1>
+      <p class="mt-6 max-w-xl text-lg text-ink-300 text-pretty">
+        看劇有共鳴的那一秒，按下 <kbd>⌥⇧N</kbd>，畫面、秒數、台詞就自動帶進小視窗；寫下心得，按 Enter
+        存檔，影片繼續播。筆記只存在你的瀏覽器裡。
+      </p>
+      <div class="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <a href="#install" class="btn btn-primary">
+          <span class="rec-dot" aria-hidden="true"></span>
+          免費開源・從 GitHub 安裝
+        </a>
+        <a href={SITE.repo} class="btn btn-ghost" rel="noopener">
+          <GitHubIcon class="size-[18px]" />
+          看原始碼
+        </a>
+      </div>
+      <p class="mt-5 text-sm text-ink-500">MIT 授權・目前沒有上架 Chrome 線上應用程式商店，從原始碼安裝。</p>
+    </div>
+    <div class="lg:col-span-7">
+      <IntroVideo />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero-glow {
+    position: absolute;
+    inset: -20% -10% auto;
+    height: 80%;
+    background:
+      radial-gradient(40% 50% at 75% 40%, rgb(255 181 71 / 0.1), transparent 70%),
+      radial-gradient(30% 40% at 20% 20%, rgb(242 72 58 / 0.08), transparent 70%);
+    pointer-events: none;
+  }
+</style>

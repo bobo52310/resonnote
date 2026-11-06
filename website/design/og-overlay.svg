@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Open Graph card: composited over a 1200x630 canvas with still-rain on the right by scripts/build-assets.sh. -->
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b0a09" stop-opacity="1"/>
+      <stop offset="0.5" stop-color="#0b0a09" stop-opacity="1"/>
+      <stop offset="0.72" stop-color="#0b0a09" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#0b0a09" stop-opacity="0.05"/>
+    </linearGradient>
+    <pattern id="holes" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect x="10" y="12" width="20" height="16" rx="4" fill="#ebe1cd" fill-opacity="0.8"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#fade)"/>
+
+  <!-- Film edges -->
+  <rect width="1200" height="40" fill="#1c1813"/>
+  <rect width="1200" height="40" fill="url(#holes)"/>
+  <rect y="590" width="1200" height="40" fill="#1c1813"/>
+  <rect y="590" width="1200" height="40" fill="url(#holes)"/>
+
+  <!-- Brand -->
+  <g transform="translate(72 100) scale(0.5)">
+    <rect width="128" height="128" rx="28" fill="#1c1813"/>
+    <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#3a3229" stroke-width="3"/>
+    <path d="M28 62V28h34" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M100 66v34H66" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="64" cy="64" r="20" fill="#f2483a"/>
+  </g>
+  <text x="152" y="143" font-family="Noto Sans TC" font-size="30" font-weight="700" fill="#f5f2ef" letter-spacing="1">ResonNote 共鳴筆記</text>
+
+  <!-- Tagline -->
+  <text font-family="Noto Sans TC" font-size="72" font-weight="900" fill="#f5f2ef">
+    <tspan x="68" y="276">這一秒<tspan fill="#ffb547">打動你</tspan>，</tspan>
+    <tspan x="68" y="370">就把它留下來。</tspan>
+  </text>
+  <text x="72" y="436" font-family="Noto Sans TC" font-size="26" font-weight="400" fill="#d9d2c7">看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得。</text>
+  <text x="72" y="520" font-family="Noto Sans TC" font-size="22" font-weight="700" fill="#a8a093" letter-spacing="1">Chrome 擴充功能 · Netflix · YouTube · Disney+ · 免費開源</text>
+</svg>

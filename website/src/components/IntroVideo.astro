@@ -1,0 +1,125 @@
+---
+/**
+ * Intro video in a film frame. The video file is optional: until public/media/intro.mp4 exists,
+ * the poster is shown as a plain image, so the page never requests a missing file.
+ */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const POSTER = '/media/intro-poster.webp';
+const VIDEO = '/media/intro.mp4';
+const hasVideo = existsSync(join(process.cwd(), 'public', VIDEO));
+const label = 'ResonNote 介紹影片（約 30 秒，無聲）';
+---
+
+<figure class="intro">
+  <div class="intro-film">
+    <div class="sprockets" aria-hidden="true"></div>
+    <div class="intro-screen">
+      {
+        hasVideo ? (
+          <>
+          <link rel="preload" as="image" href={POSTER} fetchpriority="high" />
+          <video
+            class="intro-media"
+            width="1920"
+            height="1080"
+            poster={POSTER}
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label={label}
+            data-intro-video
+          >
+            <source src={VIDEO} type="video/mp4" />
+          </video>
+          </>
+        ) : (
+          <img
+            class="intro-media"
+            src={POSTER}
+            width="1920"
+            height="1080"
+            alt="ResonNote 介紹畫面：雨夜窗邊的劇照，旁邊是標語「這一秒打動你，就把它留下來。」"
+            fetchpriority="high"
+          />
+        )
+      }
+    </div>
+    <div class="sprockets" aria-hidden="true"></div>
+  </div>
+  {
+    hasVideo && (
+      <figcaption class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-ink-500">
+        <span>▶ 30 秒看懂 ResonNote</span>
+        <button type="button" class="intro-toggle" data-intro-controls aria-pressed="false">
+          顯示播放控制
+        </button>
+      </figcaption>
+    )
+  }
+</figure>
+
+<script>
+  const video = document.querySelector<HTMLVideoElement>('[data-intro-video]');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-intro-controls]');
+  if (video) {
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (calm) {
+      // No autoplay for reduced motion: show the controls so it can still be played.
+      video.controls = true;
+      toggle?.setAttribute('hidden', '');
+    } else {
+      video.play().catch(() => {
+        video.controls = true;
+      });
+    }
+    toggle?.addEventListener('click', () => {
+      video.controls = !video.controls;
+      toggle.setAttribute('aria-pressed', String(video.controls));
+      toggle.textContent = video.controls ? '隱藏播放控制' : '顯示播放控制';
+    });
+  }
+</script>
+
+<style>
+  .intro {
+    margin: 0;
+  }
+  .intro-film {
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, var(--color-film), #0f0d0a 50%, var(--color-film));
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.06),
+      0 30px 80px -20px rgb(0 0 0 / 0.85),
+      0 0 120px -40px rgb(255 181 71 / 0.25);
+  }
+  .intro-screen {
+    position: relative;
+    margin-block: 0.6rem;
+    overflow: hidden;
+    border-radius: 0.35rem;
+    aspect-ratio: 16 / 9;
+    background: #000;
+  }
+  .intro-media {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .intro-toggle {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--color-ink-600);
+    border-radius: 999px;
+    color: var(--color-ink-300);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+  .intro-toggle:hover {
+    color: var(--color-ink-100);
+    border-color: var(--color-ink-300);
+  }
+</style>

@@ -1,0 +1,382 @@
+---
+const img = (name: string) => `/images/still-${name}-640.webp`;
+const notes = [
+  { still: 'lab', time: '12:05', body: '他其實早就知道' },
+  { still: 'rooftop', time: '15:25', body: '轉折點，記下來寫文' },
+  { still: 'rain', time: '16:43', body: '後悔比錯過更痛' },
+];
+---
+
+<section id="features" class="py-20 md:py-28" aria-labelledby="features-title">
+  <div class="container-page">
+    <div data-reveal>
+      <p class="edge-code">02 · 功能</p>
+      <h2 id="features-title" class="section-title">記下來的，<span class="hl">都找得回來</span>。</h2>
+      <p class="section-lead">記下的每一則，都收進筆記本（也是擴充功能的選項頁）。回到那一秒、匯出分享、備份還原，都在這裡。</p>
+    </div>
+
+    <div class="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-6">
+      <!-- Notebook -->
+      <article class="card feature md:col-span-2 lg:col-span-4" data-reveal>
+        <div class="feature-text">
+          <h3 class="feature-title">筆記本：依片子分組，點時間跳回那一秒</h3>
+          <p class="feature-body">
+            筆記依「平台＋片子」分組，影集會標季、集。點時間按鈕就跳回那一刻：同一部片開著就切過去暫停在那一秒，沒開就開新分頁。心得可以直接改，停止打字約半秒自動存檔。
+          </p>
+        </div>
+        <div class="nb" aria-hidden="true">
+          <div class="nb-group">
+            <span class="nb-title">雨停之前</span>
+            <span class="nb-tag">Netflix</span>
+            <span class="nb-ep">第 1 季第 3 集</span>
+          </div>
+          <ul class="nb-list">
+            {
+              notes.map((n) => (
+                <li class="nb-row">
+                  <img src={img(n.still)} width="640" height="360" alt="" loading="lazy" decoding="async" />
+                  <span class="nb-meta">
+                    <span class="nb-time mono">▶ {n.time}</span>
+                    <span class="nb-body">{n.body}</span>
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </article>
+
+      <!-- Film strip -->
+      <article class="card feature lg:col-span-2" data-reveal style="--reveal-delay: 0.08s">
+        <div class="strip" aria-hidden="true">
+          <div class="strip-frame"><img src={img('lab')} width="640" height="360" alt="" loading="lazy" decoding="async" /><span class="mono">12:05</span></div>
+          <div class="strip-frame is-on"><img src={img('rooftop')} width="640" height="360" alt="" loading="lazy" decoding="async" /><span class="mono">15:25</span></div>
+        </div>
+        <div class="feature-text">
+          <h3 class="feature-title">膠卷小格：回看前面的筆記</h3>
+          <p class="feature-body">
+            小視窗上方是這支影片前面記過的筆記，最多兩格、最近的在右邊。點一格就能打開修改，也可以刪掉那一則。
+          </p>
+        </div>
+      </article>
+
+      <!-- Backup -->
+      <article class="card feature lg:col-span-2" data-reveal>
+        <div class="backup" aria-hidden="true">
+          <span class="backup-pill">上次備份：16 天前</span>
+          <span class="backup-btn">全部備份</span>
+        </div>
+        <div class="feature-text">
+          <h3 class="feature-title">備份、還原，與 14 天提醒</h3>
+          <p class="feature-body">
+            移除擴充功能會連筆記和圖片一起刪掉，所以要備份：「全部備份」下載一個 zip，「從備份還原」讀回來，同一則以較新的為準。筆記本會顯示「上次備份」，超過 14 天用醒目顏色提醒。
+          </p>
+        </div>
+      </article>
+
+      <!-- Export -->
+      <article class="card feature md:col-span-2 lg:col-span-4" data-reveal style="--reveal-delay: 0.08s">
+        <div class="feature-text">
+          <h3 class="feature-title">匯出：傳給朋友，或寫成文章</h3>
+          <p class="feature-body">勾選筆記後匯出，每一組有「全選」，等於匯出整部片。</p>
+        </div>
+        <ul class="exports">
+          <li class="exp">
+            <div class="exp-visual">
+              <div class="line-card" aria-hidden="true">
+                <img src={img('rain')} width="640" height="360" alt="" loading="lazy" decoding="async" />
+                <span class="lc-time mono">16:43</span>
+                <span class="lc-quote">「如果那天我有說出口就好了。」</span>
+              </div>
+            </div>
+            <p class="exp-name">LINE 圖卡</p>
+            <p class="exp-sub">PNG，寬 1080 px，可以複製或下載。</p>
+          </li>
+          <li class="exp">
+            <div class="exp-visual"><div class="exp-icon mono" aria-hidden="true">&lt;/&gt;</div></div>
+            <p class="exp-name">網頁檔</p>
+            <p class="exp-sub">單一 HTML，圖片內嵌，離線與手機都能開。</p>
+          </li>
+          <li class="exp">
+            <div class="exp-visual"><div class="exp-icon mono" aria-hidden="true">MD</div></div>
+            <p class="exp-name">Markdown</p>
+            <p class="exp-sub"><code>notes.md</code> 加 <code>images/</code> 的 zip，當 blog 素材。</p>
+          </li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .feature {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .feature {
+      padding: 2rem;
+    }
+  }
+  .feature-title {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    font-size: 1.1875rem;
+    font-weight: 700;
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+  .feature-body {
+    margin-top: 0.5rem;
+    color: var(--color-ink-300);
+    font-size: 0.975rem;
+    text-wrap: pretty;
+  }
+  .feature code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--color-amber-soft);
+  }
+
+  /* Notebook */
+  .nb {
+    border: 1px solid var(--color-ink-700);
+    border-radius: 0.9rem;
+    background: var(--color-ink-950);
+    padding: 1rem;
+  }
+  .nb-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-ink-700);
+  }
+  .nb-title {
+    font-weight: 700;
+  }
+  .nb-tag {
+    padding: 0.05rem 0.5rem;
+    border: 1px solid var(--color-ink-600);
+    border-radius: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--color-ink-300);
+  }
+  .nb-ep {
+    font-size: 0.8125rem;
+    color: var(--color-ink-500);
+  }
+  .nb-list {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+  }
+  .nb-row {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .nb-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.85rem;
+    min-width: 0;
+  }
+  .nb-row img {
+    width: 5rem;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    object-fit: cover;
+    border-radius: 0.35rem;
+  }
+  .nb-time {
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: rgb(255 181 71 / 0.12);
+    color: var(--color-amber);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .nb-body {
+    min-width: 0;
+    font-size: 0.9375rem;
+    color: var(--color-ink-100);
+  }
+
+  /* Film strip */
+  .strip {
+    position: relative;
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-end;
+    padding: 1.1rem 0.9rem;
+    border-radius: 0.4rem;
+    background: linear-gradient(180deg, #1c1813, #0f0d0a 50%, #1c1813);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+    transform: rotate(-1deg);
+  }
+  .strip::before,
+  .strip::after {
+    content: '';
+    position: absolute;
+    left: 0.4rem;
+    right: 0.4rem;
+    height: 0.35rem;
+    background: repeating-linear-gradient(90deg, rgb(235 225 205 / 0.85) 0 0.5rem, transparent 0.5rem 1.1rem);
+    border-radius: 2px;
+    opacity: 0.8;
+  }
+  .strip::before {
+    top: 0.35rem;
+  }
+  .strip::after {
+    bottom: 0.35rem;
+  }
+  .strip-frame {
+    position: relative;
+    flex: 1;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 2px solid #000;
+    border-radius: 2px;
+    opacity: 0.8;
+  }
+  .strip-frame.is-on {
+    border-color: rgb(255 181 71 / 0.85);
+    opacity: 1;
+  }
+  .strip-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: sepia(0.25) saturate(0.9);
+  }
+  .strip-frame span {
+    position: absolute;
+    left: 0.3rem;
+    bottom: 0.15rem;
+    color: var(--color-amber);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  /* Backup */
+  .backup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-radius: 0.8rem;
+    background: rgb(255 181 71 / 0.1);
+    border: 1px solid rgb(255 181 71 / 0.35);
+  }
+  .backup-pill {
+    color: var(--color-amber-soft);
+    font-weight: 700;
+    font-size: 0.9375rem;
+  }
+  .backup-btn {
+    padding: 0.3rem 0.85rem;
+    border-radius: 0.5rem;
+    background: var(--color-ink-100);
+    color: var(--color-ink-950);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  /* Export */
+  .exports {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem 1rem;
+  }
+  .exports > :first-child {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 640px) {
+    .exports {
+      grid-template-columns: 1.3fr 1fr 1fr;
+    }
+    .exports > :first-child {
+      grid-column: auto;
+    }
+    .exp-visual {
+      display: flex;
+      align-items: center;
+      height: 12.5rem;
+    }
+    .exp-visual > * {
+      width: 100%;
+    }
+  }
+  .exp {
+    display: flex;
+    flex-direction: column;
+  }
+  .exp-name {
+    margin-top: 0.85rem;
+    font-weight: 700;
+  }
+  .exp-sub {
+    margin-top: 0.15rem;
+    color: var(--color-ink-300);
+    font-size: 0.875rem;
+    text-wrap: pretty;
+  }
+  .exp-icon {
+    display: grid;
+    place-items: center;
+    height: 6.5rem;
+    border: 1px solid var(--color-ink-700);
+    border-radius: 0.8rem;
+    background: var(--color-ink-950);
+    color: var(--color-amber);
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+  @media (min-width: 640px) {
+    .exp-icon {
+      height: 10.5rem;
+    }
+  }
+  .line-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem;
+    border-radius: 0.8rem;
+    background: #f6f1e9;
+    color: #1d1a16;
+    transform: rotate(-2deg);
+    box-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.7);
+  }
+  .line-card img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 0.45rem;
+  }
+  .lc-time {
+    margin-top: 0.35rem;
+    color: #b3141c;
+    font-size: 0.8125rem;
+    font-weight: 800;
+  }
+  .lc-quote {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+</style>

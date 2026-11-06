@@ -1,0 +1,140 @@
+---
+const pillars = [
+  { title: '沒有伺服器', body: '筆記和截圖只存在你瀏覽器本機的擴充功能 IndexedDB，不會上傳。' },
+  { title: '沒有帳號', body: '不用註冊、不用登入，裝好就能用。' },
+  { title: '沒有追蹤', body: '沒有分析或追蹤程式。備份與匯出都在本機產生檔案下載，不經過任何伺服器。' },
+];
+const permissions = [
+  { names: ['activeTab'], note: '只在你按過快捷鍵或工具列圖示的那個分頁，放行完整截圖' },
+  { names: ['storage', 'unlimitedStorage'], note: '在瀏覽器本機存放筆記、截圖與「上次備份」時間' },
+  { names: ['www.netflix.com', 'www.youtube.com', 'www.disneyplus.com'], note: '在這三個網站的頁面注入內容腳本' },
+];
+---
+
+<section id="privacy" class="py-20 md:py-28" aria-labelledby="privacy-title">
+  <div class="container-page">
+    <div class="privacy-panel">
+      <div class="grid gap-12 lg:grid-cols-12 lg:gap-16">
+        <div class="lg:col-span-6" data-reveal>
+          <p class="edge-code">04 · 隱私</p>
+          <h2 id="privacy-title" class="section-title">你的筆記，<br /><span class="hl">只在你的電腦裡</span>。</h2>
+          <ul class="mt-10 grid gap-6">
+            {
+              pillars.map((p) => (
+                <li class="pillar">
+                  <span class="pillar-mark" aria-hidden="true" />
+                  <div>
+                    <h3 class="pillar-title">{p.title}</h3>
+                    <p class="pillar-body">{p.body}</p>
+                  </div>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <div class="lg:col-span-6" data-reveal style="--reveal-delay: 0.1s">
+          <h3 class="text-lg font-bold">權限只有這些</h3>
+          <dl class="perm mt-4">
+            {
+              permissions.map((p) => (
+                <div class="perm-row">
+                  <dt class="mono">
+                    {p.names.map((n) => (
+                      <span class="block">{n}</span>
+                    ))}
+                  </dt>
+                  <dd>{p.note}</dd>
+                </div>
+              ))
+            }
+          </dl>
+          <h3 class="mt-10 text-lg font-bold">會不會連網？</h3>
+          <p class="mt-3 text-[0.9375rem] text-ink-300 text-pretty">
+            擴充功能唯一會主動向網路讀資料的地方，都在 Netflix 頁面內、只讀不寫：向 netflix.com
+            讀這部片的片名資料，以及重新讀取頁面本來就載入過的進度條小圖（畫面的備案來源）。兩者都不含任何筆記內容。YouTube、Disney+
+            頁面內沒有任何擴充功能發出的網路請求。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .privacy-panel {
+    position: relative;
+    padding: 2.5rem 1.5rem;
+    border: 1px solid var(--color-ink-700);
+    border-radius: 1.75rem;
+    background:
+      radial-gradient(60% 80% at 0% 0%, rgb(255 181 71 / 0.07), transparent 60%),
+      linear-gradient(180deg, var(--color-ink-850), var(--color-ink-950));
+  }
+  @media (min-width: 768px) {
+    .privacy-panel {
+      padding: 3.5rem;
+    }
+  }
+  .pillar {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: 1rem;
+  }
+  .pillar-mark {
+    position: relative;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: 0.15rem;
+    border: 2px solid var(--color-amber);
+    border-radius: 0.4rem;
+  }
+  /* A struck-through box: "none of this". */
+  .pillar-mark::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1.6rem;
+    height: 2px;
+    background: var(--color-rec);
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+  .pillar-title {
+    font-size: 1.1875rem;
+    font-weight: 700;
+  }
+  .pillar-body {
+    margin-top: 0.2rem;
+    color: var(--color-ink-300);
+  }
+  .perm {
+    border: 1px solid var(--color-ink-700);
+    border-radius: 1rem;
+    background: var(--color-ink-950);
+    overflow: hidden;
+  }
+  .perm-row {
+    display: grid;
+    gap: 0.15rem 1rem;
+    padding: 0.8rem 1.1rem;
+    border-top: 1px solid var(--color-ink-700);
+  }
+  .perm-row:first-child {
+    border-top: 0;
+  }
+  @media (min-width: 640px) {
+    .perm-row {
+      grid-template-columns: 12rem 1fr;
+      align-items: baseline;
+    }
+  }
+  .perm-row dt {
+    color: var(--color-amber);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .perm-row dd {
+    color: var(--color-ink-300);
+    font-size: 0.9375rem;
+  }
+</style>

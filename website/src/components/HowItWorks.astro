@@ -1,0 +1,78 @@
+---
+import OverlayMockup from './OverlayMockup.astro';
+---
+
+<section id="how" class="py-20 md:py-28" aria-labelledby="how-title">
+  <div class="container-page grid gap-12 lg:grid-cols-12 lg:items-center lg:gap-16">
+    <div class="lg:col-span-5" data-reveal>
+      <p class="edge-code">01 · 怎麼用</p>
+      <h2 id="how-title" class="section-title">三個動作，<br /><span class="hl">留下這一刻</span>。</h2>
+      <ol class="mt-10 space-y-8">
+        <li class="step">
+          <span class="step-no mono" aria-hidden="true">01</span>
+          <div>
+            <h3 class="step-title">按 <kbd>⌥⇧N</kbd>，或點「記下這一刻」</h3>
+            <p class="step-body">
+              在播放頁按快捷鍵；滑鼠一動，頁面上也會浮出「記下這一刻」按鈕。擴充功能先截圖、再暫停影片。
+            </p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-no mono" aria-hidden="true">02</span>
+          <div>
+            <h3 class="step-title">畫面、秒數、台詞自動帶入</h3>
+            <p class="step-body">
+              小視窗帶入這一刻的截圖、片名與秒數，台詞讀自字幕，也可以自己改。哪一項沒抓到，小視窗會直接列出來。
+            </p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-no mono" aria-hidden="true">03</span>
+          <div>
+            <h3 class="step-title">寫下心得，<kbd>Enter</kbd> 存檔</h3>
+            <p class="step-body">
+              存檔後影片繼續播；<kbd>Shift</kbd>+<kbd>Enter</kbd> 換行，<kbd>Esc</kbd> 取消。心得可以留空，事後再補。中文輸入法選字的
+              Enter 不算存檔。
+            </p>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="lg:col-span-7" data-reveal style="--reveal-delay: 0.1s">
+      <OverlayMockup />
+    </div>
+  </div>
+</section>
+
+<style>
+  .step {
+    display: grid;
+    grid-template-columns: 2.75rem 1fr;
+    gap: 1rem;
+  }
+  .step-no {
+    padding-top: 0.2rem;
+    color: var(--color-amber);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border-top: 2px solid var(--color-amber);
+    width: fit-content;
+    height: fit-content;
+  }
+  .step-title {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    font-size: 1.1875rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .step-body {
+    margin-top: 0.35rem;
+    color: var(--color-ink-300);
+    text-wrap: pretty;
+  }
+  .step kbd {
+    font-size: 0.85em;
+  }
+</style>

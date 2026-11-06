@@ -1,0 +1,45 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Hero from '../components/Hero.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import Features from '../components/Features.astro';
+import Platforms from '../components/Platforms.astro';
+import Privacy from '../components/Privacy.astro';
+import Install from '../components/Install.astro';
+import Faq from '../components/Faq.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../site';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE.name,
+  alternateName: SITE.shortName,
+  description: SITE.description,
+  url: `${SITE.url}/`,
+  image: `${SITE.url}/og.png`,
+  applicationCategory: 'BrowserApplication',
+  operatingSystem: 'Chrome',
+  inLanguage: SITE.lang,
+  isAccessibleForFree: true,
+  license: 'https://opensource.org/license/mit',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: SITE.author.name, url: SITE.author.url },
+  sameAs: [SITE.repo],
+};
+---
+
+<Base jsonLd={jsonLd}>
+  <Header />
+  <main id="main">
+    <Hero />
+    <HowItWorks />
+    <Features />
+    <Platforms />
+    <Privacy />
+    <Install />
+    <Faq />
+  </main>
+  <Footer />
+</Base>
