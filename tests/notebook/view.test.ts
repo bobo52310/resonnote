@@ -11,6 +11,8 @@ import {
   listNotes,
   putImage,
   putNote,
+  updateNote,
+  type NoteChanges,
 } from '../../src/core/db';
 import type { Note } from '../../src/core/types';
 import { downloadBytes } from '../../src/export/download';
@@ -54,7 +56,11 @@ function isoDaysAgo(days: number): string {
 function mockDeps(notes: Note[] = [], overrides: Partial<NotebookDeps> = {}) {
   const deps = {
     listNotes: vi.fn(async () => notes),
-    putNote: vi.fn(async (_n: Note) => {}),
+    // Answers with the stored note, as it was before the change.
+    updateNote: vi.fn(
+      async (id: string, _changes: NoteChanges): Promise<Note | undefined> =>
+        notes.find((n) => n.id === id),
+    ),
     deleteNote: vi.fn(async (_id: string) => {}),
     getImage: vi.fn(async (_id: string): Promise<ArrayBuffer | undefined> => undefined),
     jump: vi.fn((_n: Note) => {}),
@@ -68,7 +74,7 @@ function mockDeps(notes: Note[] = [], overrides: Partial<NotebookDeps> = {}) {
 function realDeps(overrides: Partial<NotebookDeps> = {}) {
   return mockDeps([], {
     listNotes,
-    putNote: vi.fn(putNote),
+    updateNote: vi.fn(updateNote),
     deleteNote: vi.fn(deleteNote),
     getImage,
     ...overrides,
@@ -494,9 +500,9 @@ describe('editing the body', () => {
     textarea.value = '  新的心得\n第二行';
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
-    expect(deps.putNote).toHaveBeenCalledWith({
-      ...note,
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
+    // Only these two fields are written; the rest of the stored note is kept as it is.
+    expect(deps.updateNote).toHaveBeenCalledWith('a', {
       body: '  新的心得\n第二行',
       updatedAt: '2026-10-28T12:00:00.000Z',
     });
@@ -510,7 +516,7 @@ describe('editing the body', () => {
     textarea.value = '新的心得  \n第二行 \n\n\n';
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('新的心得  \n第二行');
+    expect(vi.mocked(deps.updateNote).mock.calls[0]![1].body).toBe('新的心得  \n第二行');
     expect(getSelectedNotes(root)).toEqual([]);
     setChecked(checkbox('a'), true);
     expect(getSelectedNotes(root).map((n) => n.body)).toEqual(['新的心得  \n第二行']);
@@ -523,7 +529,7 @@ describe('editing the body', () => {
     textarea.value = '原本的心得  \n\n';
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
     expect(hasPendingEdits(root)).toBe(false);
   });
 
@@ -532,7 +538,7 @@ describe('editing the body', () => {
     await renderNotebook(root, deps);
     noteEl('a').querySelector('textarea')!.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
   });
 
   it('saves an empty body when the text was cleared down to whitespace', async () => {
@@ -542,7 +548,7 @@ describe('editing the body', () => {
     textarea.value = ' \n ';
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('');
+    expect(vi.mocked(deps.updateNote).mock.calls[0]![1].body).toBe('');
   });
 
   it('does not save when the body did not change', async () => {
@@ -550,7 +556,7 @@ describe('editing the body', () => {
     await renderNotebook(root, deps);
     noteEl('a').querySelector('textarea')!.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
   });
 
   it('does not save the same text twice', async () => {
@@ -562,7 +568,7 @@ describe('editing the body', () => {
     await flush();
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
   });
 
   it('lets the export buttons see the edited body right away', async () => {
@@ -576,9 +582,11 @@ describe('editing the body', () => {
 
   it('reports a failed save and tries again on the next blur', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const putNoteMock = vi.fn(async (_n: Note) => {});
-    putNoteMock.mockRejectedValueOnce(new Error('disk full'));
-    const deps = mockDeps([makeNote('a')], { putNote: putNoteMock });
+    const updateNoteMock = vi.fn(
+      async (_id: string, _changes: NoteChanges): Promise<Note | undefined> => makeNote('a'),
+    );
+    updateNoteMock.mockRejectedValueOnce(new Error('disk full'));
+    const deps = mockDeps([makeNote('a')], { updateNote: updateNoteMock });
     await renderNotebook(root, deps);
     const textarea = noteEl('a').querySelector('textarea')!;
     textarea.value = '改了';
@@ -587,7 +595,7 @@ describe('editing the body', () => {
     expect(status()).toContain('儲存失敗');
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(2);
+    expect(deps.updateNote).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -611,13 +619,12 @@ describe('autosave while typing', () => {
 
     vi.advanceTimersByTime(499);
     await flush();
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1);
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
-    expect(deps.putNote).toHaveBeenCalledWith({
-      ...note,
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
+    expect(deps.updateNote).toHaveBeenCalledWith('a', {
       body: '打到一半的心得',
       updatedAt: '2026-10-28T12:00:00.000Z',
     });
@@ -632,12 +639,12 @@ describe('autosave while typing', () => {
     type(textarea, '一二');
     vi.advanceTimersByTime(400);
     await flush();
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(100);
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('一二');
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.updateNote).mock.calls[0]![1].body).toBe('一二');
   });
 
   it('does not save the same text again when the box is left after the autosave', async () => {
@@ -651,7 +658,7 @@ describe('autosave while typing', () => {
     await flush();
     vi.advanceTimersByTime(1000);
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
   });
 
   it('saves on blur at once and drops the waiting autosave', async () => {
@@ -661,10 +668,10 @@ describe('autosave while typing', () => {
     type(textarea, '馬上存');
     textarea.dispatchEvent(new Event('blur'));
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(1000);
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(1);
+    expect(deps.updateNote).toHaveBeenCalledTimes(1);
   });
 
   it('flushes every dirty box at once when the page is hidden (pagehide)', async () => {
@@ -672,12 +679,12 @@ describe('autosave while typing', () => {
     await renderNotebook(root, deps);
     type(noteEl('a').querySelector('textarea')!, 'A 的新心得');
     type(noteEl('c').querySelector('textarea')!, 'C 的新心得');
-    expect(deps.putNote).not.toHaveBeenCalled();
+    expect(deps.updateNote).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event('pagehide'));
     await flush();
 
-    const saved = vi.mocked(deps.putNote).mock.calls.map(([n]) => [n.id, n.body]);
+    const saved = vi.mocked(deps.updateNote).mock.calls.map(([id, changes]) => [id, changes.body]);
     expect(saved).toEqual([
       ['a', 'A 的新心得'],
       ['c', 'C 的新心得'],
@@ -685,7 +692,7 @@ describe('autosave while typing', () => {
     // the timers that were still waiting find nothing left to do
     vi.advanceTimersByTime(1000);
     await flush();
-    expect(deps.putNote).toHaveBeenCalledTimes(2);
+    expect(deps.updateNote).toHaveBeenCalledTimes(2);
   });
 
   it('flushes a dirty box when the tab becomes hidden (visibilitychange)', async () => {
@@ -698,13 +705,13 @@ describe('autosave while typing', () => {
       state.mockReturnValue('visible');
       document.dispatchEvent(new Event('visibilitychange'));
       await flush();
-      expect(deps.putNote).not.toHaveBeenCalled();
+      expect(deps.updateNote).not.toHaveBeenCalled();
 
       state.mockReturnValue('hidden');
       document.dispatchEvent(new Event('visibilitychange'));
       await flush();
-      expect(deps.putNote).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(deps.putNote).mock.calls[0]![0].body).toBe('切走之前');
+      expect(deps.updateNote).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deps.updateNote).mock.calls[0]![1].body).toBe('切走之前');
     } finally {
       state.mockRestore();
     }
@@ -719,8 +726,8 @@ describe('autosave while typing', () => {
     await renderNotebook(root, newDeps);
     window.dispatchEvent(new Event('pagehide'));
     await flush();
-    expect(oldDeps.putNote).not.toHaveBeenCalled();
-    expect(newDeps.putNote).not.toHaveBeenCalled();
+    expect(oldDeps.updateNote).not.toHaveBeenCalled();
+    expect(newDeps.updateNote).not.toHaveBeenCalled();
   });
 
   it('counts a box with unsaved text as pending edits until the autosave lands', async () => {
@@ -898,7 +905,32 @@ describe('export buttons', () => {
 });
 
 describe('backup', () => {
-  it('downloads a dated zip, records the time and refreshes the bar', async () => {
+  /** Chrome's save dialog: the user picks `chosen`, or closes it when `chosen` is null. */
+  function fakeSaveDialog(chosen: string | null) {
+    const written: Blob[] = [];
+    const picker = vi.fn(async (options: { suggestedName?: string }) => {
+      if (chosen === null) throw new DOMException('The user aborted a request.', 'AbortError');
+      return {
+        name: chosen === '' ? (options.suggestedName ?? '') : chosen,
+        createWritable: async () => ({
+          write: async (data: Blob) => {
+            written.push(data);
+          },
+          close: async () => {},
+          abort: async () => {},
+        }),
+      };
+    });
+    Object.defineProperty(window, 'showSaveFilePicker', { value: picker, configurable: true, writable: true });
+    return { picker, written };
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+  });
+
+  it('saves a dated zip through the save dialog, then records the time and refreshes the bar', async () => {
+    const dialog = fakeSaveDialog('');
     await putNote(makeNote('a'));
     await putImage('a', jpegBuffer());
     const deps = realDeps({ now: () => new Date(2026, 9, 28, 23, 30) });
@@ -906,19 +938,55 @@ describe('backup', () => {
     expect(q('.backup-status').textContent).toBe('還沒備份過');
 
     buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(dialog.written).toHaveLength(1));
+
+    expect(dialog.picker).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedName: 'resonnote-backup-20261028.zip' }),
+    );
+    const files = unzipSync(new Uint8Array(await dialog.written[0]!.arrayBuffer()));
+    expect(Object.keys(files).sort()).toEqual(['images/a.jpg', 'notes.json']);
+    expect(JSON.parse(strFromU8(files['notes.json']!)).notes).toHaveLength(1);
+    expect(downloadBytes).not.toHaveBeenCalled();
+
+    await vi.waitFor(async () => expect(await getLastBackupAt()).not.toBeNull());
+    await vi.waitFor(() => expect(q('.backup-status').textContent).toBe('上次備份：今天'));
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(false);
+    expect(status()).toBe('已備份，檔案是 resonnote-backup-20261028.zip');
+  });
+
+  it('names the file the user chose in the save dialog', async () => {
+    fakeSaveDialog('雲端硬碟裡的備份.zip');
+    await renderNotebook(root, realDeps());
+    buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(status()).toBe('已備份，檔案是 雲端硬碟裡的備份.zip'));
+  });
+
+  it('does not record a backup when the save dialog is cancelled, and keeps the reminder', async () => {
+    fakeSaveDialog(null);
+    await putNote(makeNote('a'));
+    await renderNotebook(root, realDeps());
+    buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(status()).toContain('沒有備份'));
+    expect(await getLastBackupAt()).toBeNull();
+    expect(downloadBytes).not.toHaveBeenCalled();
+    expect(q('.backup-status').textContent).toBe('還沒備份過');
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(true);
+    expect(buttonByText('全部備份').disabled).toBe(false);
+  });
+
+  it('downloads without a save dialog, but does not take that as a backup it can vouch for', async () => {
+    await putNote(makeNote('a'));
+    await renderNotebook(root, realDeps({ now: () => new Date(2026, 9, 28, 23, 30) }));
+    buttonByText('全部備份').click();
     await vi.waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(1));
 
     const [name, data, mime] = vi.mocked(downloadBytes).mock.calls[0]!;
     expect(name).toBe('resonnote-backup-20261028.zip');
     expect(mime).toBe('application/zip');
-    const files = unzipSync(data as Uint8Array);
-    expect(Object.keys(files).sort()).toEqual(['images/a.jpg', 'notes.json']);
-    expect(JSON.parse(strFromU8(files['notes.json']!)).notes).toHaveLength(1);
-
-    await vi.waitFor(async () => expect(await getLastBackupAt()).not.toBeNull());
-    await vi.waitFor(() => expect(q('.backup-status').textContent).toBe('上次備份：今天'));
-    expect(q('.backup-bar').classList.contains('reminder')).toBe(false);
-    expect(status()).toContain('已備份');
+    expect(Object.keys(unzipSync(data as Uint8Array))).toContain('notes.json');
+    await vi.waitFor(() => expect(status()).toContain('已開始下載 resonnote-backup-20261028.zip'));
+    expect(await getLastBackupAt()).toBeNull();
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(true);
   });
 
   it('does not record a backup when building the zip fails', async () => {

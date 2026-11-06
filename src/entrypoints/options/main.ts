@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { deleteNote, getImage, listNotes, putNote } from '../../core/db';
+import { deleteNote, getImage, listNotes, updateNote } from '../../core/db';
 import type { ToBackground } from '../../core/messages';
 import { createJump } from '../../notebook/jump-client';
 import { refreshOnReturn } from '../../notebook/refresh';
@@ -10,7 +10,7 @@ if (!root) throw new Error('[resonnote] #notebook is missing from the options pa
 
 const deps: NotebookDeps = {
   listNotes,
-  putNote,
+  updateNote,
   deleteNote,
   getImage,
   jump: createJump(

@@ -8,6 +8,7 @@ import {
   listNotes,
   putImage,
   putNote,
+  updateNote,
 } from '../../src/core/db';
 import type { Note } from '../../src/core/types';
 
@@ -48,6 +49,31 @@ describe('notes', () => {
     await putNote(makeNote('a', { body: 'new' }));
     expect((await getNote('a'))?.body).toBe('new');
     expect(await listNotes()).toHaveLength(1);
+  });
+});
+
+describe('updateNote', () => {
+  it('changes only the given fields and answers with the note as it was before', async () => {
+    const note = makeNote('a', { season: 1 });
+    await putNote(note);
+    const previous = await updateNote('a', { body: '新的', updatedAt: '2026-10-29T00:00:00.000Z' });
+    expect(previous).toEqual(note);
+    expect(await getNote('a')).toEqual({ ...note, body: '新的', updatedAt: '2026-10-29T00:00:00.000Z' });
+  });
+
+  it('ignores fields given as undefined', async () => {
+    const note = makeNote('a');
+    await putNote(note);
+    await updateNote('a', { subtitle: undefined, body: '新的' });
+    expect(await getNote('a')).toEqual({ ...note, body: '新的' });
+  });
+
+  it('does not create a note that is not stored (deleted elsewhere)', async () => {
+    await putNote(makeNote('a'));
+    await deleteNote('a');
+    expect(await updateNote('a', { body: '晚到的修改' })).toBeUndefined();
+    expect(await getNote('a')).toBeUndefined();
+    expect(await listNotes()).toEqual([]);
   });
 
   it('listNotes returns every stored note', async () => {

@@ -119,6 +119,24 @@ describe('handleUpdate', () => {
     expect(result).toEqual({ ok: false, error: '找不到這則筆記' });
     expect(await listNotes()).toEqual([]);
   });
+
+  it('writes only the fields the overlay changed, keeping a body edited in the notebook meanwhile', async () => {
+    await handleSave(msg(makeNote({ body: '筆記本裡剛改的心得' }), null));
+    const result = await handleUpdate(
+      { type: 'resonnote/update', id: 'note-1', subtitle: '改好的台詞 ' },
+      () => new Date('2026-10-29T08:00:00.000Z'),
+    );
+    expect(result).toEqual({ ok: true });
+    const stored = await getNote('note-1');
+    expect(stored).toMatchObject({ subtitle: '改好的台詞', body: '筆記本裡剛改的心得' });
+    expect(stored?.updatedAt).toBe('2026-10-29T08:00:00.000Z');
+  });
+
+  it('can change the thoughts alone, leaving the subtitle as stored', async () => {
+    await handleSave(msg(makeNote({ subtitle: '別處修好的台詞' }), null));
+    await handleUpdate({ type: 'resonnote/update', id: 'note-1', body: '只改心得' });
+    expect(await getNote('note-1')).toMatchObject({ subtitle: '別處修好的台詞', body: '只改心得' });
+  });
 });
 
 describe('handleDelete', () => {

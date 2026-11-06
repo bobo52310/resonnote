@@ -13,6 +13,11 @@ import {
 } from '../../src/core/overlay/overlay';
 import type { Missing, Note, Playback, Rect } from '../../src/core/types';
 import type { PlatformAdapter } from '../../src/platforms/types';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 const CROPPED = 'data:image/jpeg;base64,Q1JPUA==';
 const TRICKPLAY = 'data:image/jpeg;base64,VFJJQ0s=';
@@ -886,7 +891,7 @@ describe('cancelling', () => {
 
 describe('with the real overlay', () => {
   function overlayHost(): ShadowRoot | null {
-    return h.mountEl.querySelector('[data-resonnote-overlay]')?.shadowRoot ?? null;
+    return shadowOf(h.mountEl.querySelector('[data-resonnote-overlay]'));
   }
 
   function pressEnterInNote(text: string) {

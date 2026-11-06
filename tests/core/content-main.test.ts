@@ -3,6 +3,11 @@ import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { isToContent, runContentScript, type ContentScriptOptions } from '../../src/core/content-main';
 import type { ToBackground } from '../../src/core/messages';
 import type { PlatformAdapter } from '../../src/platforms/types';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 type MessageListener = (
   message: unknown,
@@ -198,7 +203,7 @@ describe('runContentScript', () => {
   });
 
   describe('shortcut label', () => {
-    const label = () => document.querySelector('[data-resonnote-button]')!.shadowRoot!.querySelector('kbd')!.textContent;
+    const label = () => shadowOf(document.querySelector('[data-resonnote-button]'))!.querySelector('kbd')!.textContent;
 
     it('asks the background for the shortcut and shows it on the button', async () => {
       start();
@@ -230,7 +235,7 @@ describe('runContentScript', () => {
       const host = document.querySelector<HTMLElement>('[data-resonnote-button]')!;
       move();
       expect(host.hasAttribute('data-visible')).toBe(true);
-      host.shadowRoot!.querySelector('button')!.click();
+      shadowOf(host)!.querySelector('button')!.click();
       await vi.waitFor(() => expect(sent).toContainEqual({ type: 'resonnote/trigger' }));
     });
 
@@ -263,6 +268,69 @@ describe('runContentScript', () => {
       move();
       expect(host.style.right).toBe('');
       expect(host.style.bottom).toBe('');
+    });
+  });
+
+  describe('on-page button after the extension was updated or reloaded', () => {
+    const RELOAD_HINT = 'ResonNote 已更新，請重新整理這個分頁';
+    const move = () => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 }));
+    const host = () => document.querySelector<HTMLElement>('[data-resonnote-button]')!;
+    const button = () => shadowOf(host())!.querySelector('button')!;
+    const runtime = fakeBrowser.runtime as { id?: string };
+    const extensionId = runtime.id;
+    // fakeBrowser.reset() does not put the id back.
+    afterEach(() => {
+      runtime.id = extensionId;
+    });
+
+    /** What Chrome leaves to a content script whose extension went away: no id, and calls throw. */
+    function loseTheExtension() {
+      runtime.id = undefined;
+      vi.mocked(fakeBrowser.runtime.sendMessage).mockImplementation(() => {
+        throw new Error('Extension context invalidated.');
+      });
+    }
+
+    it('asks for the tab to be reloaded instead of doing nothing', () => {
+      start();
+      loseTheExtension();
+      move();
+      expect(() => button().click()).not.toThrow();
+      expect(button().textContent).toContain(RELOAD_HINT);
+      expect(button().getAttribute('aria-label')).toBe(RELOAD_HINT);
+      expect(host().hasAttribute('data-visible')).toBe(true);
+      expect(sent).not.toContainEqual({ type: 'resonnote/trigger' });
+    });
+
+    it('asks for it too when sending throws at once', () => {
+      start();
+      vi.mocked(fakeBrowser.runtime.sendMessage).mockImplementation(() => {
+        throw new Error('Extension context invalidated.');
+      });
+      move();
+      expect(() => button().click()).not.toThrow();
+      expect(button().textContent).toContain(RELOAD_HINT);
+    });
+
+    it('asks for it too when the message is turned down because the extension is gone', async () => {
+      start();
+      vi.mocked(fakeBrowser.runtime.sendMessage).mockRejectedValue(
+        new Error('Extension context invalidated.'),
+      );
+      move();
+      button().click();
+      await vi.waitFor(() => expect(button().textContent).toContain(RELOAD_HINT));
+    });
+
+    it('only logs a failure that has another cause, and keeps its label', async () => {
+      start();
+      await vi.waitFor(() => expect(button().textContent).toContain('⌥⇧N'));
+      vi.mocked(fakeBrowser.runtime.sendMessage).mockRejectedValue(new Error('busy'));
+      move();
+      button().click();
+      await vi.waitFor(() => expect(console.warn).toHaveBeenCalled());
+      expect(button().textContent).not.toContain(RELOAD_HINT);
+      expect(button().textContent).toContain('記下這一刻');
     });
   });
 

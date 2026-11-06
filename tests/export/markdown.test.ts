@@ -171,6 +171,59 @@ describe('buildMarkdown', () => {
   });
 });
 
+describe('buildMarkdown with text that looks like markup', () => {
+  // A YouTube title and its captions are written by the uploader; a blog engine that lets raw
+  // HTML or javascript: links through would run them.
+  const hostile = makeNote('abc', {
+    platform: 'youtube',
+    videoId: 'arj7oStGLkU',
+    title: 'x](javascript:alert(1)) <img src=x onerror=alert(1)>',
+    subtitle: '<script>alert(1)</script>\n[點我](javascript:alert(2))',
+    body: '心得 <b>粗體</b> [連結](javascript:alert(3)) ![圖](x.png)',
+  });
+
+  it('lets no HTML tag, link or image through from the title, subtitle or thoughts', () => {
+    const md = buildMarkdown([hostile], never);
+    expect(md).not.toMatch(/<[a-z/!]/i);
+    // no `](` that is not backslash-escaped, except the one link back to the moment
+    expect(md).not.toMatch(/(^|[^\\])\]\(javascript:/m);
+    expect(md.match(/(^|[^\\])\]\(/gm)).toHaveLength(1);
+    expect(md).toMatch(/^\[在 YouTube 從 16:43 開始看\]\(https:\/\/www\.youtube\.com\/watch\?v=arj7oStGLkU&t=1003s\)$/m);
+  });
+
+  it('escapes so the text still reads the same once rendered', () => {
+    const md = buildMarkdown([hostile], never);
+    expect(md).toContain('# x\\](javascript:alert(1)) &lt;img src=x onerror=alert(1)&gt;\n');
+    expect(md).toContain('> &lt;script&gt;alert(1)&lt;/script&gt;\n> \\[點我\\](javascript:alert(2))\n');
+    expect(md).toContain('心得 &lt;b&gt;粗體&lt;/b&gt; \\[連結\\](javascript:alert(3)) !\\[圖\\](x.png)\n');
+  });
+
+  it('escapes & and backslashes and backticks too, so entities and escapes in the text stay literal', () => {
+    const md = buildMarkdown(
+      [makeNote('abc', { title: 'Tom & Jerry', subtitle: '&lt; \\[x\\]', body: '`<b>`' })],
+      never,
+    );
+    expect(md.startsWith('# Tom &amp; Jerry\n')).toBe(true);
+    expect(md).toContain('> &amp;lt; \\\\\\[x\\\\\\]\n');
+    expect(md).toContain('\\`&lt;b&gt;\\`\n');
+  });
+
+  it('keeps the heading on one line', () => {
+    const md = buildMarkdown([makeNote('abc', { title: '上集\n---\n# 下集', subtitle: '', body: '' })], never);
+    expect(md.split('\n')[0]).toBe('# 上集 --- # 下集');
+  });
+
+  it('keeps the link back to the moment working, and its target from ending early', () => {
+    const md = buildMarkdown(
+      [makeNote('abc', { platform: 'youtube', videoId: 'a) [x](javascript:y', subtitle: '', body: '' })],
+      never,
+    );
+    const linkLine = md.split('\n').find((line) => line.startsWith('[在 YouTube'))!;
+    expect(linkLine).toMatch(/^\[在 YouTube 從 16:43 開始看\]\(https:\/\/www\.youtube\.com\/watch\?v=[^\s()<>]*\)$/);
+    expect(md).not.toContain('](javascript:');
+  });
+});
+
 function entry(files: Record<string, Uint8Array>, path: string): Uint8Array {
   const found = files[path];
   if (!found) throw new Error(`missing zip entry: ${path}`);
@@ -203,5 +256,32 @@ describe('buildMarkdownZip', () => {
   it('ignores images that belong to no exported note', () => {
     const files = unzipSync(buildMarkdownZip([makeNote('a')], new Map([['zzz', jpeg(9)]])));
     expect(Object.keys(files)).toEqual(['notes.md']);
+  });
+
+  it('never names an entry outside images/, even for a note id that is a path', () => {
+    const notes = [
+      makeNote('../../../evil', { timeMs: 1000 }),
+      makeNote('a', { timeMs: 2000 }),
+      makeNote('..\\..\\win', { timeMs: 3000 }),
+    ];
+    const images = new Map([
+      ['../../../evil', jpeg(1)],
+      ['a', jpeg(2)],
+      ['..\\..\\win', jpeg(3)],
+    ]);
+    const files = unzipSync(buildMarkdownZip(notes, images));
+
+    const names = Object.keys(files).sort();
+    expect(names).toHaveLength(4);
+    for (const name of names) expect(name).toMatch(/^(notes\.md|images\/[A-Za-z0-9_.-]+\.jpg)$/);
+    expect(names.some((name) => name.includes('..'))).toBe(false);
+    expect(names).toContain('images/a.jpg');
+    // every image line points at an entry that is there, with the right picture
+    const md = strFromU8(entry(files, 'notes.md'));
+    const linked = [...md.matchAll(/!\[[^\]]*\]\((images\/[^)]+)\)/g)].map((m) => m[1]!);
+    expect(linked.sort()).toEqual(names.filter((name) => name !== 'notes.md'));
+    const evilLine = md.split('\n').find((line) => line.startsWith('![0:01]'))!;
+    const evilPath = /\((images\/[^)]+)\)/.exec(evilLine)![1]!;
+    expect([...entry(files, evilPath)]).toEqual([...jpeg(1)]);
   });
 });

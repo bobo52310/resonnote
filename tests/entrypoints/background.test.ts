@@ -113,6 +113,25 @@ describe('resonnote/jump', () => {
   });
 });
 
+describe('resonnote/update', () => {
+  it('stores only the fields the message carries', async () => {
+    await putNote(makeNote('a', { subtitle: '舊台詞', body: '筆記本改的心得' }));
+    expect(await ask({ type: 'resonnote/update', id: 'a', subtitle: '新台詞' })).toEqual({ ok: true });
+    expect(await getNote('a')).toMatchObject({ subtitle: '新台詞', body: '筆記本改的心得' });
+  });
+
+  it.each([
+    [{ id: 'a' }],
+    [{ id: 7, body: 'x' }],
+    [{ id: 'a', subtitle: 3 }],
+    [{ id: 'a', subtitle: 'x', body: null }],
+  ])('ignores %j', async (fields) => {
+    await putNote(makeNote('a'));
+    expect(await ask({ type: 'resonnote/update', ...fields })).toBe('ignored');
+    expect(await getNote('a')).toEqual(makeNote('a'));
+  });
+});
+
 describe('resonnote/delete', () => {
   it('deletes the note and answers ok', async () => {
     await putNote(makeNote('gone'));

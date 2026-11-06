@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { IDLE_HIDE_MS, mountQuickButton, type QuickButtonHandle } from '../../src/core/quick-button';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { forged, treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 let handle: QuickButtonHandle | null = null;
 let onPress: Mock<() => void>;
@@ -7,7 +12,7 @@ let watch = true;
 let busy = false;
 
 const host = () => document.querySelector<HTMLElement>('[data-resonnote-button]');
-const button = () => host()!.shadowRoot!.querySelector('button')!;
+const button = () => shadowOf(host())!.querySelector('button')!;
 const visible = () => host()?.hasAttribute('data-visible') ?? false;
 const moveMouse = () => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
@@ -120,12 +125,42 @@ describe('quick button', () => {
     }
   });
 
+  it('does not start a capture on a click made by a page script', () => {
+    moveMouse();
+    button().dispatchEvent(forged(new MouseEvent('click', { bubbles: true, composed: true })));
+    host()!.dispatchEvent(forged(new MouseEvent('click', { bubbles: true, composed: true })));
+    expect(onPress).not.toHaveBeenCalled();
+    expect(visible()).toBe(true);
+  });
+
+  it('keeps its shadow root closed to the page', () => {
+    expect(host()!.shadowRoot).toBeNull();
+    expect(shadowOf(host())).not.toBeNull();
+  });
+
   it('says what it does, with the shortcut once known', () => {
     expect(button().textContent).toContain('記下這一刻');
     expect(button().getAttribute('aria-label')).toBe('記下這一刻');
     handle!.setShortcut('⌥⇧N');
     expect(button().querySelector('kbd')?.textContent).toBe('⌥⇧N');
     expect(button().getAttribute('aria-label')).toBe('記下這一刻（⌥⇧N）');
+  });
+
+  it('can show a notice in place of its label, for good', () => {
+    handle!.setShortcut('⌥⇧N');
+    handle!.showNotice('ResonNote 已更新，請重新整理這個分頁');
+    expect(visible()).toBe(true);
+    expect(button().textContent).toContain('ResonNote 已更新，請重新整理這個分頁');
+    expect(button().textContent).not.toContain('⌥⇧N');
+    expect(button().getAttribute('aria-label')).toBe('ResonNote 已更新，請重新整理這個分頁');
+    // a late shortcut answer does not bring the old label back
+    handle!.setShortcut('⌥⇧N');
+    expect(button().textContent).not.toContain('⌥⇧N');
+    // it fades like the button does, and comes back with the notice on the next move
+    vi.advanceTimersByTime(IDLE_HIDE_MS);
+    expect(visible()).toBe(false);
+    moveMouse();
+    expect(button().textContent).toContain('ResonNote 已更新，請重新整理這個分頁');
   });
 
   it('is removed by destroy', () => {
@@ -148,7 +183,7 @@ describe('quick button hidden for a screenshot', () => {
     expect(hiddenNow()).toBe(true);
     expect(host()!.style.getPropertyPriority('visibility')).toBe('important');
     // `visibility` is not among the properties the button's stylesheet fades.
-    const css = host()!.shadowRoot!.querySelector('style')!.textContent!;
+    const css = shadowOf(host())!.querySelector('style')!.textContent!;
     expect(css.match(/transition:([^;]*);/)?.[1]).not.toContain('visibility');
   });
 

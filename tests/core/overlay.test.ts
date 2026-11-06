@@ -6,6 +6,11 @@ import {
   type OverlayResult,
 } from '../../src/core/overlay/overlay';
 import type { Missing } from '../../src/core/types';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { forged, treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 let mount: HTMLElement;
 let handle: OverlayHandle | null = null;
@@ -26,9 +31,9 @@ function open(overrides: Partial<Parameters<typeof openOverlay>[0]> = {}): Overl
 }
 
 function shadow(): ShadowRoot {
-  const host = mount.querySelector('[data-resonnote-overlay]');
-  if (!host?.shadowRoot) throw new Error('overlay host / shadow root not found');
-  return host.shadowRoot;
+  const root = shadowOf(mount.querySelector('[data-resonnote-overlay]'));
+  if (!root) throw new Error('overlay host / shadow root not found');
+  return root;
 }
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -93,8 +98,16 @@ describe('rendering', () => {
     const host = mount.querySelector('[data-resonnote-overlay]');
     expect(host).not.toBeNull();
     expect(host?.parentElement).toBe(mount);
-    expect(host?.shadowRoot).not.toBeNull();
+    expect(shadowOf(host)).not.toBeNull();
     expect(handle?.isOpen()).toBe(true);
+  });
+
+  it('keeps the shadow root closed, so page scripts cannot read what is typed or the earlier notes', () => {
+    open();
+    const host = mount.querySelector('[data-resonnote-overlay]');
+    note().value = '還在打的心得';
+    expect(host?.shadowRoot).toBeNull();
+    expect(host?.querySelector('textarea')).toBeNull();
   });
 
   it('shows the heading, the time and an editable subtitle', () => {
@@ -302,28 +315,41 @@ describe('mousedown focus handling (shadow DOM retargeting)', () => {
   const host = () => mount.querySelector('[data-resonnote-overlay]') as HTMLElement;
 
   /**
-   * Dispatches a mousedown from `origin` the way a real browser presents it to
-   * a listener on the shadow host: `event.target` is retargeted to the host
-   * while `composedPath()[0]` stays the real origin. happy-dom does not
-   * retarget, so the host's view is simulated by overriding `target`.
+   * Dispatches a mousedown from `origin` the way a real browser presents it with a closed shadow
+   * root: listeners outside the shadow tree (the host and up) see `event.target` retargeted to
+   * the host and a `composedPath()` without any node of the tree, while listeners inside the
+   * tree see both as they are. happy-dom does neither, so the outside view is simulated.
    */
   function mousedownFrom(origin: Element, { retarget }: { retarget: boolean }): MouseEvent {
     const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true });
-    if (retarget) Object.defineProperty(ev, 'target', { get: () => host() });
+    if (retarget) {
+      const tree = shadow();
+      const inTree = (node: unknown) => node instanceof Node && (node === tree || tree.contains(node));
+      // No current target: happy-dom itself asks for the path to dispatch along; give it all.
+      const outside = () => ev.currentTarget !== null && !inTree(ev.currentTarget);
+      const fullPath = ev.composedPath.bind(ev);
+      Object.defineProperty(ev, 'target', { get: () => (outside() ? host() : origin) });
+      Object.defineProperty(ev, 'composedPath', {
+        value: () => (outside() ? fullPath().filter((node) => !inTree(node)) : fullPath()),
+      });
+    }
     origin.dispatchEvent(ev);
     return ev;
   }
 
-  it('simulation check: a host listener sees target === host but the real origin in composedPath', () => {
+  it('simulation check: a host listener sees neither the real origin nor the closed tree in composedPath', () => {
     open();
-    const seen: { target: EventTarget | null; origin: EventTarget | undefined }[] = [];
+    const seen: { target: EventTarget | null; first: EventTarget | undefined }[] = [];
+    const inside: (EventTarget | undefined)[] = [];
     host().addEventListener('mousedown', (e) =>
-      seen.push({ target: e.target, origin: e.composedPath()[0] }),
+      seen.push({ target: e.target, first: e.composedPath()[0] }),
     );
+    shadow().addEventListener('mousedown', (e) => inside.push(e.composedPath()[0]));
     mousedownFrom(note(), { retarget: true });
     expect(seen).toHaveLength(1);
     expect(seen[0]?.target).toBe(host());
-    expect(seen[0]?.origin).toBe(note());
+    expect(seen[0]?.first).toBe(host());
+    expect(inside).toEqual([note()]);
   });
 
   it.each([
@@ -360,7 +386,7 @@ describe('focus stays inside the overlay after clicking its non-input parts', ()
   /** The element a key press would go to: the deepest active element, through shadow roots. */
   function keyTarget(): Element {
     let active: Element | null = document.activeElement;
-    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    while (active && shadowOf(active)?.activeElement) active = shadowOf(active)!.activeElement;
     return active ?? document.body;
   }
 
@@ -634,12 +660,25 @@ describe('switching to an earlier note from the film strip', () => {
     frameAt('15:25').click();
     note().value = '伏筆，後來回收';
     frameAt('12:05').click();
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '伏筆，後來回收' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '伏筆，後來回收' });
     note().value = '補一句';
     press(note(), { key: 'Enter' });
-    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { subtitle: '台詞a', body: '補一句' });
+    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { body: '補一句' });
     expect(el('[data-role="time"]').textContent).toBe('16:43');
     expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('reports only the field that was changed, so the other one is not written back from an old copy', () => {
+    const { onEditPrevious } = setup();
+    frameAt('15:25').click();
+    subtitle().value = '台詞b 修正';
+    frameAt('16:43').click();
+    expect(onEditPrevious).toHaveBeenLastCalledWith('b', { subtitle: '台詞b 修正' });
+
+    frameAt('12:05').click();
+    note().value = '只改心得';
+    frameAt('16:43').click();
+    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { body: '只改心得' });
   });
 
   it('does not report an earlier note that was only looked at', () => {
@@ -716,7 +755,7 @@ describe('refilling the strip while an earlier note is in the panel', () => {
 
     // The panel now works on the new copy: leaving it stores the typed text.
     el<HTMLButtonElement>('[data-role="back"]').click();
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '打到一半' });
     expect(el('[data-role="time"]').textContent).toBe('16:43');
   });
 
@@ -730,7 +769,7 @@ describe('refilling the strip while an earlier note is in the panel', () => {
 
     expect(el('[data-role="time"]').textContent).toBe('16:43');
     expect(el('[data-role="viewing"]').hidden).toBe(true);
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '打到一半' });
   });
 
   it('goes back to this moment when it is refilled with nothing', () => {
@@ -1097,6 +1136,82 @@ describe('showError and reopenResult', () => {
     open();
     const err = shadow().querySelector('[data-role="error"]');
     expect(err?.textContent ?? '').toBe('');
+  });
+});
+
+describe('events made by a page script, not by the user', () => {
+  const host = () => mount.querySelector<HTMLElement>('[data-resonnote-overlay]')!;
+  const earlier = (id: string, timeMs: number, body: string) => ({
+    id,
+    timeMs,
+    subtitle: `台詞${id}`,
+    body,
+    thumb: `data:image/jpeg;base64,${id}`,
+  });
+  const frameAt = (time: string) =>
+    Array.from(shadow().querySelectorAll<HTMLElement>('.frame')).find(
+      (f) => f.querySelector('.frame-time')?.textContent === time,
+    )!;
+  const init = { bubbles: true, cancelable: true, composed: true };
+  const forgedKey = (target: Element, key: string) =>
+    target.dispatchEvent(forged(new KeyboardEvent('keydown', { key, ...init })));
+  const forgedClick = (target: Element) =>
+    target.dispatchEvent(forged(new MouseEvent('click', init)));
+
+  it('a forged Enter does not save the note', async () => {
+    const h = open();
+    note().value = '還在打的心得';
+    forgedKey(note(), 'Enter');
+    expect(await isPending(h.result)).toBe(true);
+    // the user's own Enter still does
+    press(note(), { key: 'Enter' });
+    await expect(h.result).resolves.toMatchObject({ action: 'save', body: '還在打的心得' });
+  });
+
+  it('a forged Escape does not cancel it', async () => {
+    const h = open();
+    forgedKey(note(), 'Escape');
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('a forged press and click on the backdrop do not cancel it', async () => {
+    const h = open();
+    host().dispatchEvent(forged(new MouseEvent('mousedown', init)));
+    host().dispatchEvent(forged(new MouseEvent('click', init)));
+    expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('forged clicks and keys neither open an earlier note, nor store its edits, nor delete it', () => {
+    const onDeletePrevious = vi.fn<(id: string) => void>();
+    const onEditPrevious = vi.fn();
+    const h = open({ onDeletePrevious, onEditPrevious });
+    h.showPrevious([earlier('b', 925_000, '伏筆')]);
+
+    forgedClick(frameAt('15:25'));
+    forgedKey(frameAt('15:25'), 'Enter');
+    expect(el('[data-role="time"]').textContent).toBe('16:43');
+
+    // The user opens the earlier note and edits it; the page then tries to act on it.
+    frameAt('15:25').click();
+    note().value = '使用者打的';
+    forgedClick(el('[data-role="delete-previous"]'));
+    forgedClick(el('[data-role="delete-previous"]'));
+    forgedClick(el('[data-role="back"]'));
+    forgedClick(frameAt('16:43'));
+    forgedKey(note(), 'Enter');
+    forgedKey(note(), 'Escape');
+
+    expect(onDeletePrevious).not.toHaveBeenCalled();
+    expect(onEditPrevious).not.toHaveBeenCalled();
+    expect(el('[data-role="delete-previous"]').textContent).toBe('刪除這一則');
+    expect(el('[data-role="time"]').textContent).toBe('15:25');
+    expect(note().value).toBe('使用者打的');
+  });
+
+  it('a forged click on the notebook link does not open the notebook', () => {
+    open();
+    forgedClick(el('[data-role="open-notebook"]'));
+    expect(onOpenNotebook).not.toHaveBeenCalled();
   });
 });
 
