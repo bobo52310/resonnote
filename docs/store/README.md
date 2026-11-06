@@ -46,14 +46,12 @@
 ```sh
 pnpm install --frozen-lockfile
 pnpm zip:store
-# 產出約為 .output/resonnote-0.1.0-chrome-store.zip（以 script 實際輸出為準）
+# 產出 .output/resonnote-<版本>-chrome-store.zip，版本取自 package.json
 
-# 檢查：manifest 在 zip 根目錄、沒有 key
-unzip -l .output/resonnote-0.1.0-chrome-store.zip | head
-unzip -p .output/resonnote-0.1.0-chrome-store.zip manifest.json | grep -c '"key"'   # 應該印出 0
+# 檢查：manifest 在 zip 根目錄、沒有 key（把 0.1.1 換成實際版本）
+unzip -l .output/resonnote-0.1.1-chrome-store.zip | head
+unzip -p .output/resonnote-0.1.1-chrome-store.zip manifest.json | grep -c '"key"'   # 應該印出 0
 ```
-
-`pnpm zip:store` 是另一個工作正在加的 script；main `7a59746` 上還沒有，合併之後才能用。
 
 ### 3. 建立項目、上傳 zip
 
