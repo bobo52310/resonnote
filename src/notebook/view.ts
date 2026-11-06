@@ -10,8 +10,8 @@ import type { deleteNote, getImage, listNotes, updateNote } from '../core/db';
 import { formatTime } from '../core/format';
 import type { Note } from '../core/types';
 import { mountCardActions } from '../export/card-actions';
-import { downloadBytes } from '../export/download';
 import { mountExportFileActions } from '../export/file-actions';
+import { saveFileAs } from '../export/save-file';
 import { PLATFORM_INFO } from '../platforms/registry';
 import { groupNotes, type NoteGroup } from './group';
 
@@ -33,6 +33,7 @@ const SAVE_DEBOUNCE_MS = 500;
 const EMPTY_TEXT = '還沒有筆記。在 Netflix、YouTube 或 Disney+ 播放時按 ⌥⇧N 記下第一則。';
 const MSG_NOT_A_BACKUP = '這不是 ResonNote 的備份檔，或檔案已損壞';
 const MSG_DELETED_ELSEWHERE = '這則筆記已經在別處刪除，剛寫的心得沒有存';
+const MSG_BACKUP_CANCELLED = '沒有備份：存檔視窗被關掉了';
 
 interface ViewState {
   deps: NotebookDeps;
@@ -141,13 +142,25 @@ async function refreshBackupBar(state: ViewState): Promise<void> {
 async function runBackup(state: ViewState): Promise<void> {
   setBusy(state, true);
   try {
-    const bytes = await exportAllBackup();
-    const now = state.deps.now();
-    const name = `resonnote-backup-${localDateStamp(now)}.zip`;
-    downloadBytes(name, bytes, 'application/zip');
-    await setLastBackupAt(now.toISOString());
+    const name = `resonnote-backup-${localDateStamp(state.deps.now())}.zip`;
+    // Called before anything is awaited: the save dialog needs the click's user gesture.
+    const outcome = await saveFileAs(
+      { name, mime: 'application/zip', extension: '.zip', description: 'ResonNote 備份' },
+      exportAllBackup,
+    );
+    // Only a file known to be written counts as a backup: the reminder is the one safeguard
+    // against losing every note when the extension is removed.
+    if (outcome.status === 'cancelled') {
+      state.notify(MSG_BACKUP_CANCELLED);
+      return;
+    }
+    if (outcome.status === 'downloading') {
+      state.notify(`已開始下載 ${outcome.name}。無法確認檔案已經存好，所以「上次備份」沒有更新`);
+      return;
+    }
+    await setLastBackupAt(state.deps.now().toISOString());
     await refreshBackupBar(state);
-    state.notify(`已備份，檔案是 ${name}`);
+    state.notify(`已備份，檔案是 ${outcome.name}`);
   } catch (error) {
     console.error('[resonnote] backup failed', error);
     state.notify(`備份失敗：${errorMessage(error)}`);

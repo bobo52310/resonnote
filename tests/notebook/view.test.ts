@@ -905,7 +905,32 @@ describe('export buttons', () => {
 });
 
 describe('backup', () => {
-  it('downloads a dated zip, records the time and refreshes the bar', async () => {
+  /** Chrome's save dialog: the user picks `chosen`, or closes it when `chosen` is null. */
+  function fakeSaveDialog(chosen: string | null) {
+    const written: Blob[] = [];
+    const picker = vi.fn(async (options: { suggestedName?: string }) => {
+      if (chosen === null) throw new DOMException('The user aborted a request.', 'AbortError');
+      return {
+        name: chosen === '' ? (options.suggestedName ?? '') : chosen,
+        createWritable: async () => ({
+          write: async (data: Blob) => {
+            written.push(data);
+          },
+          close: async () => {},
+          abort: async () => {},
+        }),
+      };
+    });
+    Object.defineProperty(window, 'showSaveFilePicker', { value: picker, configurable: true, writable: true });
+    return { picker, written };
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+  });
+
+  it('saves a dated zip through the save dialog, then records the time and refreshes the bar', async () => {
+    const dialog = fakeSaveDialog('');
     await putNote(makeNote('a'));
     await putImage('a', jpegBuffer());
     const deps = realDeps({ now: () => new Date(2026, 9, 28, 23, 30) });
@@ -913,19 +938,55 @@ describe('backup', () => {
     expect(q('.backup-status').textContent).toBe('還沒備份過');
 
     buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(dialog.written).toHaveLength(1));
+
+    expect(dialog.picker).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedName: 'resonnote-backup-20261028.zip' }),
+    );
+    const files = unzipSync(new Uint8Array(await dialog.written[0]!.arrayBuffer()));
+    expect(Object.keys(files).sort()).toEqual(['images/a.jpg', 'notes.json']);
+    expect(JSON.parse(strFromU8(files['notes.json']!)).notes).toHaveLength(1);
+    expect(downloadBytes).not.toHaveBeenCalled();
+
+    await vi.waitFor(async () => expect(await getLastBackupAt()).not.toBeNull());
+    await vi.waitFor(() => expect(q('.backup-status').textContent).toBe('上次備份：今天'));
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(false);
+    expect(status()).toBe('已備份，檔案是 resonnote-backup-20261028.zip');
+  });
+
+  it('names the file the user chose in the save dialog', async () => {
+    fakeSaveDialog('雲端硬碟裡的備份.zip');
+    await renderNotebook(root, realDeps());
+    buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(status()).toBe('已備份，檔案是 雲端硬碟裡的備份.zip'));
+  });
+
+  it('does not record a backup when the save dialog is cancelled, and keeps the reminder', async () => {
+    fakeSaveDialog(null);
+    await putNote(makeNote('a'));
+    await renderNotebook(root, realDeps());
+    buttonByText('全部備份').click();
+    await vi.waitFor(() => expect(status()).toContain('沒有備份'));
+    expect(await getLastBackupAt()).toBeNull();
+    expect(downloadBytes).not.toHaveBeenCalled();
+    expect(q('.backup-status').textContent).toBe('還沒備份過');
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(true);
+    expect(buttonByText('全部備份').disabled).toBe(false);
+  });
+
+  it('downloads without a save dialog, but does not take that as a backup it can vouch for', async () => {
+    await putNote(makeNote('a'));
+    await renderNotebook(root, realDeps({ now: () => new Date(2026, 9, 28, 23, 30) }));
+    buttonByText('全部備份').click();
     await vi.waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(1));
 
     const [name, data, mime] = vi.mocked(downloadBytes).mock.calls[0]!;
     expect(name).toBe('resonnote-backup-20261028.zip');
     expect(mime).toBe('application/zip');
-    const files = unzipSync(data as Uint8Array);
-    expect(Object.keys(files).sort()).toEqual(['images/a.jpg', 'notes.json']);
-    expect(JSON.parse(strFromU8(files['notes.json']!)).notes).toHaveLength(1);
-
-    await vi.waitFor(async () => expect(await getLastBackupAt()).not.toBeNull());
-    await vi.waitFor(() => expect(q('.backup-status').textContent).toBe('上次備份：今天'));
-    expect(q('.backup-bar').classList.contains('reminder')).toBe(false);
-    expect(status()).toContain('已備份');
+    expect(Object.keys(unzipSync(data as Uint8Array))).toContain('notes.json');
+    await vi.waitFor(() => expect(status()).toContain('已開始下載 resonnote-backup-20261028.zip'));
+    expect(await getLastBackupAt()).toBeNull();
+    expect(q('.backup-bar').classList.contains('reminder')).toBe(true);
   });
 
   it('does not record a backup when building the zip fails', async () => {
