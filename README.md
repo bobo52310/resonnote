@@ -6,7 +6,9 @@
 
 > 這一秒打動你，就把它留下來。
 
-[![ResonNote 介紹影片（到產品網站觀看）](website/public/media/intro-poster.webp)](https://resonnote.bobochen.dev)
+https://github.com/user-attachments/assets/a2ab2171-688b-4946-9119-cf03a535f84f
+
+<sub>33 秒無聲簡介，也可以到[產品網站](https://resonnote.bobochen.dev)觀看。</sub>
 
 ## 安裝
 
