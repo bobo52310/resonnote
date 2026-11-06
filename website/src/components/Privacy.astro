@@ -1,4 +1,6 @@
 ---
+import { PRIVACY_PATH } from '../site';
+
 const pillars = [
   { title: '沒有伺服器', body: '筆記和截圖只存在你瀏覽器本機的擴充功能 IndexedDB，不會上傳。' },
   { title: '沒有帳號', body: '不用註冊、不用登入，裝好就能用。' },
@@ -54,6 +56,9 @@ const permissions = [
             讀這部片的片名資料，以及重新讀取頁面本來就載入過的進度條小圖（畫面的備案來源）。兩者都不含任何筆記內容。YouTube、Disney+
             頁面內沒有任何擴充功能發出的網路請求。
           </p>
+          <p class="mt-6">
+            <a href={PRIVACY_PATH} class="policy-link">閱讀完整隱私權政策<span aria-hidden="true"> →</span></a>
+          </p>
         </div>
       </div>
     </div>
@@ -61,6 +66,15 @@ const permissions = [
 </section>
 
 <style>
+  .policy-link {
+    color: var(--color-amber-soft);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .policy-link:hover {
+    color: #fff;
+  }
   .privacy-panel {
     position: relative;
     padding: 2.5rem 1.5rem;

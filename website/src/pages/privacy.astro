@@ -1,0 +1,369 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { PRIVACY_PATH, REPO_LINKS, SITE } from '../site';
+
+// Facts follow the README's 隱私 section and the code (the only fetch() calls are in
+// src/platforms/netflix/page-bridge.ts). Change this page and the README together.
+const EFFECTIVE = '2026-11-06';
+const CLOUDFLARE_PRIVACY = 'https://www.cloudflare.com/privacypolicy/';
+const GITHUB_PRIVACY = 'https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement';
+---
+
+<Base
+  title="隱私權政策"
+  description="ResonNote 共鳴筆記的隱私權政策：筆記與截圖只存在你自己的瀏覽器，不收集、不上傳、不出售、不分享任何資料。附英文版（English version）。"
+  path={PRIVACY_PATH}
+>
+  <Header onHome={false} />
+  <main id="main" class="py-14 md:py-20">
+    <div class="container-page">
+      <article class="doc" aria-labelledby="privacy-zh-title">
+        <p class="edge-code">隱私權政策</p>
+        <h1 id="privacy-zh-title" class="doc-title">隱私權政策</h1>
+        <p class="doc-meta">
+          生效日期：<time datetime={EFFECTIVE}>{EFFECTIVE}</time>・<a class="doc-link" href="#english" hreflang="en" lang="en"
+            >English version</a
+          >
+        </p>
+        <p class="doc-lead">
+          {SITE.name}（以下稱「本擴充功能」）是 {SITE.author.name} 個人維護的開源 Chrome 擴充功能。這份政策說明本擴充功能，以及這個網站（resonnote.bobochen.dev）如何處理資料。
+        </p>
+
+        <div class="summary" role="note">
+          <p>
+            <strong>簡單說：</strong>不收集、不上傳、不出售、不分享任何資料。筆記只存在你自己瀏覽器裡的擴充功能儲存空間。沒有帳號、沒有伺服器、沒有分析或追蹤。
+          </p>
+        </div>
+
+        <h2>1. 本擴充功能處理哪些資料</h2>
+        <p>當你按下快捷鍵（或播放頁上的「記下這一刻」按鈕、工具列圖示）記錄一刻時，本擴充功能會讀取並存下：</p>
+        <ul>
+          <li>畫面截圖</li>
+          <li>影片播放到的秒數</li>
+          <li>台詞（讀自網頁上顯示的字幕）</li>
+          <li>片名，以及影集的季與集</li>
+          <li>你自己寫的心得</li>
+          <li>平台（Netflix、YouTube 或 Disney+）與影片編號（用來組出可以跳回那一刻的影片連結）</li>
+        </ul>
+        <p>另外會在本機記下「上次備份」的時間，用來提醒你備份。</p>
+        <p>
+          這些資料全部只存在你自己瀏覽器裡、本擴充功能專屬的 IndexedDB 與擴充功能儲存空間（<code>chrome.storage</code>），不會離開你的電腦，開發者也看不到。
+        </p>
+
+        <h2>2. 不收集、不上傳、不出售、不分享</h2>
+        <ul>
+          <li>不收集：開發者沒有任何伺服器，收不到你的資料。</li>
+          <li>不上傳：筆記、截圖、台詞與心得都不會傳送到任何地方。</li>
+          <li>不出售、不分享：不會把資料給任何第三方，也不會用在廣告，或與本擴充功能功能無關的用途。</li>
+          <li>沒有帳號：不用註冊、不用登入。</li>
+          <li>沒有分析或追蹤：本擴充功能不含任何分析、追蹤或廣告程式。</li>
+        </ul>
+
+        <h2>3. 網路請求</h2>
+        <p>本擴充功能唯一會主動向網路讀資料的地方，都在 Netflix 頁面內、只讀不寫：</p>
+        <ul>
+          <li>
+            向 netflix.com 讀這部片的片名資料。請求內容只有影片編號；它在 Netflix 頁面內發出，所以和 Netflix 網頁自己的請求一樣，會帶上瀏覽器本來就有的 netflix.com 連線資訊。
+          </li>
+          <li>重新讀取 Netflix 頁面本來就載入過的進度條預覽圖檔（網址取自頁面自己的資源紀錄），當作畫面的備案來源。</li>
+        </ul>
+        <p>
+          兩者都不含任何筆記內容，也不會把任何資料送到 Netflix 以外，或開發者的任何地方。YouTube、Disney+ 頁面內沒有任何本擴充功能發出的網路請求。在筆記本點時間按鈕開新分頁，只是用瀏覽器開啟該平台的影片網址。
+        </p>
+
+        <h2>4. 權限的用途</h2>
+        <dl class="perm">
+          <div class="perm-row">
+            <dt><code>activeTab</code></dt>
+            <dd>按快捷鍵或工具列圖示時，截取目前這個分頁的畫面。Chrome 只對你按過的那個分頁放行。</dd>
+          </div>
+          <div class="perm-row">
+            <dt><code>storage</code><br /><code>unlimitedStorage</code></dt>
+            <dd>在瀏覽器本機存放筆記、截圖與「上次備份」時間；<code>unlimitedStorage</code> 讓大量截圖不受預設的本機儲存上限限制。</dd>
+          </div>
+          <div class="perm-row">
+            <dt>
+              <code>www.netflix.com</code><br /><code>www.youtube.com</code><br /><code>www.disneyplus.com</code>
+            </dt>
+            <dd>在這三個網站的播放頁顯示「記下這一刻」按鈕，並讀取播放時間、字幕與片名。</dd>
+          </div>
+        </dl>
+        <p>本擴充功能沒有要求其他權限，也不會讀取這三個網站以外的頁面內容。</p>
+
+        <h2>5. 資料的刪除與匯出</h2>
+        <ul>
+          <li>刪除：筆記本與記錄小視窗都可以刪除單則筆記（要按兩次確認）。</li>
+          <li>
+            匯出與備份：筆記本的「全部備份」會存成 zip，「從備份還原」可以讀回來；也能匯出圖卡、網頁檔或 Markdown。這些檔案都是在你的電腦上產生並下載，不經過任何伺服器。
+          </li>
+          <li>
+            移除擴充功能會連同所有筆記與圖片一併刪除。你自己存下的備份與匯出檔是普通檔案，不會被刪。
+          </li>
+        </ul>
+
+        <h2>6. 這個網站</h2>
+        <p>
+          本網站（resonnote.bobochen.dev）是靜態網站，不使用 cookie，不放任何分析或追蹤工具，也不載入第三方指令碼或字型。網站由 Cloudflare 託管，Cloudflare 可能依其<a
+            class="doc-link"
+            href={CLOUDFLARE_PRIVACY}
+            rel="noopener">政策</a
+          >處理一般連線紀錄。網站上連往 GitHub 的頁面（原始碼、Release、Issues）則由 GitHub 依其<a
+            class="doc-link"
+            href={GITHUB_PRIVACY}
+            rel="noopener">政策</a
+          >處理。
+        </p>
+
+        <h2>7. 聯絡方式</h2>
+        <p>
+          問題與建議請到 <a class="doc-link" href={REPO_LINKS.issues} rel="noopener">GitHub Issues</a>。安全性問題請不要開公開 issue，改用 GitHub 的<a
+            class="doc-link"
+            href={REPO_LINKS.security}
+            rel="noopener">私下回報</a
+          >。
+        </p>
+
+        <h2>8. 政策變更</h2>
+        <p>政策有變更時，會更新這個頁面並註明生效日期。目前版本的生效日期是 {EFFECTIVE}。</p>
+      </article>
+
+      <article id="english" class="doc doc-en" lang="en" aria-labelledby="privacy-en-title">
+        <p class="edge-code">Privacy Policy</p>
+        <h2 id="privacy-en-title" class="doc-title">Privacy Policy (English)</h2>
+        <p class="doc-meta">
+          Effective date: <time datetime={EFFECTIVE}>{EFFECTIVE}</time> (November 6, 2026)
+        </p>
+        <p class="doc-lead">
+          ResonNote (&ldquo;the extension&rdquo;) is an open-source Chrome extension maintained by {SITE.author.name}. This policy explains how the extension and this website (resonnote.bobochen.dev) handle data.
+        </p>
+
+        <div class="summary" role="note">
+          <p>
+            <strong>In short:</strong> the extension does not collect, upload, sell or share any data. Your notes live only in the extension's storage inside your own browser. There are no accounts, no servers, and no analytics or tracking.
+          </p>
+        </div>
+
+        <h3>1. Data the extension handles</h3>
+        <p>When you record a moment (with the keyboard shortcut, the on-page &ldquo;record this moment&rdquo; button, or the toolbar icon), the extension reads and saves:</p>
+        <ul>
+          <li>a screenshot of the video frame</li>
+          <li>the playback time in seconds</li>
+          <li>the line of dialogue (read from the subtitles shown on the web page)</li>
+          <li>the title, plus season and episode for series</li>
+          <li>the comment you write</li>
+          <li>the platform (Netflix, YouTube or Disney+) and the video ID, used to rebuild the link that takes you back to that moment</li>
+        </ul>
+        <p>It also saves the time of your last backup locally, so it can remind you to back up.</p>
+        <p>
+          All of this stays in the extension's own IndexedDB and extension storage (<code>chrome.storage</code>) inside your browser. It never leaves your computer, and the developer cannot see it.
+        </p>
+
+        <h3>2. No collection, upload, sale or sharing</h3>
+        <ul>
+          <li>No collection: the developer runs no server and receives none of your data.</li>
+          <li>No upload: notes, screenshots, dialogue and comments are not sent anywhere.</li>
+          <li>No sale or sharing: nothing is given to third parties, and nothing is used for advertising or for any purpose unrelated to the extension's features.</li>
+          <li>No accounts: there is nothing to sign up for or log in to.</li>
+          <li>No analytics or tracking: the extension contains no analytics, tracking or advertising code.</li>
+        </ul>
+
+        <h3>3. Network requests</h3>
+        <p>The only places where the extension itself reads from the network are on Netflix pages, and they are read-only:</p>
+        <ul>
+          <li>
+            It fetches the title metadata of the current video from netflix.com. The request contains only the video ID. Because it is made inside the Netflix page, it carries the connection data your browser already has for netflix.com, exactly like the Netflix page's own requests.
+          </li>
+          <li>
+            It re-reads the seek-bar preview image file that the Netflix page has already loaded (the URL is taken from the page's own resource timing entries), as a fallback source for the picture.
+          </li>
+        </ul>
+        <p>
+          Neither request contains any note content, and no data is sent to anywhere other than Netflix, or to the developer. On YouTube and Disney+ pages the extension makes no network requests. Clicking a timestamp in the notebook simply opens that platform's video URL in a new tab with your browser.
+        </p>
+
+        <h3>4. Why each permission is needed</h3>
+        <dl class="perm">
+          <div class="perm-row">
+            <dt><code>activeTab</code></dt>
+            <dd>Captures the picture of the current tab when you press the shortcut or click the toolbar icon. Chrome grants it only for the tab you acted on.</dd>
+          </div>
+          <div class="perm-row">
+            <dt><code>storage</code><br /><code>unlimitedStorage</code></dt>
+            <dd>Keeps your notes, screenshots and the last-backup time locally in the browser. <code>unlimitedStorage</code> lifts the default local storage quota so many screenshots fit.</dd>
+          </div>
+          <div class="perm-row">
+            <dt>
+              <code>www.netflix.com</code><br /><code>www.youtube.com</code><br /><code>www.disneyplus.com</code>
+            </dt>
+            <dd>Shows the &ldquo;record this moment&rdquo; button on the playback pages of these three sites, and reads the playback time, subtitles and title.</dd>
+          </div>
+        </dl>
+        <p>The extension requests no other permissions and does not read pages outside these three sites.</p>
+
+        <h3>5. Deleting and exporting your data</h3>
+        <ul>
+          <li>Delete: you can delete a single note in the notebook or in the recording window (press twice to confirm).</li>
+          <li>
+            Export and backup: &ldquo;Back up all&rdquo; in the notebook saves a zip file and &ldquo;Restore from backup&rdquo; reads it back. You can also export image cards, a web page file or Markdown. These files are generated and downloaded on your own computer, without passing through any server.
+          </li>
+          <li>
+            Uninstalling the extension deletes all notes and images with it. Backups and exports you saved yourself are ordinary files and are not deleted.
+          </li>
+        </ul>
+
+        <h3>6. This website</h3>
+        <p>
+          This website (resonnote.bobochen.dev) is a static site. It uses no cookies, includes no analytics or tracking tools, and loads no third-party scripts or fonts. It is hosted by Cloudflare, which may process ordinary connection logs under its own <a
+            class="doc-link"
+            href={CLOUDFLARE_PRIVACY}
+            rel="noopener">policy</a
+          >. Pages on GitHub that this site links to (source code, releases, issues) are handled by GitHub under its own <a
+            class="doc-link"
+            href={GITHUB_PRIVACY}
+            rel="noopener">policy</a
+          >.
+        </p>
+
+        <h3>7. Contact</h3>
+        <p>
+          Questions and feedback: <a class="doc-link" href={REPO_LINKS.issues} rel="noopener">GitHub Issues</a>. For security problems, please do not open a public issue; use GitHub's <a
+            class="doc-link"
+            href={REPO_LINKS.security}
+            rel="noopener">private vulnerability reporting</a
+          > instead.
+        </p>
+
+        <h3>8. Changes to this policy</h3>
+        <p>If this policy changes, this page will be updated together with its effective date. The current version is effective {EFFECTIVE}.</p>
+      </article>
+    </div>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .doc {
+    max-width: 46rem;
+    margin-inline: auto;
+    color: var(--color-ink-300);
+    overflow-wrap: anywhere;
+  }
+  .doc + .doc {
+    margin-top: 5rem;
+    padding-top: 4rem;
+    border-top: 1px solid var(--color-ink-700);
+  }
+  .doc-title {
+    margin-top: 1rem;
+    color: var(--color-ink-100);
+    font-size: clamp(1.875rem, 1.2rem + 2.6vw, 3rem);
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+  .doc-meta {
+    margin-top: 0.75rem;
+    color: var(--color-ink-500);
+    font-size: 0.9375rem;
+  }
+  .doc-lead {
+    margin-top: 1.5rem;
+    font-size: 1.0625rem;
+    text-wrap: pretty;
+  }
+  .summary {
+    margin-top: 1.75rem;
+    padding: 1.1rem 1.3rem;
+    border: 1px solid var(--color-ink-700);
+    border-left: 3px solid var(--color-amber);
+    border-radius: 0.9rem;
+    background: var(--color-ink-900);
+    color: var(--color-ink-100);
+    text-wrap: pretty;
+  }
+  .summary strong {
+    color: var(--color-amber);
+  }
+  .doc :is(h2, h3):not(.doc-title) {
+    margin-top: 2.75rem;
+    color: var(--color-ink-100);
+    font-size: 1.3125rem;
+    line-height: 1.4;
+    font-weight: 800;
+    text-wrap: balance;
+  }
+  .doc p {
+    margin-top: 1rem;
+    text-wrap: pretty;
+  }
+  .doc ul {
+    margin-top: 1rem;
+    display: grid;
+    gap: 0.6rem;
+  }
+  .doc li {
+    position: relative;
+    padding-left: 1.4rem;
+    text-wrap: pretty;
+  }
+  .doc li::before {
+    content: '';
+    position: absolute;
+    left: 0.2rem;
+    top: 0.75em;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--color-amber);
+  }
+  .doc code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--color-amber-soft);
+    overflow-wrap: anywhere;
+  }
+  .doc-link {
+    color: var(--color-amber-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .doc-link:hover {
+    color: #fff;
+  }
+  .perm {
+    margin-top: 1rem;
+    border: 1px solid var(--color-ink-700);
+    border-radius: 1rem;
+    background: var(--color-ink-950);
+    overflow: hidden;
+  }
+  .perm-row {
+    display: grid;
+    gap: 0.35rem 1rem;
+    padding: 0.9rem 1.1rem;
+    border-top: 1px solid var(--color-ink-700);
+  }
+  .perm-row:first-child {
+    border-top: 0;
+  }
+  @media (min-width: 640px) {
+    .perm-row {
+      grid-template-columns: 13rem 1fr;
+      align-items: baseline;
+    }
+  }
+  .perm-row dt {
+    color: var(--color-amber);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .perm-row dt code {
+    color: inherit;
+  }
+  .perm-row dd {
+    font-size: 0.9375rem;
+  }
+</style>
