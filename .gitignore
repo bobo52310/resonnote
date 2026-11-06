@@ -25,6 +25,26 @@ web-ext.config.ts
 *.sln
 *.sw?
 
+# secrets and local environment
+.env
+.env.*
+!.env.example
+
+# local scratch and tool output
+tmp/
+*.report.html
+web-ext-artifacts/
+.wrangler/
+
+# local agent tooling
+.claude/
+.superpowers/
+
+# product website (built separately)
+website/node_modules/
+website/dist/
+website/.astro/
+
 # promo video build output
 docs/design/promo-*/renders/
 docs/design/promo-*/snapshots/
