@@ -1,24 +1,88 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 import type { Note } from './types';
 
 // Kept from the old project name scenenote: renaming it would orphan every saved note.
-const DB_NAME = 'scenenote';
-const DB_VERSION = 1;
+export const DB_NAME = 'scenenote';
 
 interface ResonNoteDB extends DBSchema {
   notes: { key: string; value: Note };
   images: { key: string; value: ArrayBuffer };
 }
 
+/**
+ * One schema step, run inside the `versionchange` transaction. A step describes the schema as it
+ * was at its own version, so it is typed against an untyped database, not `ResonNoteDB` (which is
+ * always the latest schema).
+ */
+export type Migration = (
+  db: IDBPDatabase,
+  tx: IDBPTransaction<unknown, string[], 'versionchange'>,
+) => void;
+
+/**
+ * Step `i` takes the database from version `i` to `i + 1`, so a database at version `n` still
+ * needs `MIGRATIONS.slice(n)`. To change the schema, append a step: never edit or reorder one
+ * that has shipped, because databases already past it will not run it again.
+ */
+export const MIGRATIONS: readonly Migration[] = [
+  // Version 1.
+  (db) => {
+    db.createObjectStore('notes', { keyPath: 'id' });
+    // Out-of-line keys: the note id is the key, the value is the raw JPEG bytes.
+    db.createObjectStore('images');
+  },
+];
+
+/** The schema version is the number of steps: appending a step is what bumps it. */
+export const DB_VERSION = MIGRATIONS.length;
+
+/**
+ * Opens `name` at the version `migrations` leads to, running only the steps the stored database
+ * has not seen: all of them for a new database, none for one that is current. `blocked`,
+ * `blocking` and `terminated` are passed on to `idb` as they are.
+ */
+export function openResonNoteDb(
+  name: string,
+  migrations: readonly Migration[] = MIGRATIONS,
+  lifecycle: {
+    blocked?: () => void;
+    blocking?: () => void;
+    terminated?: () => void;
+  } = {},
+): Promise<IDBPDatabase<ResonNoteDB>> {
+  // Opened untyped because the steps work on past schemas; callers get the latest one's types.
+  return openDB<unknown>(name, migrations.length, {
+    upgrade(db, oldVersion, _newVersion, tx) {
+      for (const migrate of migrations.slice(oldVersion)) migrate(db, tx);
+    },
+    ...lifecycle,
+  }) as Promise<IDBPDatabase<ResonNoteDB>>;
+}
+
 let dbPromise: Promise<IDBPDatabase<ResonNoteDB>> | null = null;
 
 function getDb(): Promise<IDBPDatabase<ResonNoteDB>> {
   if (!dbPromise) {
-    const opening = openDB<ResonNoteDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        db.createObjectStore('notes', { keyPath: 'id' });
-        // Out-of-line keys: the note id is the key, the value is the raw JPEG bytes.
-        db.createObjectStore('images');
+    const opening: Promise<IDBPDatabase<ResonNoteDB>> = openResonNoteDb(DB_NAME, MIGRATIONS, {
+      blocked() {
+        // Some other connection (an older build, say) still holds the old version and has no
+        // `blocking` handler, so this upgrade waits for it and the calls behind it wait too.
+        console.warn('[resonnote] the database upgrade waits for another ResonNote page to let go');
+      },
+      blocking() {
+        // A newer version of this code asks to upgrade the database and waits until every
+        // connection is closed. Close ours and forget it, or the upgrade stays blocked for as long
+        // as this page or worker lives.
+        //
+        // After that this code, which only knows its own version N, opens N again on its next
+        // call and is refused with a `VersionError` once the database has moved past N. Nothing
+        // handles that here: it reaches the caller like any other database error (`handleSave`
+        // and friends answer `{ ok: false, error }`, shown as 存檔失敗 in the overlay and as
+        // 儲存失敗 or 讀取筆記失敗 in the notebook, each with the raw message). Nothing hangs and
+        // no data is touched, but nothing asks for a reload either: MSG_RELOAD_TAB in
+        // content-main.ts covers only a lost extension context.
+        if (dbPromise === opening) dbPromise = null;
+        void opening.then((db) => db.close());
       },
       terminated() {
         // The browser dropped the connection; reopen on the next call.
