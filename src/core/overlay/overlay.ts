@@ -183,7 +183,7 @@ const OVERLAY_CSS = `
 }
 /* The note the panel is showing. */
 .frame[aria-current='true'] {
-  border-color: #e50914;
+  border-color: #f2483a;
   opacity: 1;
 }
 .viewing {
@@ -245,7 +245,7 @@ const OVERLAY_CSS = `
 }
 .frame.now .frame-time::before {
   content: '● ';
-  color: #e50914;
+  color: #f2483a;
 }
 .arrow {
   align-self: center;

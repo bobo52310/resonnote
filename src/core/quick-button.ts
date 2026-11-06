@@ -86,8 +86,8 @@ button {
 }
 button:hover,
 button:focus-visible {
-  border-color: #e50914;
-  background: #e50914;
+  border-color: #f2483a;
+  background: #f2483a;
   outline: none;
 }
 svg {
