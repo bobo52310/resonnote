@@ -1,14 +1,27 @@
 # ResonNote 共鳴筆記
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) · [產品網站](https://resonnote.pages.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) · [產品網站](https://resonnote.bobochen.dev)
 
 看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得的 Chrome 擴充功能（支援 Netflix、YouTube、Disney+）。
 
 > 這一秒打動你，就把它留下來。
 
-[![ResonNote 介紹影片（到產品網站觀看）](website/public/media/intro-poster.webp)](https://resonnote.pages.dev)
+[![ResonNote 介紹影片（到產品網站觀看）](website/public/media/intro-poster.webp)](https://resonnote.bobochen.dev)
 
-## 安裝（從原始碼安裝）
+## 安裝
+
+### 下載安裝（推薦）
+
+不需要 Node.js，也不用自己 build。
+
+1. 到 [Releases 頁面](https://github.com/bobo52310/resonnote/releases/latest) 下載 `resonnote-<版本>-chrome.zip`。
+2. 解壓縮到一個之後不會刪掉的資料夾（Chrome 會直接從這個資料夾載入擴充功能）。
+3. 開 `chrome://extensions`，右上角打開「開發人員模式」，按「載入未封裝項目」，選剛剛解壓縮的資料夾。
+4. 已經開著的 Netflix、YouTube、Disney+ 分頁要各重新整理一次，細節見下面「從原始碼安裝」的第 3 點（兩種安裝方式都一樣）。
+
+之後更新：下載新版 zip，用新版內容取代資料夾裡的檔案，再到 `chrome://extensions` 按 ResonNote 的重新載入。擴充功能 ID 是固定的，筆記會保留。
+
+### 從原始碼安裝
 
 需要 Node.js 22.12 以上（或 24）和 [pnpm](https://pnpm.io/)。
 
@@ -118,11 +131,15 @@ pnpm test      # Vitest
 pnpm compile   # tsc --noEmit
 pnpm build     # 輸出到 .output/chrome-mv3
 pnpm dev       # WXT 開發模式
+pnpm zip       # .output/resonnote-<版本>-chrome.zip，帶 key，給 GitHub Release 用
+pnpm zip:store # .output/resonnote-<版本>-chrome-store.zip，不帶 key，給商店上架用
 ```
 
 - 各平台的轉接層在 `src/platforms/`（`netflix/`、`youtube/`、`disney/` 各一個資料夾，由 `registry.ts` 註冊）；WXT 的進入點在 `src/entrypoints/`。
 - IndexedDB 資料庫名稱是 `scenenote`，沿用舊專案名稱，讓舊筆記與舊備份都能照常讀取；改名等於換一個資料庫，既有筆記會讀不到，請不要改。程式內的訊息類型、console 前綴等都是 `resonnote`。
-- `wxt.config.ts` 的 manifest 固定了 `key`，所以從原始碼載入的開發版不管資料夾放哪裡，擴充功能 ID 都是 `bldeoidbgkcdnmiholglmknnimdhnhff`。沒有固定 `key` 的話，開發人員模式載入的 ID 會跟著資料夾路徑變，IndexedDB 也跟著換，舊筆記就讀不到。這個 ID 只適用於從原始碼載入的開發版；fork 後如果要自行發行，請換成自己的 `key`。
+- `wxt.config.ts` 的 manifest 固定了 `key`，所以從原始碼或 GitHub Release 安裝的版本，不管資料夾放哪裡，擴充功能 ID 都固定是 `bldeoidbgkcdnmiholglmknnimdhnhff`。沒有固定 `key` 的話，開發人員模式載入的 ID 會跟著資料夾路徑變，IndexedDB 也跟著換，舊筆記就讀不到。
+- 之後上架商店的版本會是另一個 ID（商店會自己指派，所以 `pnpm zip:store` 產出的商店版 manifest 不帶 `key`，其餘跟一般版完全相同），兩者的筆記不互通。要搬就用「全部備份」再「從備份還原」。
+- fork 後如果要自行發行，請換成自己的 `key`。
 
 ## 貢獻
 

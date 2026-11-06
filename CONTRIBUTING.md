@@ -32,6 +32,18 @@ pnpm build
 3. 每一項讀不到時都要有退路：少一項，不要讓整個記錄流程中斷。
 4. 補上對應的測試，並在 README 的「已知限制」寫下這個平台的退路與限制。
 
+## 發版
+
+維護者發新版的步驟：
+
+1. 改 `package.json` 的 `version`。
+2. 寫 `docs/releases/vX.Y.Z.md`（zh-TW 的 release notes；沒有這個檔案時，workflow 會改用自動產生的說明）。
+3. 這兩項合併到 `main` 之後，在 `main` 上 push tag：`git tag vX.Y.Z && git push origin vX.Y.Z`。
+
+`.github/workflows/release.yml` 會檢查 tag 去掉 `v` 之後和 `package.json` 的版本一致（不一致就失敗），跑 `pnpm compile`、`pnpm test`，再建立 GitHub Release，附上 `resonnote-X.Y.Z-chrome.zip`。
+
+Chrome 線上應用程式商店的套件另外手動做：`pnpm zip:store` 會產出不帶 `key` 的 `resonnote-X.Y.Z-chrome-store.zip`，不要附到 GitHub Release。`pnpm check:store-manifest` 會把兩種 build 都建一次，確認只有 `key` 不同。
+
 ## 回報問題與安全性
 
 一般問題請用 issue 範本回報；安全性問題請看 [SECURITY.md](SECURITY.md)，不要開公開 issue。
