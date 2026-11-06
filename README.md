@@ -6,6 +6,8 @@
 
 > 這一秒打動你，就把它留下來。
 
+[![ResonNote 介紹影片（到產品網站觀看）](website/public/media/intro-poster.webp)](https://resonnote.pages.dev)
+
 ## 安裝（從原始碼安裝）
 
 需要 Node.js 22.12 以上（或 24）和 [pnpm](https://pnpm.io/)。
