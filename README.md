@@ -1,25 +1,26 @@
 # ResonNote 共鳴筆記
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) · [產品網站](https://resonnote.pages.dev)
+
 看劇有共鳴的那一秒，一鍵記下畫面、秒數、台詞與心得的 Chrome 擴充功能（支援 Netflix、YouTube、Disney+）。
 
 > 這一秒打動你，就把它留下來。
 
-IndexedDB 資料庫名稱仍是 `scenenote`（沿用舊專案名稱，舊筆記與舊備份都能照常讀取）；程式內的訊息類型、console 前綴等都已改成 `resonnote`。
+## 安裝（從原始碼安裝）
 
-擴充功能 ID：`bldeoidbgkcdnmiholglmknnimdhnhff`
-
-## 安裝
+需要 Node.js 22.12 以上（或 24）和 [pnpm](https://pnpm.io/)。
 
 ```sh
-pnpm install && pnpm build
+git clone https://github.com/bobo52310/resonnote.git
+cd resonnote
+pnpm install
+pnpm build
 ```
 
 1. 開 `chrome://extensions`，右上角打開「開發人員模式」。
-2. 按「載入未封裝項目」，選 `/Users/bobochen/Desktop/github/bobo52310/resonnote/.output/chrome-mv3`。
+2. 按「載入未封裝項目」，選專案資料夾底下的 `.output/chrome-mv3`。
 3. 載入或重新載入擴充功能之後，已經開著的 Netflix、YouTube、Disney+ 分頁都要各重新整理一次（內容腳本不會自動注入舊分頁）。沒重新整理就按快捷鍵或工具列圖示，頁面上不會有任何反應，但那個分頁的工具列圖示會出現 `!` 徽章，滑鼠停上去會顯示「請重新整理這個 YouTube 分頁後再按一次」（Netflix、Disney+ 分頁則是各自的名稱）；重新整理分頁後徽章會消失（最晚在下一次按鍵成功時清掉）。
 4. 從只支援 Netflix 的舊版升級：新版多了 `www.youtube.com`、`www.disneyplus.com` 兩個網站權限，要在 `chrome://extensions` 按 ResonNote 的重新載入，新的 manifest 才會生效，這兩個網站才會注入內容腳本。重新載入後點「詳細資料」，「網站存取」應該有 Netflix、YouTube、Disney+ 三個網站。
-
-manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那個。沒有固定 `key` 的話，開發人員模式載入的 ID 會跟著資料夾路徑變，舊筆記就讀不到。
 
 ## 使用方式
 
@@ -66,22 +67,29 @@ manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那�
 
 筆記存在擴充功能自己的 IndexedDB。**移除擴充功能會連筆記和圖片一起刪掉**。請定期按「全部備份」；筆記本頁面會顯示「上次備份」，超過 14 天會用醒目顏色提醒。
 
+## 隱私
+
+- 筆記（片名、秒數、台詞、心得）和截圖都只存在你瀏覽器本機的擴充功能 IndexedDB，不會上傳到任何伺服器。沒有帳號，沒有分析或追蹤。
+- 擴充功能唯一會主動向網路讀資料的地方，都在 Netflix 頁面內、只讀不寫：向 netflix.com 讀這部片的片名資料，以及重新讀取 Netflix 頁面本來就載入過的進度條小圖檔（網址取自頁面自己的資源紀錄，是畫面的備案來源）。兩者都不含任何筆記內容。YouTube、Disney+ 頁面內沒有任何擴充功能發出的網路請求。點時間按鈕開新分頁，只是用瀏覽器開啟該平台的影片網址。
+- 權限只有 `activeTab`、`storage`、`unlimitedStorage`，以及 `www.netflix.com`、`www.youtube.com`、`www.disneyplus.com` 三個網站。
+- 備份、匯出都是在本機產生檔案下載，不經過任何伺服器。
+
 ## 已知限制
 
 - 只在 macOS 的 Chrome 上實測過；其他系統與瀏覽器沒測。
-- 這是依賴各平台頁面內部結構的做法，網站改版就可能壞。設計上哪一項壞掉就只少那一項，記錄流程本身不會中斷（Netflix 的細節見 spec §8，YouTube 與 Disney+ 見 `docs/superpowers/specs/2026-10-29-youtube-disney-design.md`）。各平台的退路：
+- 這是依賴各平台頁面內部結構的做法，網站改版就可能壞。設計上哪一項壞掉就只少那一項，記錄流程本身不會中斷。各平台的退路：
   - Netflix
     - 播放器內部介面讀不到：秒數改讀 `<video>`，跳回改成開那部片。
     - 片名讀不到：用分頁標題，再不行用片子編號。
     - 台詞讀不到：留空，自己打。
-    - 完整截圖變黑或失敗：改用進度條小圖，標記「低解析度」。
+    - 完整截圖失敗或拿到全黑畫面：改用進度條小圖，標記「低解析度」。
     - 進度條小圖也沒有：筆記照存，沒有圖。
   - YouTube
     - 播放器內部介面讀不到：秒數與片子改讀網址和 `<video>`，片名用清理過的分頁標題（讀不到就用「YouTube 影片代碼」），暫停、播放、跳秒直接操作 `<video>`；小視窗會列出「播放器介面讀不到，秒數改從影片讀」。
     - 台詞：讀 YouTube 自己的字幕；剛開字幕或切換語言時，播放器上短暫出現的語言名稱不算台詞。沒字幕就留空，自己打。有裝 Language Reactor 時改讀它的字幕。
       - 只讀得到 CC 字幕：燒進影片畫面的字幕（很多中文頻道的大字幕）是影像不是文字，會留在截圖裡，但台詞欄讀不到；那種影片要把 CC 打開才有台詞。
       - CC 開了自動翻譯（設定裡的「中文 >> 英文」這種）時，讀到的是翻譯後的文字；機器翻譯的字幕是一段段跳出來的，按下去那一刻可能只有半句。
-    - 完整截圖變黑或失敗：改用從 `<video>` 直接取的原畫面（畫質完整，但**不含字幕**，也不會標「低解析度」）。
+    - 完整截圖失敗或拿到全黑畫面：改用從 `<video>` 直接取的原畫面（畫質完整，但**不含字幕**，也不會標「低解析度」）。
     - 原畫面也沒有：筆記照存，沒有圖（YouTube 沒有進度條小圖備案）。
     - 廣告播放中不能記：廣告的秒數不是影片的秒數，所以廣告期間頁面上不會出現「記下這一刻」按鈕，按快捷鍵也沒反應，廣告結束再按。
     - 不存頻道名稱（YouTube 片名常已含頻道）。
@@ -89,7 +97,7 @@ manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那�
     - 秒數、片名、季與集、暫停、播放、跳秒都靠播放器內部介面。讀不到時**不會**退回 `<video>`（Disney+ 的 `<video>` 時間不是劇集時間）；改讀進度條上的秒數（控制列露出時才有），兩個都沒有就不記，按了沒反應。
     - 片名讀不到：用分頁標題（去掉「| Disney+」），再不行用「Disney+」加編號前 8 碼。
     - 季、集是解析播放器顯示的那一行文字（例如「第 1 季第 2 集：集名」），看不懂就整行當集名；電影沒有。
-    - 沒有低解析度備案：完整截圖是唯一的畫面來源（影片有 DRM，從 `<video>` 取到的是全黑）。
+    - 沒有低解析度備案：完整截圖是唯一的畫面來源（受保護的影片無法從 `<video>` 取得畫面）。
     - 台詞讀不到：留空，自己打（不讀 Language Reactor）。
     - 連結不帶秒數：見上面「點時間按鈕」與匯出。
     - 有廣告方案的廣告沒有偵測，也沒測過。
@@ -99,7 +107,7 @@ manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那�
   - Disney+：沒有圖，小視窗提示「請先在這個分頁按一次快捷鍵或工具列的 ResonNote 圖示」。
 - 不支援：嵌在其他網站的 YouTube、`m.youtube.com`、YouTube Music、`youtu.be` 短網址分頁。YouTube 直播（`/live/`）網址會被當成播放頁，但沒實測過。
 - 圖卡的換行沒有避頭尾規則，逗號、句號偶爾會出現在行首。
-- 出問題時，console 裡有 `[resonnote]` 前綴的訊息可以查。
+- 出問題時，console 裡有 `[resonnote]` 前綴的訊息可以查，回報問題時請附上。
 
 ## 開發
 
@@ -110,7 +118,20 @@ pnpm build     # 輸出到 .output/chrome-mv3
 pnpm dev       # WXT 開發模式
 ```
 
-- 設計文件：[`docs/superpowers/specs/2026-10-28-scenenote-design.md`](docs/superpowers/specs/2026-10-28-scenenote-design.md)
-- 實作計畫：[`docs/superpowers/plans/2026-10-28-scenenote-v1.md`](docs/superpowers/plans/2026-10-28-scenenote-v1.md)
-- 實機驗收清單：[`docs/acceptance-2026-10-28.md`](docs/acceptance-2026-10-28.md)（v1，Netflix）
-- YouTube 與 Disney+：設計文件 [`docs/superpowers/specs/2026-10-29-youtube-disney-design.md`](docs/superpowers/specs/2026-10-29-youtube-disney-design.md)、實作計畫 [`docs/superpowers/plans/2026-10-29-youtube-disney.md`](docs/superpowers/plans/2026-10-29-youtube-disney.md)、實機驗收清單 [`docs/acceptance-2026-10-29-youtube-disney.md`](docs/acceptance-2026-10-29-youtube-disney.md)
+- 各平台的轉接層在 `src/platforms/`（`netflix/`、`youtube/`、`disney/` 各一個資料夾，由 `registry.ts` 註冊）；WXT 的進入點在 `src/entrypoints/`。
+- IndexedDB 資料庫名稱是 `scenenote`，沿用舊專案名稱，讓舊筆記與舊備份都能照常讀取；改名等於換一個資料庫，既有筆記會讀不到，請不要改。程式內的訊息類型、console 前綴等都是 `resonnote`。
+- `wxt.config.ts` 的 manifest 固定了 `key`，所以從原始碼載入的開發版不管資料夾放哪裡，擴充功能 ID 都是 `bldeoidbgkcdnmiholglmknnimdhnhff`。沒有固定 `key` 的話，開發人員模式載入的 ID 會跟著資料夾路徑變，IndexedDB 也跟著換，舊筆記就讀不到。這個 ID 只適用於從原始碼載入的開發版；fork 後如果要自行發行，請換成自己的 `key`。
+
+## 貢獻
+
+歡迎回報問題與提交 PR，開發流程與規範見 [CONTRIBUTING.md](CONTRIBUTING.md)。安全性問題請照 [SECURITY.md](SECURITY.md) 私下回報。
+
+## 免責聲明
+
+這是個人開源專案，與 Netflix、YouTube（Google）、Disney+ 沒有任何關係，也未獲其背書或贊助。Netflix、YouTube、Google、Disney+ 等名稱與商標屬各自的所有者，這裡僅用來說明本擴充功能支援的網站。
+
+擷取的畫面與台詞，版權屬原權利人，僅供個人筆記用途。請勿公開散布侵權內容。各網站改版可能讓部分或全部功能失效，作者不保證持續可用。
+
+## 授權
+
+[MIT](LICENSE) © 2026 Bobo Chen
