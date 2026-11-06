@@ -68,7 +68,7 @@ describe('jumpTo', () => {
     expect(result).toBe('existing');
     expect(t.focus).toHaveBeenCalledWith(2, 20);
     expect(t.sendToTab).toHaveBeenCalledWith(2, {
-      type: 'scenenote/seek',
+      type: 'resonnote/seek',
       timeMs: 1_003_469,
       videoId: '83053998',
     });
@@ -170,7 +170,7 @@ describe('jumpTo on YouTube', () => {
     );
     expect(t.focus).toHaveBeenCalledWith(2, 20);
     expect(t.sendToTab).toHaveBeenCalledWith(2, {
-      type: 'scenenote/seek',
+      type: 'resonnote/seek',
       timeMs: 1_003_469,
       videoId: 'arj7oStGLkU',
     });
@@ -210,7 +210,7 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.focus).toHaveBeenCalledWith(4, 40);
     expect(t.sendToTab).toHaveBeenCalledTimes(1);
     expect(t.sendToTab).toHaveBeenCalledWith(4, {
-      type: 'scenenote/seek',
+      type: 'resonnote/seek',
       timeMs: 600_000,
       videoId: DISNEY_ID,
     });
@@ -245,7 +245,7 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.createTab).toHaveBeenCalledWith(DISNEY_LINK);
     expect(t.sendToTab).toHaveBeenCalledTimes(3);
     for (const call of t.sendToTab.mock.calls) {
-      expect(call).toEqual([99, { type: 'scenenote/seek', timeMs: 600_000, videoId: DISNEY_ID }]);
+      expect(call).toEqual([99, { type: 'resonnote/seek', timeMs: 600_000, videoId: DISNEY_ID }]);
     }
     expect(t.wait).toHaveBeenCalledTimes(3);
     for (const call of t.wait.mock.calls) expect(call).toEqual([SEEK_RETRY_MS]);
@@ -271,7 +271,7 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.wait).toHaveBeenCalledTimes(30);
     expect(t.clock.now - openedAt).toBe(SEEK_RETRY_WINDOW_MS);
     expect(console.warn).toHaveBeenCalledTimes(1);
-    expect(String(vi.mocked(console.warn).mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(vi.mocked(console.warn).mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
   });
 
   it('counts a message that throws as a failed attempt too, for the whole window', async () => {
@@ -315,7 +315,7 @@ describe('jumpTo on Disney+ (the link cannot carry the time)', () => {
     expect(t.createTab).not.toHaveBeenCalled();
     expect(t.sendToTab).toHaveBeenCalledTimes(3);
     expect(t.sendToTab).toHaveBeenLastCalledWith(4, {
-      type: 'scenenote/seek',
+      type: 'resonnote/seek',
       timeMs: 600_000,
       videoId: DISNEY_ID,
     });

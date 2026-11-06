@@ -53,11 +53,11 @@ beforeEach(async () => {
   background.main();
 });
 
-describe('scenenote/recent', () => {
+describe('resonnote/recent', () => {
   it('treats a message without a platform as Netflix (what older content scripts send)', async () => {
     await putNote(makeNote('netflix-note'));
     await putNote(makeNote('youtube-note', { platform: 'youtube' }));
-    const reply = (await ask({ type: 'scenenote/recent', videoId: '12345678901', limit: 5 })) as RecentNote[];
+    const reply = (await ask({ type: 'resonnote/recent', videoId: '12345678901', limit: 5 })) as RecentNote[];
     expect(reply.map((n) => n.body)).toEqual(['netflix-note']);
   });
 
@@ -65,7 +65,7 @@ describe('scenenote/recent', () => {
     await putNote(makeNote('netflix-note'));
     await putNote(makeNote('youtube-note', { platform: 'youtube' }));
     const reply = (await ask({
-      type: 'scenenote/recent',
+      type: 'resonnote/recent',
       platform: 'youtube',
       videoId: '12345678901',
       limit: 5,
@@ -75,15 +75,15 @@ describe('scenenote/recent', () => {
 
   it.each([['hulu'], [7], [null], ['']])('ignores a message that names the platform %j', async (platform) => {
     expect(
-      await ask({ type: 'scenenote/recent', platform, videoId: '12345678901', limit: 5 }),
+      await ask({ type: 'resonnote/recent', platform, videoId: '12345678901', limit: 5 }),
     ).toBe('ignored');
   });
 });
 
-describe('scenenote/jump', () => {
+describe('resonnote/jump', () => {
   it.each([['hulu'], [7], [null], ['']])('ignores a message that names the platform %j', async (platform) => {
     expect(
-      await ask({ type: 'scenenote/jump', platform, videoId: '12345678901', timeMs: 1000 }),
+      await ask({ type: 'resonnote/jump', platform, videoId: '12345678901', timeMs: 1000 }),
     ).toBe('ignored');
   });
 
@@ -93,7 +93,7 @@ describe('scenenote/jump', () => {
       .spyOn(fakeBrowser.tabs, 'create')
       .mockImplementation((async () => ({ id: 5 })) as never);
 
-    const older = await ask({ type: 'scenenote/jump', videoId: '83053998', timeMs: 61_000 });
+    const older = await ask({ type: 'resonnote/jump', videoId: '83053998', timeMs: 61_000 });
     expect(older).toEqual({ ok: true, result: 'new' });
     expect(query).toHaveBeenLastCalledWith({
       url: ['https://www.netflix.com/watch/*', 'https://www.netflix.com/*/watch/*'],
@@ -101,7 +101,7 @@ describe('scenenote/jump', () => {
     expect(create).toHaveBeenLastCalledWith({ url: 'https://www.netflix.com/watch/83053998?t=61' });
 
     const youtube = await ask({
-      type: 'scenenote/jump',
+      type: 'resonnote/jump',
       platform: 'youtube',
       videoId: 'arj7oStGLkU',
       timeMs: 61_000,
@@ -113,16 +113,16 @@ describe('scenenote/jump', () => {
   });
 });
 
-describe('scenenote/delete', () => {
+describe('resonnote/delete', () => {
   it('deletes the note and answers ok', async () => {
     await putNote(makeNote('gone'));
     await putNote(makeNote('kept'));
-    expect(await ask({ type: 'scenenote/delete', id: 'gone' })).toEqual({ ok: true });
+    expect(await ask({ type: 'resonnote/delete', id: 'gone' })).toEqual({ ok: true });
     expect(await getNote('gone')).toBeUndefined();
     expect(await getNote('kept')).toBeDefined();
   });
 
   it.each([[7], [null], [undefined]])('ignores a message whose id is %j', async (id) => {
-    expect(await ask({ type: 'scenenote/delete', id })).toBe('ignored');
+    expect(await ask({ type: 'resonnote/delete', id })).toBe('ignored');
   });
 });

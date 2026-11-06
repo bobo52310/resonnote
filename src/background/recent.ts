@@ -35,14 +35,14 @@ export async function listRecent(
             const bytes = await deps.getImage(note.id);
             if (bytes) thumb = await deps.shrink(bytes);
           } catch (error) {
-            console.warn('[scenenote] could not prepare an earlier picture', error);
+            console.warn('[resonnote] could not prepare an earlier picture', error);
           }
         }
         return { id: note.id, timeMs: note.timeMs, subtitle: note.subtitle, body: note.body, thumb };
       }),
     );
   } catch (error) {
-    console.error('[scenenote] could not read the earlier notes', error);
+    console.error('[resonnote] could not read the earlier notes', error);
     return [];
   }
 }

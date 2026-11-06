@@ -1,19 +1,20 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Note } from './types';
 
+// Kept from the old project name scenenote: renaming it would orphan every saved note.
 const DB_NAME = 'scenenote';
 const DB_VERSION = 1;
 
-interface SceneNoteDB extends DBSchema {
+interface ResonNoteDB extends DBSchema {
   notes: { key: string; value: Note };
   images: { key: string; value: ArrayBuffer };
 }
 
-let dbPromise: Promise<IDBPDatabase<SceneNoteDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<ResonNoteDB>> | null = null;
 
-function getDb(): Promise<IDBPDatabase<SceneNoteDB>> {
+function getDb(): Promise<IDBPDatabase<ResonNoteDB>> {
   if (!dbPromise) {
-    const opening = openDB<SceneNoteDB>(DB_NAME, DB_VERSION, {
+    const opening = openDB<ResonNoteDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
         db.createObjectStore('notes', { keyPath: 'id' });
         // Out-of-line keys: the note id is the key, the value is the raw JPEG bytes.

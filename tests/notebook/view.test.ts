@@ -945,7 +945,7 @@ describe('backup', () => {
 
   async function chooseFile(bytes: Uint8Array): Promise<void> {
     const input = q<HTMLInputElement>('input[type="file"]');
-    const file = new File([bytes.slice()], 'scenenote-backup.zip', { type: 'application/zip' });
+    const file = new File([bytes.slice()], 'resonnote-backup.zip', { type: 'application/zip' });
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }

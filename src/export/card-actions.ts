@@ -27,7 +27,7 @@ async function decodeImage(
   try {
     return await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
   } catch (err) {
-    console.warn('[scenenote] could not decode note image, rendering card without it', err);
+    console.warn('[resonnote] could not decode note image, rendering card without it', err);
     return null;
   }
 }
@@ -99,7 +99,7 @@ export function mountCardActions(toolbar: HTMLElement, deps: CardActionsDeps): v
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       deps.notify(MSG_COPIED);
     } catch (err) {
-      console.warn('[scenenote] copy card failed', err);
+      console.warn('[resonnote] copy card failed', err);
       deps.notify('複製失敗：' + errorMessage(err));
     }
   });
@@ -117,7 +117,7 @@ export function mountCardActions(toolbar: HTMLElement, deps: CardActionsDeps): v
         downloadBytes(cardFileName(note), blob, 'image/png');
       }
     } catch (err) {
-      console.warn('[scenenote] download card failed', err);
+      console.warn('[resonnote] download card failed', err);
       deps.notify('下載失敗：' + errorMessage(err));
     }
   });

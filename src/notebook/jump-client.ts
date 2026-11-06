@@ -15,13 +15,13 @@ export function createJump(
   notify: (message: string) => void,
 ): (note: Note) => void {
   const fail = (detail: string, cause: unknown) => {
-    console.warn('[scenenote] could not jump back', cause);
+    console.warn('[resonnote] could not jump back', cause);
     notify(`跳回失敗：${detail}`);
   };
 
   const run = async (note: Note): Promise<void> => {
     const reply = (await send({
-      type: 'scenenote/jump',
+      type: 'resonnote/jump',
       platform: note.platform,
       videoId: note.videoId,
       timeMs: note.timeMs,

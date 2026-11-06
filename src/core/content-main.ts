@@ -23,15 +23,15 @@ export interface ContentScriptOptions {
 export function isToContent(message: unknown): message is ToContent {
   if (typeof message !== 'object' || message === null) return false;
   const { type } = message as { type?: unknown };
-  if (type === 'scenenote/begin') return true;
-  if (type === 'scenenote/show') {
+  if (type === 'resonnote/begin') return true;
+  if (type === 'resonnote/show') {
     const { dataUrl, hint } = message as { dataUrl?: unknown; hint?: unknown };
     return (
       (dataUrl === null || typeof dataUrl === 'string') &&
       (hint === undefined || hint === 'use-shortcut-once')
     );
   }
-  if (type === 'scenenote/seek') {
+  if (type === 'resonnote/seek') {
     const { timeMs, videoId } = message as { timeMs?: unknown; videoId?: unknown };
     return (
       Number.isFinite(timeMs) &&
@@ -86,8 +86,8 @@ export function runContentScript(opts: ContentScriptOptions): void {
   const quickButton = mountQuickButton({
     doc: document,
     onPress: () => {
-      browser.runtime.sendMessage<ToBackground>({ type: 'scenenote/trigger' }).catch((error: unknown) => {
-        console.warn('[scenenote] the note button could not reach the extension', error);
+      browser.runtime.sendMessage<ToBackground>({ type: 'resonnote/trigger' }).catch((error: unknown) => {
+        console.warn('[resonnote] the note button could not reach the extension', error);
       });
     },
     isWatchPage: () => opts.watchVideoId() !== null,
@@ -105,7 +105,7 @@ export function runContentScript(opts: ContentScriptOptions): void {
       browser.runtime.sendMessage<ToBackground, SaveResult | void>(msg),
     loadRecent: async (videoId: string) => {
       const notes = await browser.runtime.sendMessage<ToBackground, RecentNote[] | undefined>({
-        type: 'scenenote/recent',
+        type: 'resonnote/recent',
         platform,
         videoId,
         limit: 2,
@@ -139,26 +139,26 @@ export function runContentScript(opts: ContentScriptOptions): void {
 
   const handle = async (message: ToContent): Promise<unknown> => {
     switch (message.type) {
-      case 'scenenote/begin':
+      case 'resonnote/begin':
         return controller.begin();
-      case 'scenenote/show':
+      case 'resonnote/show':
         return controller.show(message.dataUrl, message.hint);
-      case 'scenenote/seek':
+      case 'resonnote/seek':
         return seekAndPause(message.timeMs, message.videoId);
     }
   };
 
   browser.runtime
-    .sendMessage<ToBackground, string | undefined>({ type: 'scenenote/shortcut' })
+    .sendMessage<ToBackground, string | undefined>({ type: 'resonnote/shortcut' })
     .then((shortcut) => quickButton.setShortcut(typeof shortcut === 'string' ? shortcut : ''))
     .catch(() => quickButton.setShortcut(''));
 
   browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (!isToContent(message)) return;
     handle(message).then(sendResponse, (error: unknown) => {
-      console.error('[scenenote] could not handle', message.type, error);
+      console.error('[resonnote] could not handle', message.type, error);
       sendResponse(
-        message.type === 'scenenote/begin'
+        message.type === 'resonnote/begin'
           ? ({ status: 'no-video' } satisfies BeginResult)
           : undefined,
       );

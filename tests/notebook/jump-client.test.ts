@@ -21,7 +21,7 @@ describe('createJump', () => {
     createJump(send, notify)(NOTE);
     await settle();
     expect(send).toHaveBeenCalledWith({
-      type: 'scenenote/jump',
+      type: 'resonnote/jump',
       platform: 'netflix',
       videoId: '83053998',
       timeMs: 1_003_469,
@@ -36,7 +36,7 @@ describe('createJump', () => {
       const send = vi.fn(async (_m: ToBackground): Promise<unknown> => ({ ok: true, result: 'new' }) satisfies JumpResult);
       createJump(send, vi.fn())({ platform, videoId, timeMs: 61_000 } as Note);
       await settle();
-      expect(send).toHaveBeenCalledWith({ type: 'scenenote/jump', platform, videoId, timeMs: 61_000 });
+      expect(send).toHaveBeenCalledWith({ type: 'resonnote/jump', platform, videoId, timeMs: 61_000 });
     },
   );
 
@@ -47,7 +47,7 @@ describe('createJump', () => {
     await settle();
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith('跳回失敗：Error: No tab with id: 12');
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
   });
 
   it('shows a failure to reach the background as well', async () => {
@@ -58,7 +58,7 @@ describe('createJump', () => {
     createJump(send, notify)(NOTE);
     await settle();
     expect(notify).toHaveBeenCalledWith('跳回失敗：Extension context invalidated.');
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
   });
 
   it('does not report anything for an empty reply', async () => {

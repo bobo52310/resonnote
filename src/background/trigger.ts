@@ -37,7 +37,7 @@ async function updateBadge(
   try {
     await deps.setBadge(tabId, text, title);
   } catch (error) {
-    console.warn('[scenenote] could not update the toolbar badge', error);
+    console.warn('[resonnote] could not update the toolbar badge', error);
   }
 }
 
@@ -73,9 +73,9 @@ export async function handleTrigger(
 
   let status: string | null;
   try {
-    status = beginStatus(await deps.sendToTab(tabId, { type: 'scenenote/begin' }));
+    status = beginStatus(await deps.sendToTab(tabId, { type: 'resonnote/begin' }));
   } catch (error) {
-    console.warn(`[scenenote] could not reach the page; reload the ${label} tab`, error);
+    console.warn(`[resonnote] could not reach the page; reload the ${label} tab`, error);
     await updateBadge(deps, tabId, RELOAD_BADGE, reloadHint);
     return 'no-video';
   }
@@ -95,17 +95,17 @@ export async function handleTrigger(
     const shot = await deps.captureVisibleTab(tab.windowId);
     if (typeof shot === 'string' && shot !== '') dataUrl = shot;
   } catch (error) {
-    console.warn('[scenenote] screenshot failed, continuing without it', error);
+    console.warn('[resonnote] screenshot failed, continuing without it', error);
   }
   const show: ToContent =
     dataUrl === null && source === 'button'
-      ? { type: 'scenenote/show', dataUrl, hint: 'use-shortcut-once' }
-      : { type: 'scenenote/show', dataUrl };
+      ? { type: 'resonnote/show', dataUrl, hint: 'use-shortcut-once' }
+      : { type: 'resonnote/show', dataUrl };
 
   try {
     await deps.sendToTab(tabId, show);
   } catch (error) {
-    console.warn('[scenenote] could not show the note overlay', error);
+    console.warn('[resonnote] could not show the note overlay', error);
     return 'no-video';
   }
   return 'shown';

@@ -6,7 +6,7 @@ let onPress: Mock<() => void>;
 let watch = true;
 let busy = false;
 
-const host = () => document.querySelector<HTMLElement>('[data-scenenote-button]');
+const host = () => document.querySelector<HTMLElement>('[data-resonnote-button]');
 const button = () => host()!.shadowRoot!.querySelector('button')!;
 const visible = () => host()?.hasAttribute('data-visible') ?? false;
 const moveMouse = () => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));

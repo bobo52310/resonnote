@@ -54,7 +54,7 @@ export function refreshOnReturn(root: HTMLElement, deps: NotebookDeps): () => vo
     if (running) return;
     running = true;
     refreshIfChanged(root, deps)
-      .catch((error: unknown) => console.warn('[scenenote] could not refresh the notebook', error))
+      .catch((error: unknown) => console.warn('[resonnote] could not refresh the notebook', error))
       .finally(() => {
         running = false;
       });

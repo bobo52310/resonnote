@@ -153,7 +153,7 @@ describe('playback', () => {
       },
     });
     expect(await ask('playback')).toBeNull();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[scenenote]'), expect.anything());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[resonnote]'), expect.anything());
   });
 });
 
@@ -358,14 +358,14 @@ describe('who may ask', () => {
     try {
       // A frame of another origin on the page can post to this window too.
       for (const source of [frame as unknown as MessageEventSource, null]) {
-        post({ source: 'scenenote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
-        post({ source: 'scenenote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
+        post({ source: 'resonnote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
+        post({ source: 'resonnote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
       }
       await settle();
       expect(player.seek).not.toHaveBeenCalled();
       expect(player.pause).not.toHaveBeenCalled();
 
-      post({ source: 'scenenote-req', id: 'own', op: 'pause' }, window, window.location.origin);
+      post({ source: 'resonnote-req', id: 'own', op: 'pause' }, window, window.location.origin);
       await settle();
       expect(player.pause).toHaveBeenCalledTimes(1);
     } finally {
@@ -392,7 +392,7 @@ describe('installPageBridge', () => {
     mountPlayer(player);
     const responses: unknown[] = [];
     const collect = (event: MessageEvent) => {
-      if ((event.data as { source?: string } | null)?.source === 'scenenote-res') responses.push(event.data);
+      if ((event.data as { source?: string } | null)?.source === 'resonnote-res') responses.push(event.data);
     };
     window.addEventListener('message', collect);
     await ask('pause');

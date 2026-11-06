@@ -22,7 +22,7 @@ const FRAME_BYTES = new Uint8Array([0xff, 0xd8, 9, 9]);
 const RECT: Rect = { x: 0, y: 100, width: 1280, height: 720 };
 const PLAYBACK: Playback = { videoId: '83053998', title: '造山者', timeMs: 1003469 };
 
-type SaveMessage = Extract<ToBackground, { type: 'scenenote/save' }>;
+type SaveMessage = Extract<ToBackground, { type: 'resonnote/save' }>;
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -197,7 +197,7 @@ function videoCalls(): string[] {
 function savedMessages(): SaveMessage[] {
   return h.sendToBackground.mock.calls
     .map(([msg]) => msg)
-    .filter((msg): msg is SaveMessage => msg.type === 'scenenote/save');
+    .filter((msg): msg is SaveMessage => msg.type === 'resonnote/save');
 }
 
 function lastNote(): Note {
@@ -212,7 +212,7 @@ describe('edits of earlier notes', () => {
     opts.onEditPrevious!('old', { subtitle: '台詞', body: '新心得' });
     await vi.waitFor(() =>
       expect(h.sendToBackground).toHaveBeenCalledWith({
-        type: 'scenenote/update',
+        type: 'resonnote/update',
         id: 'old',
         subtitle: '台詞',
         body: '新心得',
@@ -243,7 +243,7 @@ describe('deleting earlier notes from the overlay', () => {
 
     opts.onDeletePrevious!('old');
     await vi.waitFor(() => expect(showPrevious()).toHaveBeenLastCalledWith(OLDER));
-    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'scenenote/delete', id: 'old' });
+    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'resonnote/delete', id: 'old' });
     expect(h.loadRecent).toHaveBeenCalledTimes(2);
     expect(h.loadRecent).toHaveBeenLastCalledWith(PLAYBACK.videoId);
     expect(h.overlay.handle.showError).not.toHaveBeenCalled();
@@ -753,7 +753,7 @@ describe('show: opening the overlay', () => {
   it('opens the notebook from the overlay link', async () => {
     const { opts } = await capture();
     opts.onOpenNotebook();
-    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'scenenote/open-notebook' });
+    expect(h.sendToBackground).toHaveBeenCalledWith({ type: 'resonnote/open-notebook' });
   });
 
   it('does not leave the video paused behind a stuck overlay when opening it throws', async () => {
@@ -886,7 +886,7 @@ describe('cancelling', () => {
 
 describe('with the real overlay', () => {
   function overlayHost(): ShadowRoot | null {
-    return h.mountEl.querySelector('[data-scenenote-overlay]')?.shadowRoot ?? null;
+    return h.mountEl.querySelector('[data-resonnote-overlay]')?.shadowRoot ?? null;
   }
 
   function pressEnterInNote(text: string) {

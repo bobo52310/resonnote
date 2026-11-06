@@ -4,7 +4,7 @@
 
 > 這一秒打動你，就把它留下來。
 
-專案代號與 repo 名稱仍是 `scenenote`（資料庫名稱、內部訊息也沿用，舊筆記與舊備份都能照常讀取）。
+IndexedDB 資料庫名稱仍是 `scenenote`（沿用舊專案名稱，舊筆記與舊備份都能照常讀取）；程式內的訊息類型、console 前綴等都已改成 `resonnote`。
 
 擴充功能 ID：`bldeoidbgkcdnmiholglmknnimdhnhff`
 
@@ -15,7 +15,7 @@ pnpm install && pnpm build
 ```
 
 1. 開 `chrome://extensions`，右上角打開「開發人員模式」。
-2. 按「載入未封裝項目」，選 `/Users/bobochen/Desktop/github/bobo52310/scenenote/.output/chrome-mv3`。
+2. 按「載入未封裝項目」，選 `/Users/bobochen/Desktop/github/bobo52310/resonnote/.output/chrome-mv3`。
 3. 載入或重新載入擴充功能之後，已經開著的 Netflix、YouTube、Disney+ 分頁都要各重新整理一次（內容腳本不會自動注入舊分頁）。沒重新整理就按快捷鍵或工具列圖示，頁面上不會有任何反應，但那個分頁的工具列圖示會出現 `!` 徽章，滑鼠停上去會顯示「請重新整理這個 YouTube 分頁後再按一次」（Netflix、Disney+ 分頁則是各自的名稱）；重新整理分頁後徽章會消失（最晚在下一次按鍵成功時清掉）。
 4. 從只支援 Netflix 的舊版升級：新版多了 `www.youtube.com`、`www.disneyplus.com` 兩個網站權限，要在 `chrome://extensions` 按 ResonNote 的重新載入，新的 manifest 才會生效，這兩個網站才會注入內容腳本。重新載入後點「詳細資料」，「網站存取」應該有 Netflix、YouTube、Disney+ 三個網站。
 
@@ -51,7 +51,7 @@ manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那�
 - 筆記依「平台＋片子」分組，每組標題旁有平台小標籤（Netflix、YouTube、Disney+），影集會標季、集。
 - 點時間按鈕：跳回那一刻。同一部片已經開著（同平台、同一支）就切過去並暫停在那一秒；沒開就開新分頁：
   - Netflix、YouTube：從那一秒播放（連結本身帶秒數）。
-  - Disney+：連結帶不了秒數，新分頁會先從 Disney+ 上次看到的地方開始，擴充功能每秒叫播放器跳一次，直到跳成功並暫停在那一秒，最多等 30 秒（實測約 5 到 6 秒）。超過 30 秒還沒跳成功就停在原地，console 會留一行 `[scenenote] could not seek the Disney+ tab…`。
+  - Disney+：連結帶不了秒數，新分頁會先從 Disney+ 上次看到的地方開始，擴充功能每秒叫播放器跳一次，直到跳成功並暫停在那一秒，最多等 30 秒（實測約 5 到 6 秒）。超過 30 秒還沒跳成功就停在原地，console 會留一行 `[resonnote] could not seek the Disney+ tab…`。
 - 心得可以直接改，停止打字約半秒後自動存檔，離開輸入框、切走分頁或關掉頁面時也會存。「刪除」要按兩次才會刪。
 - 畫面是用進度條小圖存下來的筆記（完整截圖被擋時，只有 Netflix 有這個備案），縮圖旁會標「低解析度」。YouTube 的影片原畫面備案畫質是完整的，不會標。
 - 勾選筆記後可以匯出：
@@ -99,7 +99,7 @@ manifest 固定了 `key`，所以不管資料夾放哪裡，ID 都是上面那�
   - Disney+：沒有圖，小視窗提示「請先在這個分頁按一次快捷鍵或工具列的 ResonNote 圖示」。
 - 不支援：嵌在其他網站的 YouTube、`m.youtube.com`、YouTube Music、`youtu.be` 短網址分頁。YouTube 直播（`/live/`）網址會被當成播放頁，但沒實測過。
 - 圖卡的換行沒有避頭尾規則，逗號、句號偶爾會出現在行首。
-- 出問題時，console 裡有 `[scenenote]` 前綴的訊息可以查。
+- 出問題時，console 裡有 `[resonnote]` 前綴的訊息可以查。
 
 ## 開發
 

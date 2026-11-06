@@ -1,19 +1,19 @@
 import type { Note, Platform } from './types';
 
-/** Answer to `scenenote/begin`: whether a capture may go ahead. */
+/** Answer to `resonnote/begin`: whether a capture may go ahead. */
 export type BeginResult = { status: 'ok' } | { status: 'busy' } | { status: 'no-video' };
 
 /** Background -> content script. */
 export type ToContent =
-  | { type: 'scenenote/begin' }
+  | { type: 'resonnote/begin' }
   | {
-      type: 'scenenote/show';
+      type: 'resonnote/show';
       dataUrl: string | null;
       /** Set when the on-page button could not take a screenshot (no shortcut used in this tab yet). */
       hint?: 'use-shortcut-once';
     }
   | {
-      type: 'scenenote/seek';
+      type: 'resonnote/seek';
       timeMs: number;
       /**
        * The title the seek is meant for. A page that plays something else (the tab moved on while
@@ -24,18 +24,18 @@ export type ToContent =
 
 /** Content script (or extension page) -> background. Images travel as data URLs: messages are JSON. */
 export type ToBackground =
-  | { type: 'scenenote/save'; note: Note; imageDataUrl: string | null }
-  | { type: 'scenenote/open-notebook' }
-  | { type: 'scenenote/jump'; platform: Platform; videoId: string; timeMs: number }
-  | { type: 'scenenote/recent'; platform: Platform; videoId: string; limit: number }
+  | { type: 'resonnote/save'; note: Note; imageDataUrl: string | null }
+  | { type: 'resonnote/open-notebook' }
+  | { type: 'resonnote/jump'; platform: Platform; videoId: string; timeMs: number }
+  | { type: 'resonnote/recent'; platform: Platform; videoId: string; limit: number }
   /** Edits made to an earlier note from the overlay's film strip. */
-  | { type: 'scenenote/update'; id: string; subtitle: string; body: string }
+  | { type: 'resonnote/update'; id: string; subtitle: string; body: string }
   /** An earlier note deleted from the overlay's film strip. */
-  | { type: 'scenenote/delete'; id: string }
+  | { type: 'resonnote/delete'; id: string }
   /** The on-page 「記下這一刻」 button: same as the shortcut, for the tab that sent it. */
-  | { type: 'scenenote/trigger' }
+  | { type: 'resonnote/trigger' }
   /** The shortcut as the user has set it (for example 「⌥⇧N」), or '' when none is set. */
-  | { type: 'scenenote/shortcut' };
+  | { type: 'resonnote/shortcut' };
 
 /**
  * One earlier note of the same video (same platform and videoId), as the note overlay shows it
@@ -52,7 +52,7 @@ export interface RecentNote {
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
-/** Answer to `scenenote/jump`: which way the user was taken back to the moment. */
+/** Answer to `resonnote/jump`: which way the user was taken back to the moment. */
 export type JumpResult = { ok: true; result: 'existing' | 'new' } | { ok: false; error: string };
 
 const DATA_URL_BASE64 = /^data:[^,;]*(?:;[^,;]*)*;base64,/i;

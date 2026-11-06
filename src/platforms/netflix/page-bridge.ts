@@ -14,7 +14,7 @@ import { bifFrame, parseBif, type BifIndex } from './bif';
 import { mapNetflixMetadata } from './metadata';
 import { parseWatchVideoId } from './url';
 
-const INSTALLED = Symbol.for('scenenote.page-bridge');
+const INSTALLED = Symbol.for('resonnote.page-bridge');
 const BIF_URL = /\.bif(\?|$)/;
 
 /**

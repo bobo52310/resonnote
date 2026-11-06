@@ -13,7 +13,7 @@ import {
 } from '../bridge-protocol';
 import { parseWatchVideoId } from './url';
 
-const INSTALLED = Symbol.for('scenenote.page-bridge');
+const INSTALLED = Symbol.for('resonnote.page-bridge');
 
 /** A frame is drawn from the video only once it holds picture data (HAVE_CURRENT_DATA). */
 const HAVE_CURRENT_DATA = 2;

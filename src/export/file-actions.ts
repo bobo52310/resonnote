@@ -48,7 +48,7 @@ async function exportHtml(notes: Note[], deps: ExportFileDeps): Promise<void> {
     try {
       dataUrls.set(id, await downscaleJpeg(buffer, HTML_IMAGE_MAX_WIDTH));
     } catch (error) {
-      console.warn('[scenenote] could not downscale an image, exporting without it', error);
+      console.warn('[resonnote] could not downscale an image, exporting without it', error);
     }
   }
   const html = buildHtml(pageTitle(notes), notes, dataUrls);
@@ -85,7 +85,7 @@ function addButton(
       try {
         await run(notes);
       } catch (error) {
-        console.error('[scenenote] export failed', error);
+        console.error('[resonnote] export failed', error);
         deps.notify(MSG_EXPORT_FAILED);
       } finally {
         button.disabled = false;

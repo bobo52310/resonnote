@@ -85,7 +85,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     try {
       restore?.();
     } catch (error) {
-      console.warn('[scenenote] could not show the player controls again', error);
+      console.warn('[resonnote] could not show the player controls again', error);
     }
   }
 
@@ -94,7 +94,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
     try {
       restoreUiNow = adapter.hidePlayerUi();
     } catch (error) {
-      console.warn('[scenenote] could not hide the player controls', error);
+      console.warn('[resonnote] could not hide the player controls', error);
       return;
     }
     restoreUiTimer = setTimeout(restoreUi, PLAYER_UI_RESTORE_MS);
@@ -139,7 +139,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
           return { source: 'tab', dataUrl: crop.dataUrl, width: crop.width, height: crop.height, missing: null };
         }
       } catch (error) {
-        console.warn('[scenenote] could not crop the screenshot', error);
+        console.warn('[resonnote] could not crop the screenshot', error);
       }
     }
     if (adapter.grabFrame !== undefined) {
@@ -158,7 +158,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
           }
         }
       } catch (error) {
-        console.warn('[scenenote] could not use the frame drawn from the video', error);
+        console.warn('[resonnote] could not use the frame drawn from the video', error);
       }
     }
     try {
@@ -174,7 +174,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         };
       }
     } catch (error) {
-      console.warn('[scenenote] could not use the scrubber image', error);
+      console.warn('[resonnote] could not use the scrubber image', error);
     }
     return { source: 'none', dataUrl: null, width: 0, height: 0, missing: 'image' };
   }
@@ -193,7 +193,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
   }
 
   const send = (note: Note, imageDataUrl: string | null) =>
-    request({ type: 'scenenote/save', note, imageDataUrl });
+    request({ type: 'resonnote/save', note, imageDataUrl });
 
   // Numbers the strip reloads. Only the newest one is applied: a slower, older answer would put
   // back a note that was deleted since.
@@ -215,7 +215,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
       if (load !== stripLoads) return;
       if (notes.length > 0 || applyEmpty) handle.showPrevious(notes);
     } catch (error) {
-      console.warn('[scenenote] could not load the earlier notes', error);
+      console.warn('[resonnote] could not load the earlier notes', error);
     }
   }
 
@@ -234,7 +234,7 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         result = await handle.reopenResult();
       }
     } catch (error) {
-      console.error('[scenenote] the note overlay failed', error);
+      console.error('[resonnote] the note overlay failed', error);
     } finally {
       handle.close();
       await adapter.play();
@@ -280,12 +280,12 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
         subtitle: state.subtitle,
         missing,
         onEditPrevious: (id, changes) => {
-          void request({ type: 'scenenote/update', id, ...changes }).then((outcome) => {
+          void request({ type: 'resonnote/update', id, ...changes }).then((outcome) => {
             if (!outcome.ok) editedHandle?.showError('那一則的修改沒有存到：' + outcome.error);
           });
         },
         onDeletePrevious: (id) => {
-          void request({ type: 'scenenote/delete', id }).then(async (outcome) => {
+          void request({ type: 'resonnote/delete', id }).then(async (outcome) => {
             if (!outcome.ok) editedHandle?.showError('那一則沒有刪掉：' + outcome.error);
             // Either way the strip shows what is stored now: a note that was not deleted comes back.
             if (editedHandle !== null) {
@@ -294,8 +294,8 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
           });
         },
         onOpenNotebook: () => {
-          deps.sendToBackground({ type: 'scenenote/open-notebook' }).catch((error: unknown) => {
-            console.warn('[scenenote] could not open the notebook', error);
+          deps.sendToBackground({ type: 'resonnote/open-notebook' }).catch((error: unknown) => {
+            console.warn('[resonnote] could not open the notebook', error);
           });
         },
       });
@@ -305,10 +305,10 @@ export function createCaptureController(deps: CaptureControllerDeps): CaptureCon
       void reloadStrip(handle, state.playback.videoId, { applyEmpty: false });
       // Not awaited: the user may take minutes, and the caller only needs to know the overlay is up.
       void converse(handle, makeNote, picture.dataUrl).catch((error: unknown) => {
-        console.error('[scenenote] the note overlay failed', error);
+        console.error('[resonnote] the note overlay failed', error);
       });
     } catch (error) {
-      console.error('[scenenote] could not open the note overlay', error);
+      console.error('[resonnote] could not open the note overlay', error);
       await adapter.play();
       return;
     } finally {

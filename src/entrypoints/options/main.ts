@@ -6,7 +6,7 @@ import { refreshOnReturn } from '../../notebook/refresh';
 import { notifyNotebook, renderNotebook, type NotebookDeps } from '../../notebook/view';
 
 const root = document.getElementById('notebook');
-if (!root) throw new Error('[scenenote] #notebook is missing from the options page');
+if (!root) throw new Error('[resonnote] #notebook is missing from the options page');
 
 const deps: NotebookDeps = {
   listNotes,
@@ -23,7 +23,7 @@ const deps: NotebookDeps = {
 };
 
 renderNotebook(root, deps).catch((error: unknown) =>
-  console.error('[scenenote] could not draw the notebook', error),
+  console.error('[resonnote] could not draw the notebook', error),
 );
 
 // Notes are saved from Netflix tabs while this page may sit open in the background (the toolbar

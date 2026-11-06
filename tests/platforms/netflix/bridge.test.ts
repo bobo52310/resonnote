@@ -275,7 +275,7 @@ describe('page bridge', () => {
     expect(await callBridge('pause')).toBe(false);
     expect(await callBridge('pause')).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
   });
 
   it('is installed once even when asked twice', async () => {
@@ -374,14 +374,14 @@ describe('page bridge', () => {
     const player = makePlayer();
     installNetflix(player);
     const origin = window.location.origin;
-    window.postMessage({ source: 'scenenote-req', id: 'x', op: 'launch-missiles' }, origin);
-    window.postMessage({ source: 'scenenote-req', op: 'pause' }, origin);
+    window.postMessage({ source: 'resonnote-req', id: 'x', op: 'launch-missiles' }, origin);
+    window.postMessage({ source: 'resonnote-req', op: 'pause' }, origin);
     window.postMessage({ source: 'someone-else', id: 'x', op: 'pause' }, origin);
     window.postMessage('pause', origin);
     window.postMessage(null, origin);
 
     const pending = callBridge('playback');
-    window.postMessage({ source: 'scenenote-res', id: 'not-my-id', result: 'forged' }, origin);
+    window.postMessage({ source: 'resonnote-res', id: 'not-my-id', result: 'forged' }, origin);
     window.postMessage({ source: 'other-res', id: 'whatever', result: 'forged' }, origin);
     expect(await pending).toEqual({ videoId: '83053998', timeMs: 1003469, meta: { title: '造山者－世紀的賭注' } });
     expect(player.pause).not.toHaveBeenCalled();
@@ -391,7 +391,7 @@ describe('page bridge', () => {
 describe('page bridge: who may ask', () => {
   beforeAll(() => installPageBridge(window));
 
-  const request = { source: 'scenenote-req', id: 'x', op: 'pause' };
+  const request = { source: 'resonnote-req', id: 'x', op: 'pause' };
   const post = (source: MessageEventSource | null, origin: string) =>
     window.dispatchEvent(new MessageEvent('message', { data: request, origin, source }));
 

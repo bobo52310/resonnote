@@ -26,7 +26,7 @@ function open(overrides: Partial<Parameters<typeof openOverlay>[0]> = {}): Overl
 }
 
 function shadow(): ShadowRoot {
-  const host = mount.querySelector('[data-scenenote-overlay]');
+  const host = mount.querySelector('[data-resonnote-overlay]');
   if (!host?.shadowRoot) throw new Error('overlay host / shadow root not found');
   return host.shadowRoot;
 }
@@ -90,7 +90,7 @@ describe('MISSING_LABELS', () => {
 describe('rendering', () => {
   it('mounts a host with a shadow root into the given mount element', () => {
     open();
-    const host = mount.querySelector('[data-scenenote-overlay]');
+    const host = mount.querySelector('[data-resonnote-overlay]');
     expect(host).not.toBeNull();
     expect(host?.parentElement).toBe(mount);
     expect(host?.shadowRoot).not.toBeNull();
@@ -234,7 +234,7 @@ describe('save and cancel', () => {
     press(note(), { key: 'Enter' });
     await h.result;
     expect(h.isOpen()).toBe(true);
-    expect(mount.querySelector('[data-scenenote-overlay]')).not.toBeNull();
+    expect(mount.querySelector('[data-resonnote-overlay]')).not.toBeNull();
   });
 });
 
@@ -289,7 +289,7 @@ describe('keyboard isolation', () => {
     document.addEventListener('click', onDocClick);
     try {
       note().dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
-      const host = mount.querySelector('[data-scenenote-overlay]')!;
+      const host = mount.querySelector('[data-resonnote-overlay]')!;
       host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
       expect(onDocClick).not.toHaveBeenCalled();
     } finally {
@@ -299,7 +299,7 @@ describe('keyboard isolation', () => {
 });
 
 describe('mousedown focus handling (shadow DOM retargeting)', () => {
-  const host = () => mount.querySelector('[data-scenenote-overlay]') as HTMLElement;
+  const host = () => mount.querySelector('[data-resonnote-overlay]') as HTMLElement;
 
   /**
    * Dispatches a mousedown from `origin` the way a real browser presents it to
@@ -549,7 +549,7 @@ describe('film strip of earlier notes', () => {
     expect(shadow().querySelector('.film')).toBeNull();
     h2.close();
     h2.showPrevious([earlier('a', 1000)]);
-    expect(mount.querySelectorAll('[data-scenenote-overlay]')).toHaveLength(0);
+    expect(mount.querySelectorAll('[data-resonnote-overlay]')).toHaveLength(0);
   });
 
   it('replaces the strip when called again', () => {
@@ -979,7 +979,7 @@ describe('deleting an earlier note from the film strip', () => {
 });
 
 describe('clicking the dimmed backdrop', () => {
-  const host = () => mount.querySelector<HTMLElement>('[data-scenenote-overlay]')!;
+  const host = () => mount.querySelector<HTMLElement>('[data-resonnote-overlay]')!;
   function clickFrom(down: Element, up: Element = down) {
     down.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true }));
     up.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
@@ -1022,7 +1022,7 @@ describe('showError and reopenResult', () => {
     h.showError('存檔失敗：x');
 
     expect(h.isOpen()).toBe(true);
-    expect(mount.querySelector('[data-scenenote-overlay]')).not.toBeNull();
+    expect(mount.querySelector('[data-resonnote-overlay]')).not.toBeNull();
     expect(note().value).toBe('我打了很多字');
     expect(subtitle().value).toBe('改過的台詞');
     expect(el('[data-role="error"]').textContent).toBe('存檔失敗：x');
@@ -1117,7 +1117,7 @@ describe('notebook link and close', () => {
   it('close removes the host element and isOpen turns false', () => {
     const h = open();
     h.close();
-    expect(mount.querySelector('[data-scenenote-overlay]')).toBeNull();
+    expect(mount.querySelector('[data-resonnote-overlay]')).toBeNull();
     expect(h.isOpen()).toBe(false);
   });
 

@@ -21,7 +21,7 @@ function setup(overrides: Partial<Deps> = {}) {
   const calls: string[] = [];
   const sendToTab = vi.fn<Deps['sendToTab']>(async (_tabId, msg: ToContent) => {
     calls.push(msg.type);
-    return msg.type === 'scenenote/begin' ? { status: 'ok' } : undefined;
+    return msg.type === 'resonnote/begin' ? { status: 'ok' } : undefined;
   });
   const captureVisibleTab = vi.fn<Deps['captureVisibleTab']>(async () => {
     calls.push('capture');
@@ -102,11 +102,11 @@ describe('handleTrigger', () => {
     const t = setup();
     const result = await handleTrigger({ id: 7, windowId: 3, url: WATCH_URL }, t.deps);
     expect(result).toBe('shown');
-    expect(t.calls).toEqual(['scenenote/begin', 'capture', 'scenenote/show']);
+    expect(t.calls).toEqual(['resonnote/begin', 'capture', 'resonnote/show']);
     expect(t.captureVisibleTab).toHaveBeenCalledWith(3);
-    expect(t.sendToTab).toHaveBeenNthCalledWith(1, 7, { type: 'scenenote/begin' });
+    expect(t.sendToTab).toHaveBeenNthCalledWith(1, 7, { type: 'resonnote/begin' });
     expect(t.sendToTab).toHaveBeenNthCalledWith(2, 7, {
-      type: 'scenenote/show',
+      type: 'resonnote/show',
       dataUrl: SCREENSHOT,
     });
     expect(t.openNotebook).not.toHaveBeenCalled();
@@ -117,14 +117,14 @@ describe('handleTrigger', () => {
     t.captureVisibleTab.mockRejectedValueOnce(new Error('Cannot access contents of the page'));
     const result = await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps);
     expect(result).toBe('shown');
-    expect(t.sendToTab).toHaveBeenLastCalledWith(7, { type: 'scenenote/show', dataUrl: null });
+    expect(t.sendToTab).toHaveBeenLastCalledWith(7, { type: 'resonnote/show', dataUrl: null });
   });
 
   it('sends null when the screenshot is not a non-empty string', async () => {
     const t = setup();
     t.captureVisibleTab.mockResolvedValueOnce('');
     await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps);
-    expect(t.sendToTab).toHaveBeenLastCalledWith(7, { type: 'scenenote/show', dataUrl: null });
+    expect(t.sendToTab).toHaveBeenLastCalledWith(7, { type: 'resonnote/show', dataUrl: null });
   });
 
   it('does not throw when the show message cannot be delivered', async () => {
@@ -145,7 +145,7 @@ describe.each([
     const t = setup();
     const result = await handleTrigger({ id: 7, windowId: 3, url }, t.deps);
     expect(result).toBe('shown');
-    expect(t.calls).toEqual(['scenenote/begin', 'capture', 'scenenote/show']);
+    expect(t.calls).toEqual(['resonnote/begin', 'capture', 'resonnote/show']);
     expect(t.captureVisibleTab).toHaveBeenCalledWith(3);
     expect(t.openNotebook).not.toHaveBeenCalled();
   });
@@ -176,7 +176,7 @@ describe.each([
     t.captureVisibleTab.mockRejectedValueOnce(new Error('activeTab permission not in effect'));
     await handleTrigger({ id: 7, windowId: 1, url }, t.deps, 'button');
     expect(t.sendToTab).toHaveBeenLastCalledWith(7, {
-      type: 'scenenote/show',
+      type: 'resonnote/show',
       dataUrl: null,
       hint: 'use-shortcut-once',
     });
@@ -193,26 +193,26 @@ describe('reloadTitle', () => {
 
 describe('the button on the page', () => {
   const lastShow = (t: ReturnType<typeof setup>) =>
-    t.sendToTab.mock.calls.map(([, msg]) => msg).filter((msg) => msg.type === 'scenenote/show').at(-1);
+    t.sendToTab.mock.calls.map(([, msg]) => msg).filter((msg) => msg.type === 'resonnote/show').at(-1);
 
   it('asks the overlay to explain when the screenshot is refused (no shortcut used in the tab yet)', async () => {
     const t = setup();
     t.captureVisibleTab.mockRejectedValueOnce(new Error('activeTab permission not in effect'));
     expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps, 'button')).toBe('shown');
-    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: null, hint: 'use-shortcut-once' });
+    expect(lastShow(t)).toEqual({ type: 'resonnote/show', dataUrl: null, hint: 'use-shortcut-once' });
   });
 
   it('sends the screenshot without a hint when it works', async () => {
     const t = setup();
     await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps, 'button');
-    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: SCREENSHOT });
+    expect(lastShow(t)).toEqual({ type: 'resonnote/show', dataUrl: SCREENSHOT });
   });
 
   it('gives no hint for a refused screenshot from the shortcut itself', async () => {
     const t = setup();
     t.captureVisibleTab.mockRejectedValueOnce(new Error('blocked'));
     await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps);
-    expect(lastShow(t)).toEqual({ type: 'scenenote/show', dataUrl: null });
+    expect(lastShow(t)).toEqual({ type: 'resonnote/show', dataUrl: null });
   });
 });
 
@@ -253,7 +253,7 @@ describe('the reload badge (page opened before the extension was loaded)', () =>
     const t = setup();
     t.setBadge.mockImplementation(() => new Promise<void>(() => {})); // never settles
     expect(await handleTrigger({ id: 7, windowId: 1, url: WATCH_URL }, t.deps)).toBe('shown');
-    expect(t.calls).toEqual(['scenenote/begin', 'capture', 'scenenote/show']);
+    expect(t.calls).toEqual(['resonnote/begin', 'capture', 'resonnote/show']);
   });
 
   it('does not touch the badge on pages that open the notebook', async () => {

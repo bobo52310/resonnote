@@ -17,7 +17,7 @@ import {
 } from '../bridge-protocol';
 import { parseWatchVideoId } from './url';
 
-const INSTALLED = Symbol.for('scenenote.page-bridge');
+const INSTALLED = Symbol.for('resonnote.page-bridge');
 
 /** How often, and for how long, a seek is checked against the player's own clock. */
 const SEEK_POLL_MS = 150;

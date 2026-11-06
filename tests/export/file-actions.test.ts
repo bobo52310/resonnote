@@ -156,7 +156,7 @@ describe('mountExportFileActions', () => {
 
     await vi.waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(1));
     expect(lastDownload().data as string).not.toContain('<img');
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
     warn.mockRestore();
   });
 
@@ -169,7 +169,7 @@ describe('mountExportFileActions', () => {
 
     await vi.waitFor(() => expect(notify).toHaveBeenCalledWith('匯出失敗，請再試一次'));
     expect(downloadBytes).not.toHaveBeenCalled();
-    expect(String(error.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(error.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
     error.mockRestore();
   });
 });

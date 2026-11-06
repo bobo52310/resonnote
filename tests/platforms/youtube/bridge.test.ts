@@ -370,15 +370,15 @@ describe('page bridge: who may ask', () => {
     try {
       // A frame of another origin on the page can post to this window too.
       for (const source of [frame as unknown as MessageEventSource, null]) {
-        post({ source: 'scenenote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
-        post({ source: 'scenenote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
-        post({ source: 'scenenote-req', id: 'z', op: 'frame' }, source, 'https://evil.example');
+        post({ source: 'resonnote-req', id: 'x', op: 'seek', timeMs: 0 }, source, 'https://evil.example');
+        post({ source: 'resonnote-req', id: 'y', op: 'pause' }, source, 'https://evil.example');
+        post({ source: 'resonnote-req', id: 'z', op: 'frame' }, source, 'https://evil.example');
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(api.seekTo).not.toHaveBeenCalled();
       expect(api.pauseVideo).not.toHaveBeenCalled();
 
-      post({ source: 'scenenote-req', id: 'own', op: 'pause' }, window, window.location.origin);
+      post({ source: 'resonnote-req', id: 'own', op: 'pause' }, window, window.location.origin);
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(api.pauseVideo).toHaveBeenCalledTimes(1);
     } finally {

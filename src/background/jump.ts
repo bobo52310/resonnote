@@ -27,7 +27,7 @@ export const SEEK_RETRY_WINDOW_MS = 30_000;
 
 /** The seek request for a note: it names the video, so a page that moved on declines it. */
 function seekMessage(note: Pick<Note, 'videoId' | 'timeMs'>): ToContent {
-  return { type: 'scenenote/seek', timeMs: note.timeMs, videoId: note.videoId };
+  return { type: 'resonnote/seek', timeMs: note.timeMs, videoId: note.videoId };
 }
 
 /**
@@ -52,7 +52,7 @@ async function seekWhenReady(
       // Still loading: the content script answers a later attempt.
     }
   }
-  console.warn(`[scenenote] could not seek the ${label} tab to the moment; it stays where it is`);
+  console.warn(`[resonnote] could not seek the ${label} tab to the moment; it stays where it is`);
 }
 
 /**
@@ -89,7 +89,7 @@ export async function jumpTo(
     const reply = await deps.sendToTab(tab.id, seekMessage(note));
     sought = reply === true;
   } catch (error) {
-    console.warn(`[scenenote] could not reach the ${info.label} tab, navigating it instead`, error);
+    console.warn(`[resonnote] could not reach the ${info.label} tab, navigating it instead`, error);
   }
   if (!sought) {
     await deps.updateTabUrl(tab.id, url);

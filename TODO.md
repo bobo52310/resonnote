@@ -1,6 +1,6 @@
-# TODO — scenenote
+# TODO — ResonNote 共鳴筆記
 
-> 2026-10-28：v1 程式完成（431 項自動測試通過）。2026-10-29 已合併進 `main`，並推上 GitHub private repo：https://github.com/bobo52310/scenenote
+> 2026-10-28：v1 程式完成（431 項自動測試通過）。2026-10-29 已合併進 `main`，並推上 GitHub private repo：https://github.com/bobo52310/resonnote
 >
 > 2026-10-29（晚）：v1.1 加上 YouTube 與 Disney+，程式完成，在 `feat/youtube-disney` 分支，尚未合併、尚未推上去（904 項自動測試通過、`pnpm compile` 無錯；真網站上用注入內容腳本的方式驗過，沒有載入真正的擴充功能）。設計見 `docs/superpowers/specs/2026-10-29-youtube-disney-design.md`。
 

@@ -52,7 +52,7 @@ export interface OverlayOptions {
   onDeletePrevious?: (id: string) => void;
 }
 
-const HOST_ATTRIBUTE = 'data-scenenote-overlay';
+const HOST_ATTRIBUTE = 'data-resonnote-overlay';
 
 /** How long 「確定刪除？」 waits for the second click before the button goes back. */
 const CONFIRM_DELETE_MS = 3000;

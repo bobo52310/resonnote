@@ -6,8 +6,8 @@
  * (or `false` for the player controls) to the rest.
  */
 
-export const REQUEST_SOURCE = 'scenenote-req';
-export const RESPONSE_SOURCE = 'scenenote-res';
+export const REQUEST_SOURCE = 'resonnote-req';
+export const RESPONSE_SOURCE = 'resonnote-res';
 
 export type BridgeOp = 'playback' | 'pause' | 'play' | 'seek' | 'trickplay' | 'frame';
 
@@ -64,7 +64,7 @@ const warned = new Set<string>();
 export function warnOnce(key: string, error: unknown): void {
   if (warned.has(key)) return;
   warned.add(key);
-  console.warn(`[scenenote] ${key} failed`, error);
+  console.warn(`[resonnote] ${key} failed`, error);
 }
 
 /**

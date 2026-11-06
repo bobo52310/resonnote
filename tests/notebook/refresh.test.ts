@@ -149,7 +149,7 @@ describe('refreshIfChanged: changes made inside the page do not trigger a re-ren
 
     const zip = createBackupZip([makeNote('restored', { timeMs: 2 })], new Map());
     const input = root.querySelector<HTMLInputElement>('input[type="file"]')!;
-    const file = new File([zip.slice()], 'scenenote-backup.zip', { type: 'application/zip' });
+    const file = new File([zip.slice()], 'resonnote-backup.zip', { type: 'application/zip' });
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => expect(root.querySelector('[data-note-id="restored"]')).not.toBeNull());
@@ -423,7 +423,7 @@ describe('refreshOnReturn', () => {
     expect(listNotesSpy).not.toHaveBeenCalled();
   });
 
-  it('logs a failed read with the [scenenote] prefix instead of throwing', async () => {
+  it('logs a failed read with the [resonnote] prefix instead of throwing', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await putNote(makeNote('a'));
     const deps = realDeps();
@@ -437,6 +437,6 @@ describe('refreshOnReturn', () => {
 
     window.dispatchEvent(new Event('focus'));
     await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[scenenote\]/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
   });
 });

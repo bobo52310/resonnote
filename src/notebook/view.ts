@@ -116,7 +116,7 @@ async function refreshBackupBar(state: ViewState): Promise<void> {
   try {
     last = await getLastBackupAt();
   } catch (error) {
-    console.warn('[scenenote] could not read the last backup time', error);
+    console.warn('[resonnote] could not read the last backup time', error);
   }
   if (state.disposed) return;
 
@@ -145,7 +145,7 @@ async function runBackup(state: ViewState): Promise<void> {
     await refreshBackupBar(state);
     state.notify(`已備份，檔案是 ${name}`);
   } catch (error) {
-    console.error('[scenenote] backup failed', error);
+    console.error('[resonnote] backup failed', error);
     state.notify(`備份失敗：${errorMessage(error)}`);
   } finally {
     setBusy(state, false);
@@ -163,10 +163,10 @@ async function runRestore(state: ViewState, file: File): Promise<void> {
     } catch (error) {
       failed = true;
       if (error instanceof BackupFormatError) {
-        console.warn('[scenenote] not a scenenote backup', error);
+        console.warn('[resonnote] not a resonnote backup', error);
         message = MSG_NOT_A_BACKUP;
       } else {
-        console.error('[scenenote] restore failed', error);
+        console.error('[resonnote] restore failed', error);
         message = `還原失敗：${errorMessage(error)}`;
       }
     }
@@ -192,7 +192,7 @@ async function loadThumb(
   try {
     bytes = await state.deps.getImage(note.id);
   } catch (error) {
-    console.warn('[scenenote] could not read a note image', error);
+    console.warn('[resonnote] could not read a note image', error);
   }
   if (state.disposed || seq !== state.loadSeq || !state.notes.has(note.id)) return;
 
@@ -294,7 +294,7 @@ async function saveBody(
   try {
     await state.deps.putNote(updated);
   } catch (error) {
-    console.error('[scenenote] could not save the note', error);
+    console.error('[resonnote] could not save the note', error);
     // Roll back, so the next blur tries again.
     if (state.notes.get(id) === updated) state.notes.set(id, current);
     state.notify(`儲存失敗：${errorMessage(error)}`);
@@ -318,7 +318,7 @@ async function removeNote(state: ViewState, article: HTMLElement, button: HTMLBu
   try {
     await state.deps.deleteNote(id);
   } catch (error) {
-    console.error('[scenenote] could not delete the note', error);
+    console.error('[resonnote] could not delete the note', error);
     state.notify(`刪除失敗：${errorMessage(error)}`);
     button.textContent = '刪除';
     button.classList.remove('confirming');
@@ -541,7 +541,7 @@ async function loadAndPaint(
   try {
     notes = await state.deps.listNotes();
   } catch (error) {
-    console.error('[scenenote] could not read the notes', error);
+    console.error('[resonnote] could not read the notes', error);
     state.notify(`讀取筆記失敗：${errorMessage(error)}`);
     return;
   }

@@ -9,12 +9,12 @@ import { isPlatform } from '../platforms/registry';
 
 const CAPTURE_COMMAND = 'capture-scene';
 
-type SaveMessage = Extract<ToBackground, { type: 'scenenote/save' }>;
+type SaveMessage = Extract<ToBackground, { type: 'resonnote/save' }>;
 /** Messages from before the platforms existed name none: they are Netflix's. */
 type WithOptionalPlatform<T extends { platform: unknown }> = Omit<T, 'platform'> &
   Partial<Pick<T, 'platform'>>;
-type JumpMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'scenenote/jump' }>>;
-type RecentMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'scenenote/recent' }>>;
+type JumpMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'resonnote/jump' }>>;
+type RecentMessage = WithOptionalPlatform<Extract<ToBackground, { type: 'resonnote/recent' }>>;
 
 /** True when `platform` is absent (= Netflix) or names a platform we know. */
 function hasKnownPlatform(message: Record<string, unknown>): boolean {
@@ -23,7 +23,7 @@ function hasKnownPlatform(message: Record<string, unknown>): boolean {
 
 function isRecentMessage(message: Record<string, unknown>): message is RecentMessage {
   return (
-    message['type'] === 'scenenote/recent' &&
+    message['type'] === 'resonnote/recent' &&
     hasKnownPlatform(message) &&
     typeof message['videoId'] === 'string' &&
     typeof message['limit'] === 'number' &&
@@ -38,7 +38,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isSaveMessage(message: Record<string, unknown>): message is SaveMessage {
   const { note, imageDataUrl } = message;
   return (
-    message['type'] === 'scenenote/save' &&
+    message['type'] === 'resonnote/save' &&
     isRecord(note) &&
     typeof note['id'] === 'string' &&
     (imageDataUrl === null || typeof imageDataUrl === 'string')
@@ -47,7 +47,7 @@ function isSaveMessage(message: Record<string, unknown>): message is SaveMessage
 
 function isJumpMessage(message: Record<string, unknown>): message is JumpMessage {
   return (
-    message['type'] === 'scenenote/jump' &&
+    message['type'] === 'resonnote/jump' &&
     hasKnownPlatform(message) &&
     typeof message['videoId'] === 'string' &&
     typeof message['timeMs'] === 'number' &&
@@ -93,7 +93,7 @@ export default defineBackground(() => {
     try {
       await handleTrigger(tab, triggerDeps);
     } catch (error) {
-      console.error('[scenenote] trigger failed', error);
+      console.error('[resonnote] trigger failed', error);
     }
   };
 
@@ -113,20 +113,20 @@ export default defineBackground(() => {
     if (!isRecord(message)) return;
 
     // The 「記下這一刻」 button on a watch page: the tab is the one that sent it.
-    if (message['type'] === 'scenenote/trigger') {
+    if (message['type'] === 'resonnote/trigger') {
       const tab = sender.tab;
       if (tab?.id === undefined) return;
       handleTrigger(tab, triggerDeps, 'button').then(
         () => sendResponse({ ok: true }),
         (error: unknown) => {
-          console.error('[scenenote] trigger from the page button failed', error);
+          console.error('[resonnote] trigger from the page button failed', error);
           sendResponse({ ok: false });
         },
       );
       return true;
     }
 
-    if (message['type'] === 'scenenote/shortcut') {
+    if (message['type'] === 'resonnote/shortcut') {
       browser.commands.getAll().then(
         (commands) => sendResponse(commands.find((c) => c.name === CAPTURE_COMMAND)?.shortcut ?? ''),
         () => sendResponse(''),
@@ -144,7 +144,7 @@ export default defineBackground(() => {
       jumpTo({ platform, videoId: message.videoId, timeMs: message.timeMs }, jumpDeps).then(
         (result) => sendResponse({ ok: true, result } satisfies JumpResult),
         (error: unknown) => {
-          console.error('[scenenote] could not jump back', error);
+          console.error('[resonnote] could not jump back', error);
           sendResponse({ ok: false, error: String(error) } satisfies JumpResult);
         },
       );
@@ -152,13 +152,13 @@ export default defineBackground(() => {
     }
 
     if (
-      message['type'] === 'scenenote/update' &&
+      message['type'] === 'resonnote/update' &&
       typeof message['id'] === 'string' &&
       typeof message['subtitle'] === 'string' &&
       typeof message['body'] === 'string'
     ) {
       void handleUpdate({
-        type: 'scenenote/update',
+        type: 'resonnote/update',
         id: message['id'],
         subtitle: message['subtitle'],
         body: message['body'],
@@ -166,8 +166,8 @@ export default defineBackground(() => {
       return true;
     }
 
-    if (message['type'] === 'scenenote/delete' && typeof message['id'] === 'string') {
-      void handleDelete({ type: 'scenenote/delete', id: message['id'] }).then(sendResponse);
+    if (message['type'] === 'resonnote/delete' && typeof message['id'] === 'string') {
+      void handleDelete({ type: 'resonnote/delete', id: message['id'] }).then(sendResponse);
       return true;
     }
 
@@ -181,11 +181,11 @@ export default defineBackground(() => {
       return true;
     }
 
-    if (message['type'] === 'scenenote/open-notebook') {
+    if (message['type'] === 'resonnote/open-notebook') {
       browser.runtime.openOptionsPage().then(
         () => sendResponse({ ok: true }),
         (error: unknown) => {
-          console.error('[scenenote] could not open the notebook', error);
+          console.error('[resonnote] could not open the notebook', error);
           sendResponse({ ok: false, error: String(error) });
         },
       );

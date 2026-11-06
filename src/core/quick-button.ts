@@ -44,7 +44,7 @@ export const IDLE_HIDE_MS = 3000;
 export const ANCHOR_INSET_RIGHT_PX = 24;
 export const ANCHOR_INSET_BOTTOM_PX = 80;
 
-const HOST_ATTRIBUTE = 'data-scenenote-button';
+const HOST_ATTRIBUTE = 'data-resonnote-button';
 
 const BUTTON_CSS = `
 :host {
