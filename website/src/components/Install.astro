@@ -1,0 +1,208 @@
+---
+import { SITE } from '../site';
+
+const commands = [`git clone ${SITE.repo}.git`, 'cd resonnote', 'pnpm install', 'pnpm build'].join('\n');
+const keys = [
+  { keys: ['⌥⇧N'], what: '在播放頁：記下這一刻。在其他頁面：開啟筆記本。' },
+  { keys: ['Enter'], what: '存檔，影片繼續播放。' },
+  { keys: ['Shift', 'Enter'], what: '心得換行。' },
+  { keys: ['Esc'], what: '取消，影片繼續播放，不留筆記。' },
+];
+---
+
+<section id="install" class="py-20 md:py-28" aria-labelledby="install-title">
+  <div class="container-page">
+    <div data-reveal>
+      <p class="edge-code">05 · 安裝</p>
+      <h2 id="install-title" class="section-title">四行指令，<span class="hl">裝進&nbsp;Chrome</span>。</h2>
+      <p class="section-lead">
+        目前沒有上架 Chrome 線上應用程式商店。需要 Node.js 22.12 以上（或 24）和
+        <a href="https://pnpm.io/" class="link" rel="noopener">pnpm</a>。
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-10 lg:grid-cols-12 lg:gap-12">
+      <div class="min-w-0 lg:col-span-7" data-reveal>
+        <div class="code">
+          <div class="code-bar">
+            <span class="mono text-xs text-ink-500">Terminal</span>
+            <button type="button" class="copy-btn" data-copy="install-commands">
+              <span data-copy-label>複製</span>
+            </button>
+          </div>
+          <pre id="install-commands" class="code-body" tabindex="0" aria-label="安裝指令"><code>{commands}</code></pre>
+        </div>
+        <p class="sr-only" aria-live="polite" data-copy-status></p>
+
+        <ol class="install-steps">
+          <li>開 <code>chrome://extensions</code>，右上角打開「開發人員模式」。</li>
+          <li>按「載入未封裝項目」，選專案資料夾底下的 <code>.output/chrome-mv3</code>。</li>
+          <li>
+            已經開著的 Netflix、YouTube、Disney+ 分頁，各重新整理一次（內容腳本不會自動注入舊分頁；沒重新整理的分頁，工具列圖示會出現
+            <code>!</code> 徽章）。
+          </li>
+        </ol>
+      </div>
+
+      <div class="min-w-0 lg:col-span-5" data-reveal style="--reveal-delay: 0.1s">
+        <div class="card p-6 md:p-8">
+          <h3 class="text-lg font-bold">快捷鍵</h3>
+          <dl class="keys mt-5">
+            {
+              keys.map((k) => (
+                <div class="key-row">
+                  <dt>
+                    {k.keys.map((key, i) => (
+                      <>
+                        {i > 0 && <span class="px-1 text-ink-500">+</span>}
+                        <kbd>{key}</kbd>
+                      </>
+                    ))}
+                  </dt>
+                  <dd>{k.what}</dd>
+                </div>
+              ))
+            }
+          </dl>
+          <p class="mt-6 border-t border-ink-700 pt-5 text-sm text-ink-300 text-pretty">
+            快捷鍵可以到 <code>chrome://extensions/shortcuts</code> 改。也可以點工具列圖示（先在拼圖選單裡釘選）。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const status = document.querySelector<HTMLElement>('[data-copy-status]');
+  document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
+    const label = button.querySelector<HTMLElement>('[data-copy-label]');
+    let timer: number | undefined;
+    button.addEventListener('click', async () => {
+      const source = document.getElementById(button.dataset.copy ?? '');
+      if (!source || !label) return;
+      let message = '已複製';
+      try {
+        await navigator.clipboard.writeText(source.textContent ?? '');
+      } catch {
+        message = '無法複製，請手動選取';
+      }
+      label.textContent = message;
+      if (status) status.textContent = message === '已複製' ? '指令已複製到剪貼簿' : message;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        label.textContent = '複製';
+        if (status) status.textContent = '';
+      }, 2000);
+    });
+  });
+</script>
+
+<style>
+  .link {
+    color: var(--color-amber-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .code {
+    overflow: hidden;
+    border: 1px solid var(--color-ink-700);
+    border-radius: 1rem;
+    background: #0e0c0a;
+  }
+  .code-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.6rem 0.55rem 1.1rem;
+    border-bottom: 1px solid var(--color-ink-700);
+    background: var(--color-ink-900);
+  }
+  .copy-btn {
+    min-width: 4.5rem;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--color-ink-600);
+    border-radius: 999px;
+    color: var(--color-ink-100);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .copy-btn:hover {
+    border-color: var(--color-ink-300);
+    background: rgb(255 255 255 / 0.05);
+  }
+  .code-body {
+    margin: 0;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    font: 0.9375rem/1.8 var(--font-mono);
+    color: var(--color-ink-100);
+  }
+  .install-steps {
+    margin-top: 2rem;
+    display: grid;
+    gap: 1rem;
+    counter-reset: step;
+  }
+  .install-steps li {
+    position: relative;
+    padding-left: 2.5rem;
+    color: var(--color-ink-300);
+    counter-increment: step;
+    text-wrap: pretty;
+  }
+  .install-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.1rem;
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 1px solid var(--color-amber);
+    border-radius: 999px;
+    color: var(--color-amber);
+    font: 700 0.8125rem/1 var(--font-mono);
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--color-amber-soft);
+    overflow-wrap: anywhere;
+  }
+  .code-body code {
+    color: inherit;
+    overflow-wrap: normal;
+  }
+  .keys {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 1rem 1.25rem;
+    align-items: baseline;
+  }
+  .key-row {
+    display: contents;
+  }
+  @media (max-width: 479px) {
+    .keys {
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+    .key-row dd {
+      margin-bottom: 0.75rem;
+    }
+  }
+  .key-row dt {
+    white-space: nowrap;
+  }
+  .key-row dd {
+    color: var(--color-ink-300);
+    font-size: 0.9375rem;
+  }
+</style>

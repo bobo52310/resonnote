@@ -1,0 +1,96 @@
+---
+// Facts from the README (使用方式、已知限制). Platform names are plain text, never logos.
+const platforms = [
+  {
+    name: 'Netflix',
+    page: 'netflix.com/watch/…',
+    points: [
+      '跳回那一刻：從那一秒開始播放。',
+      '完整截圖被擋時，改用進度條小圖，並標「低解析度」。',
+    ],
+  },
+  {
+    name: 'YouTube',
+    page: 'youtube.com/watch、Shorts',
+    points: [
+      '台詞讀 YouTube 的 CC 字幕；有裝 Language Reactor 時改讀它的字幕。燒進畫面的字幕讀不到。',
+      '廣告播放中不能記，廣告結束再按。',
+    ],
+  },
+  {
+    name: 'Disney+',
+    page: 'disneyplus.com/play/…',
+    points: [
+      '連結帶不了秒數：跳回時擴充功能會叫播放器跳到那一秒並暫停（實測約 5 到 6 秒）。',
+      '匯出檔裡的連結只會開到那一集。',
+    ],
+  },
+];
+---
+
+<section id="platforms" class="py-20 md:py-28" aria-labelledby="platforms-title">
+  <div class="container-page">
+    <div data-reveal>
+      <p class="edge-code">03 · 支援平台</p>
+      <h2 id="platforms-title" class="section-title">三個平台，<span class="hl">同一本筆記本</span>。</h2>
+      <p class="section-lead">
+        同一個快捷鍵、同一個小視窗；筆記本裡每一組都有平台小標籤。各平台能做到的不完全一樣，差別如下。
+      </p>
+    </div>
+    <div class="mt-12 grid gap-5 md:grid-cols-3">
+      {
+        platforms.map((p, i) => (
+          <article class="card platform" data-reveal style={`--reveal-delay: ${i * 0.08}s`}>
+            <h3 class="platform-name">{p.name}</h3>
+            <p class="platform-page mono">{p.page}</p>
+            <ul class="platform-points">
+              {p.points.map((point) => (
+                <li>{point}</li>
+              ))}
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .platform {
+    padding: 1.75rem 1.5rem;
+  }
+  .platform-name {
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+  }
+  .platform-page {
+    margin-top: 0.25rem;
+    color: var(--color-amber);
+    font-size: 0.8125rem;
+  }
+  .platform-points {
+    margin-top: 1.25rem;
+    display: grid;
+    gap: 0.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px dashed var(--color-ink-600);
+  }
+  .platform-points li {
+    position: relative;
+    padding-left: 1.1rem;
+    color: var(--color-ink-300);
+    font-size: 0.9375rem;
+    text-wrap: pretty;
+  }
+  .platform-points li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--color-ink-500);
+  }
+</style>

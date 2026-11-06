@@ -1,0 +1,49 @@
+---
+import BrandMark from './BrandMark.astro';
+import GitHubIcon from './GitHubIcon.astro';
+import { SITE } from '../site';
+
+const links = [
+  { href: '#how', label: '怎麼用' },
+  { href: '#features', label: '功能' },
+  { href: '#platforms', label: '平台' },
+  { href: '#privacy', label: '隱私' },
+  { href: '#install', label: '安裝' },
+  { href: '#faq', label: '常見問題' },
+];
+---
+
+<a
+  href="#main"
+  class="sr-only z-50 rounded-full bg-ink-100 px-4 py-2 font-bold text-ink-950 focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+  >跳到主要內容</a
+>
+<header class="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/80 backdrop-blur-md">
+  <div class="container-page flex h-16 items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-2.5 rounded-md font-bold tracking-wide text-ink-100 no-underline">
+      <BrandMark size={30} />
+      <span>ResonNote <span class="text-ink-300">共鳴筆記</span></span>
+    </a>
+    <nav aria-label="頁面導覽" class="hidden lg:block">
+      <ul class="flex items-center gap-1 text-[0.9375rem]">
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href} class="rounded-full px-3 py-2 text-ink-300 transition-colors hover:text-ink-100">
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <a
+      href={SITE.repo}
+      class="btn btn-ghost min-h-10 px-4 py-2 text-sm"
+      rel="noopener"
+    >
+      <GitHubIcon class="size-[18px]" />
+      <span>GitHub</span>
+    </a>
+  </div>
+</header>

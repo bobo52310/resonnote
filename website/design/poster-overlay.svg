@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Placeholder poster for the intro video: composited over still-rain by scripts/build-assets.sh. -->
+  <defs>
+    <linearGradient id="scrim" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#0b0a09" stop-opacity="0.94"/>
+      <stop offset="0.4" stop-color="#0b0a09" stop-opacity="0.72"/>
+      <stop offset="0.72" stop-color="#0b0a09" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#scrim)"/>
+  <rect width="1920" height="96" fill="#000"/>
+  <rect y="984" width="1920" height="96" fill="#000"/>
+
+  <!-- Time chip -->
+  <rect x="1580" y="128" width="240" height="56" rx="28" fill="#000" fill-opacity="0.72"/>
+  <text x="1612" y="168" font-family="Menlo, monospace" font-size="32" font-weight="700" fill="#f2483a">▶</text>
+  <text x="1660" y="168" font-family="Menlo, monospace" font-size="32" font-weight="700" fill="#f5f2ef">16:43</text>
+
+  <!-- Brand -->
+  <g transform="translate(1020 300) scale(0.5)">
+    <rect width="128" height="128" rx="28" fill="#1c1813"/>
+    <path d="M28 62V28h34" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M100 66v34H66" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="64" cy="64" r="20" fill="#f2483a"/>
+  </g>
+  <text x="1100" y="345" font-family="Noto Sans TC" font-size="36" font-weight="700" fill="#d9d2c7" letter-spacing="2">ResonNote 共鳴筆記</text>
+
+  <!-- Tagline -->
+  <text font-family="Noto Sans TC" font-size="120" font-weight="900" fill="#f5f2ef">
+    <tspan x="1012" y="520">這一秒<tspan fill="#ffb547">打動你</tspan>，</tspan>
+    <tspan x="1012" y="670">就把它留下來。</tspan>
+  </text>
+  <text x="1020" y="760" font-family="Noto Sans TC" font-size="38" font-weight="400" fill="#d9d2c7">畫面、秒數、台詞、心得，一鍵記下。</text>
+
+  <!-- Subtitle, as on the player -->
+  <text x="960" y="910" text-anchor="middle" font-family="Noto Sans TC" font-size="48" font-weight="700" fill="#ffffff" stroke="#000" stroke-width="6" stroke-opacity="0.55" paint-order="stroke">如果那天我有說出口就好了。</text>
+</svg>

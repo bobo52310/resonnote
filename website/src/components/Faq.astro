@@ -1,0 +1,120 @@
+---
+// Answers follow the README's 隱私、備份提醒 and 已知限制 sections.
+const faqs = [
+  {
+    q: '筆記會上傳到哪裡嗎？',
+    a: '不會。筆記（片名、秒數、台詞、心得）和截圖只存在你瀏覽器本機的擴充功能 IndexedDB，沒有伺服器、沒有帳號、沒有分析或追蹤。備份和匯出也都是在本機產生檔案下載。',
+  },
+  {
+    q: '為什麼第一次用頁面上的按鈕，YouTube 截圖沒有字幕？',
+    a: '完整截圖要靠 Chrome 的 activeTab 權限，而它只在你按過快捷鍵或工具列圖示的那個分頁才放行。在一個分頁第一次就點按鈕，YouTube 會改用影片原畫面（畫質完整，但不含字幕）；在這個分頁按過一次快捷鍵之後，按鈕就截得到含字幕的完整畫面。Netflix 這時改用進度條小圖（標「低解析度」），Disney+ 則沒有圖，小視窗會提示先按一次快捷鍵。',
+  },
+  {
+    q: '移除擴充功能，筆記會怎樣？',
+    a: '會連筆記和圖片一起刪掉。請定期在筆記本按「全部備份」下載 zip，之後可以用「從備份還原」讀回來。筆記本會顯示「上次備份」，超過 14 天會提醒你。',
+  },
+  {
+    q: '支援 Firefox、Edge 或 Windows 嗎？',
+    a: '目前只在 macOS 的 Chrome 上實測過，其他系統與瀏覽器沒有測試。',
+  },
+  {
+    q: '影音網站改版，會不會就不能用了？',
+    a: '有可能。這是依賴各平台頁面內部結構的做法，網站改版就可能壞。設計上哪一項壞掉就只少那一項（例如台詞讀不到就留空，讓你自己打），記錄流程本身不會中斷；這一刻沒抓到什麼，小視窗也會直接列出來。',
+  },
+];
+---
+
+<section id="faq" class="py-20 md:py-28" aria-labelledby="faq-title">
+  <div class="container-page grid gap-12 lg:grid-cols-12">
+    <div class="lg:col-span-4" data-reveal>
+      <p class="edge-code">06 · 常見問題</p>
+      <h2 id="faq-title" class="section-title">你可能<span class="hl">想問</span>。</h2>
+      <p class="section-lead">
+        找不到答案？到 <a href="https://github.com/bobo52310/resonnote/issues" class="faq-link" rel="noopener">GitHub Issues</a> 問問看。
+      </p>
+    </div>
+    <div class="lg:col-span-8" data-reveal style="--reveal-delay: 0.08s">
+      {
+        faqs.map((f, i) => (
+          <details class="faq" open={i === 0}>
+            <summary>
+              <span>{f.q}</span>
+              <span class="faq-icon" aria-hidden="true" />
+            </summary>
+            <p>{f.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .faq-link {
+    color: var(--color-amber-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .faq {
+    border-bottom: 1px solid var(--color-ink-700);
+  }
+  .faq:first-child {
+    border-top: 1px solid var(--color-ink-700);
+  }
+  .faq summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.35rem 0.25rem;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1.5;
+    cursor: pointer;
+    list-style: none;
+  }
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq summary:hover {
+    color: #fff;
+  }
+  .faq-icon {
+    position: relative;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--color-ink-600);
+    border-radius: 999px;
+  }
+  .faq-icon::before,
+  .faq-icon::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.7rem;
+    height: 2px;
+    background: var(--color-amber);
+    transform: translate(-50%, -50%);
+    transition: transform 0.25s ease;
+  }
+  .faq-icon::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .faq[open] .faq-icon::after {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  .faq p {
+    padding: 0 0.25rem 1.5rem;
+    max-width: 44rem;
+    color: var(--color-ink-300);
+    text-wrap: pretty;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .faq-icon::before,
+    .faq-icon::after {
+      transition: none;
+    }
+  }
+</style>

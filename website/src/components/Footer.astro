@@ -1,0 +1,50 @@
+---
+import BrandMark from './BrandMark.astro';
+import { REPO_LINKS, SITE } from '../site';
+---
+
+<footer class="border-t border-ink-700 bg-ink-950">
+  <div class="sprockets mx-auto mt-0 max-w-none opacity-20" aria-hidden="true"></div>
+  <div class="container-page py-14">
+    <div class="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+      <div>
+        <p class="flex items-center gap-3 text-lg font-bold">
+          <BrandMark size={36} />
+          <span>{SITE.name}</span>
+        </p>
+        <p class="mt-3 text-ink-300">{SITE.tagline}</p>
+      </div>
+      <nav aria-label="專案連結">
+        <ul class="flex flex-wrap gap-x-6 gap-y-3 text-[0.9375rem]">
+          <li><a class="foot-link" href={SITE.repo} rel="noopener">GitHub</a></li>
+          <li><a class="foot-link" href={REPO_LINKS.license} rel="noopener">MIT 授權</a></li>
+          <li><a class="foot-link" href={REPO_LINKS.issues} rel="noopener">回報問題</a></li>
+          <li><a class="foot-link" href={REPO_LINKS.contributing} rel="noopener">參與貢獻</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="mt-12 grid gap-3 border-t border-ink-700 pt-8 text-sm leading-relaxed text-ink-500">
+      <p>
+        這是個人開源專案，與 Netflix、YouTube（Google）、Disney+ 沒有任何關係，也未獲其背書或贊助。Netflix、YouTube、Google、Disney+
+        等名稱與商標屬各自的所有者，這裡僅用來說明本擴充功能支援的網站。
+      </p>
+      <p>
+        擷取的畫面與台詞，版權屬原權利人，僅供個人筆記用途。本網站的劇照是 AI 生成的原創畫面，劇名為虛構。
+      </p>
+      <p>© 2026 {SITE.author.name}・以 MIT 授權釋出</p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .foot-link {
+    color: var(--color-ink-300);
+    text-decoration: underline;
+    text-decoration-color: var(--color-ink-600);
+    text-underline-offset: 4px;
+  }
+  .foot-link:hover {
+    color: var(--color-ink-100);
+    text-decoration-color: var(--color-amber);
+  }
+</style>
