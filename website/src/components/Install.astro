@@ -1,5 +1,5 @@
 ---
-import { SITE } from '../site';
+import { REPO_LINKS, SITE } from '../site';
 
 const commands = [`git clone ${SITE.repo}.git`, 'cd resonnote', 'pnpm install', 'pnpm build'].join('\n');
 const keys = [
@@ -14,34 +14,63 @@ const keys = [
   <div class="container-page">
     <div data-reveal>
       <p class="edge-code">05 · 安裝</p>
-      <h2 id="install-title" class="section-title">四行指令，<span class="hl">裝進&nbsp;Chrome</span>。</h2>
+      <h2 id="install-title" class="section-title">下載一個 zip，<span class="hl">裝進&nbsp;Chrome</span>。</h2>
       <p class="section-lead">
-        目前沒有上架 Chrome 線上應用程式商店。需要 Node.js 22.12 以上（或 24）和
-        <a href="https://pnpm.io/" class="link" rel="noopener">pnpm</a>。
+        從 GitHub Release 下載，不用裝 Node.js，也不用自己編譯。目前尚未上架 Chrome 線上應用程式商店，所以用 Chrome 的「載入未封裝項目」安裝。
       </p>
     </div>
 
     <div class="mt-12 grid gap-10 lg:grid-cols-12 lg:gap-12">
       <div class="min-w-0 lg:col-span-7" data-reveal>
-        <div class="code">
-          <div class="code-bar">
-            <span class="mono text-xs text-ink-500">Terminal</span>
-            <button type="button" class="copy-btn" data-copy="install-commands">
-              <span data-copy-label>複製</span>
-            </button>
-          </div>
-          <pre id="install-commands" class="code-body" tabindex="0" aria-label="安裝指令"><code>{commands}</code></pre>
-        </div>
-        <p class="sr-only" aria-live="polite" data-copy-status></p>
+        <a href={REPO_LINKS.releases} class="btn btn-primary" rel="noopener">
+          <span class="rec-dot" aria-hidden="true"></span>
+          到 GitHub Release 下載最新版
+        </a>
 
         <ol class="install-steps">
-          <li>開 <code>chrome://extensions</code>，右上角打開「開發人員模式」。</li>
-          <li>按「載入未封裝項目」，選專案資料夾底下的 <code>.output/chrome-mv3</code>。</li>
+          <li>
+            下載 <code>resonnote-x.y.z-chrome.zip</code>（<code>x.y.z</code> 是版本號）。
+          </li>
+          <li>解壓縮到一個之後不會刪掉的資料夾，Chrome 會一直從這個資料夾讀取擴充功能。</li>
+          <li>
+            開 <code>chrome://extensions</code>，右上角打開「開發人員模式」，按「載入未封裝項目」，選剛才解壓縮的資料夾（資料夾裡要直接看得到{' '}
+            <code>manifest.json</code>）。
+          </li>
           <li>
             已經開著的 Netflix、YouTube、Disney+ 分頁，各重新整理一次（內容腳本不會自動注入舊分頁；沒重新整理的分頁，工具列圖示會出現
             <code>!</code> 徽章）。
           </li>
         </ol>
+        <p class="install-note">
+          <strong>更新：</strong>下載新版，用新版的內容取代資料夾裡的檔案，再到 <code>chrome://extensions</code> 按 ResonNote 的「重新載入」。筆記會保留。
+        </p>
+
+        <details class="alt">
+          <summary>
+            <span>從原始碼安裝（開發者）</span>
+            <span class="alt-icon" aria-hidden="true"></span>
+          </summary>
+          <div class="alt-body">
+            <p>
+              需要 Node.js 22.12 以上（或 24）和{' '}
+              <a href="https://pnpm.io/" class="link" rel="noopener">pnpm</a>。
+            </p>
+            <div class="code mt-4">
+              <div class="code-bar">
+                <span class="mono text-xs text-ink-500">Terminal</span>
+                <button type="button" class="copy-btn" data-copy="install-commands">
+                  <span data-copy-label>複製</span>
+                </button>
+              </div>
+              <pre id="install-commands" class="code-body" tabindex="0" aria-label="安裝指令"><code>{commands}</code></pre>
+            </div>
+            <p class="sr-only" aria-live="polite" data-copy-status></p>
+            <p class="mt-4">
+              接著開 <code>chrome://extensions</code>，打開「開發人員模式」，按「載入未封裝項目」，選專案資料夾底下的{' '}
+              <code>.output/chrome-mv3</code>；之後同樣要把已開著的分頁各重新整理一次。更新時重新 <code>pnpm build</code>，再按 ResonNote 的「重新載入」。
+            </p>
+          </div>
+        </details>
       </div>
 
       <div class="min-w-0 lg:col-span-5" data-reveal style="--reveal-delay: 0.1s">
@@ -104,6 +133,70 @@ const keys = [
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  .install-note {
+    margin-top: 1.75rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--color-ink-700);
+    border-radius: 0.9rem;
+    background: var(--color-ink-900);
+    color: var(--color-ink-300);
+    font-size: 0.9375rem;
+    text-wrap: pretty;
+  }
+  .install-note strong {
+    color: var(--color-ink-100);
+  }
+  .alt {
+    margin-top: 2.5rem;
+    border-top: 1px solid var(--color-ink-700);
+    border-bottom: 1px solid var(--color-ink-700);
+  }
+  .alt summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+  .alt summary::-webkit-details-marker {
+    display: none;
+  }
+  .alt summary:hover {
+    color: #fff;
+  }
+  .alt-icon {
+    position: relative;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--color-ink-600);
+    border-radius: 999px;
+  }
+  .alt-icon::before,
+  .alt-icon::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.7rem;
+    height: 2px;
+    background: var(--color-amber);
+    transform: translate(-50%, -50%);
+  }
+  .alt-icon::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .alt[open] .alt-icon::after {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  .alt-body {
+    padding: 0.25rem 0.25rem 1.5rem;
+    color: var(--color-ink-300);
+    text-wrap: pretty;
+  }
   .code {
     overflow: hidden;
     border: 1px solid var(--color-ink-700);
@@ -144,7 +237,7 @@ const keys = [
     color: var(--color-ink-100);
   }
   .install-steps {
-    margin-top: 2rem;
+    margin-top: 2.25rem;
     display: grid;
     gap: 1rem;
     counter-reset: step;
