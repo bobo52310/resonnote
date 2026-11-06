@@ -243,9 +243,10 @@
       .s6-shot { position: absolute; inset: 0; filter: brightness(0.85); }
       .s6-lock { position: absolute; left: 0; right: 0; top: 170px; display: flex; flex-direction: column; align-items: center; }
       .s6-icon { display: block; width: 220px; height: 220px; overflow: visible; }
-      .ic-br { fill: none; stroke: var(--amber); stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
-      .ic-dot { fill: var(--red); }
-      .ic-edge { fill: none; stroke: #3a3229; stroke-width: 3; }
+      .ic-br { fill: none; stroke: url(#s6-amber); stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+      .ic-dot { fill: url(#s6-dotgrad); }
+      .ic-glow { fill: url(#s6-glowgrad); }
+      .ic-edge { fill: none; stroke: #4a3f30; stroke-opacity: 0.7; stroke-width: 3; }
       .s6-word { margin-top: 44px; font-size: 180px; line-height: 1; font-weight: 800; letter-spacing: -0.01em; }
       .s6-tag { margin-top: 48px; font-size: 64px; line-height: 1.25; font-weight: 700; }
       .s6-plat { margin-top: 40px; font-size: 40px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-100); }
@@ -383,9 +384,15 @@
         <div class="s6-lock">
           <!-- docs/brand/icon.svg drawn at 220px (1 icon unit = 1.71875px) so GSAP x/y on the brackets are screen px. -->
           <svg id="s6-icon" class="s6-icon" viewBox="0 0 220 220" aria-label="ResonNote">
-            <defs><linearGradient id="s6-tilegrad" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#2a241c" /><stop offset="1" stop-color="#14110d" /></linearGradient></defs>
+            <!-- Gradients are the ones in docs/brand/icon.svg (sampled from the Codex master). -->
+            <defs>
+              <linearGradient id="s6-tilegrad" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#3a3125" /><stop offset="1" stop-color="#17120d" /></linearGradient>
+              <linearGradient id="s6-amber" gradientUnits="userSpaceOnUse" x1="28" y1="20" x2="100" y2="108"><stop offset="0" stop-color="#ffc657" /><stop offset="1" stop-color="#ffa31c" /></linearGradient>
+              <radialGradient id="s6-dotgrad" cx="0.5" cy="0.5" r="0.5" fx="0.36" fy="0.32"><stop offset="0" stop-color="#ff8a73" /><stop offset="0.45" stop-color="#fb4535" /><stop offset="1" stop-color="#dc3022" /></radialGradient>
+              <radialGradient id="s6-glowgrad" cx="0.5" cy="0.5" r="0.5"><stop offset="0.55" stop-color="#f2483a" stop-opacity="0.22" /><stop offset="1" stop-color="#f2483a" stop-opacity="0" /></radialGradient>
+            </defs>
             <g id="s6-tile"><g transform="scale(1.71875)"><rect width="128" height="128" rx="28" fill="url(#s6-tilegrad)" /><rect class="ic-edge" x="1.5" y="1.5" width="125" height="125" rx="26.5" /></g></g>
-            <g id="s6-dot"><circle class="ic-dot" cx="110" cy="110" r="34.375" /></g>
+            <g id="s6-dot"><circle class="ic-glow" cx="110" cy="110" r="48.125" /><circle class="ic-dot" cx="110" cy="110" r="34.375" /></g>
             <g id="s6-btl"><path class="ic-br" transform="scale(1.71875)" d="M28 62V28h34" /></g>
             <g id="s6-bbr"><path class="ic-br" transform="scale(1.71875)" d="M100 66v34H66" /></g>
           </svg>

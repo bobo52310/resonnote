@@ -3,7 +3,7 @@
 Taken from the extension's own UI (note overlay, film strip, notebook) and the app icon, so the video looks like the product.
 
 ## Icon
-- Source: `docs/brand/icon.svg` (128-unit viewBox). Dark rounded tile (`#2a241c` → `#14110d`, `#3a3229` edge), two amber `--amber` corner brackets (top-left and bottom-right) and a red `--red` dot in the middle.
+- Source: `docs/brand/icon.svg` (128-unit viewBox), the vector twin of the Codex-designed `docs/brand/icon-1024.png`. Dark rounded tile (`#3a3125` → `#17120d`, `#4a3f30` edge at 70%), two amber corner brackets (top-left and bottom-right, gradient `#ffc657` → `#ffa31c`) and a red dot in the middle (radial `#ff8a73` / `#fb4535` / `#dc3022`, with a soft `--red` glow). Use the same gradients in the video.
 - Geometry: tile `rect 128×128 rx 28`; brackets `M28 62V28h34` and `M100 66v34H66`, stroke 16, round caps and joins; dot `circle cx 64 cy 64 r 20`.
 - The brackets read two ways: viewfinder corners (framing the moment) and the Chinese quote marks 「」 (keeping the line). The dot is "this moment".
 - In the video it is drawn as inline SVG (scene 6) at 220px, so 1 icon unit = 1.71875px. Keep the icon's geometry; animate the parts (brackets, dot, tile), never redraw them.
