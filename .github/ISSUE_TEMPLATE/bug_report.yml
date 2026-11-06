@@ -1,0 +1,56 @@
+name: 問題回報
+description: 回報 ResonNote 的錯誤或在某個平台上失效的功能
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        謝謝你回報。請不要在這裡貼受版權保護的截圖或台詞；描述步驟即可。
+        安全性問題請不要開 issue，改用 Security → Report a vulnerability 私下回報。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      description: 問題發生在哪個網站？
+      options:
+        - Netflix
+        - YouTube
+        - Disney+
+        - 筆記本頁面（不分平台）
+    validations:
+      required: true
+  - type: input
+    id: chrome-version
+    attributes:
+      label: Chrome 版本與作業系統
+      description: 到 chrome://version 可以查到。
+      placeholder: 例如 Chrome 140.0.0.0、macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      description: 你做了什麼、預期會發生什麼、實際發生什麼。
+      placeholder: |
+        1. 開啟播放頁……
+        2. 按 ⌥⇧N……
+        3. 預期……，實際……
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: console 訊息
+      description: 在出問題的分頁按 F12 開 DevTools 的 Console，貼上 `[resonnote]` 開頭的訊息。沒有就寫「沒有」。
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他補充
+      description: 擴充功能版本、是否有安裝 Language Reactor 等其他擴充功能、是不是第一次在該分頁使用頁面按鈕等。
+    validations:
+      required: false
