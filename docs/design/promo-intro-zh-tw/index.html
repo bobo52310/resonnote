@@ -5,14 +5,18 @@
     <meta name="viewport" content="width=1920, height=1080" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
-      /* macOS system font for Traditional Chinese; the renderer runs on this Mac. */
-      @font-face { font-family: "PingFang TC"; src: local("PingFangTC-Regular"), local("PingFang TC"); font-weight: 400; }
-      @font-face { font-family: "PingFang TC"; src: local("PingFangTC-Semibold"); font-weight: 600 900; }
+      /* Noto Sans TC (SIL OFL 1.1), subset to the glyphs this video uses. Regenerate after copy changes: see DESIGN.md "Type". */
+      @font-face {
+        font-family: "Noto Sans TC";
+        src: url("assets/fonts/NotoSansTC-subset.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: block;
+      }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body {
         width: 1920px; height: 1080px; overflow: hidden;
         background: #0b0a09;
-        font-family: "PingFang TC", "Inter", system-ui, sans-serif;
+        font-family: "Noto Sans TC", system-ui, sans-serif;
         color: #f5f2ef;
         -webkit-font-smoothing: antialiased;
       }
@@ -24,9 +28,11 @@
         --ink-100: #f5f2ef;
         --ink-300: #d9d2c7;
         --ink-500: #a8a093;
-        --red: #e50914;
+        --red: #f2483a;
+        --red-ink: #b8281b;
         --amber: #ffb547;
         --hole: #ebe1cd;
+        --line: #4a443c;
         --mono: ui-monospace, "SF Mono", Menlo, monospace;
       }
       .scene { position: absolute; inset: 0; opacity: 0; display: none; background: var(--ink-950); }
@@ -37,8 +43,17 @@
       .still-roof { background-image: url("assets/still-rooftop.jpg"); }
       .still-lab { background-image: url("assets/still-lab.jpg"); }
       .still-plat { background-image: url("assets/still-platform.jpg"); }
+      .still-studio { background-image: url("assets/still-studio.jpg"); }
       .head { position: absolute; left: 100px; right: 100px; top: 56px; }
       .head h2 { margin-top: 12px; font-size: 92px; line-height: 1.12; font-weight: 800; letter-spacing: 0.01em; }
+      .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+      .key {
+        width: 190px; height: 190px; border-radius: 30px;
+        background: linear-gradient(180deg, #2b2722, #1a1714);
+        border: 2px solid var(--line); box-shadow: 0 14px 0 #0f0d0b, 0 22px 40px rgba(0,0,0,0.6);
+        display: flex; align-items: center; justify-content: center;
+        font: 600 104px/1 var(--mono); color: var(--ink-100);
+      }
 
       /* ============ SCENE 1 — HOOK ============ */
       .s1-frame { position: absolute; inset: 0; }
@@ -64,15 +79,14 @@
 
       /* ============ SCENE 2/3 — NOTE OVERLAY ============ */
       .backdrop { position: absolute; inset: 0; filter: blur(14px) brightness(0.32); transform: scale(1.06); }
-      .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
-      .keys { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; gap: 28px; }
-      .key {
-        width: 190px; height: 190px; border-radius: 30px;
-        background: linear-gradient(180deg, #2b2722, #1a1714);
-        border: 2px solid #4a443c; box-shadow: 0 14px 0 #0f0d0b, 0 22px 40px rgba(0,0,0,0.6);
-        display: flex; align-items: center; justify-content: center;
-        font: 600 104px/1 var(--mono); color: var(--ink-100);
+      .keys { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; align-items: center; gap: 28px; }
+      .or { margin: 0 18px; font-size: 52px; font-weight: 700; color: var(--ink-300); }
+      .qbtn {
+        display: flex; align-items: center; gap: 18px; padding: 30px 46px; border-radius: 999px;
+        background: var(--red); color: #fff; font-size: 52px; font-weight: 800;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.55);
       }
+      .qbtn::before { content: ""; width: 26px; height: 26px; border-radius: 50%; background: #fff; }
       .panel {
         position: absolute; left: 210px; width: 1500px;
         padding: 40px 44px; border-radius: 26px;
@@ -87,13 +101,31 @@
       .p-time { position: relative; height: 54px; margin: 8px 0 22px; font: 600 40px/54px var(--mono); color: var(--ink-300); }
       .p-time span { position: absolute; left: 0; top: 0; }
       .field {
-        position: relative; border: 2px solid #4a443c; border-radius: 12px; background: var(--ink-800);
+        position: relative; border: 2px solid var(--line); border-radius: 12px; background: var(--ink-800);
         padding: 18px 22px; font-size: 36px; line-height: 1.4; color: var(--ink-100); min-height: 132px;
       }
       .field span.alt { position: absolute; left: 22px; top: 18px; right: 22px; }
       .note { margin-top: 28px; border-color: #e5a00d; min-height: 150px; font-size: 40px; }
-      .caret { display: inline-block; width: 3px; height: 44px; margin-left: 4px; vertical-align: -6px; background: var(--amber); }
-      .p-hint { margin-top: 16px; font-size: 26px; color: var(--ink-500); }
+      /* Typing: a stepped width reveal (CJK glyphs are exactly 1em wide), so the caret follows the text. */
+      .typed { display: inline-block; vertical-align: top; height: 56px; overflow: hidden; white-space: nowrap; }
+      .caret { display: inline-block; width: 3px; height: 44px; margin: 6px 0 0 4px; vertical-align: top; background: var(--amber); }
+      .p-foot { margin-top: 16px; display: flex; align-items: center; justify-content: space-between; }
+      .p-hint { font-size: 28px; color: var(--ink-500); }
+      .enter {
+        padding: 10px 28px; border-radius: 12px; border: 2px solid var(--line);
+        background: linear-gradient(180deg, #2b2722, #1a1714); box-shadow: 0 6px 0 #0f0d0b;
+        font: 700 30px/1.2 var(--mono); color: var(--ink-300);
+      }
+      .saved {
+        position: absolute; left: 0; right: 0; top: 470px; display: flex; justify-content: center;
+        opacity: 0;
+      }
+      .saved div {
+        padding: 26px 48px; border-radius: 999px; background: rgba(20,18,16,0.92);
+        box-shadow: 0 20px 50px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,181,71,0.5);
+        font-size: 56px; font-weight: 800; color: var(--ink-100);
+      }
+      .saved div::before { content: "✓"; color: var(--amber); margin-right: 22px; }
 
       /* ============ SCENE 3 — FILM STRIP ============ */
       .film {
@@ -128,7 +160,35 @@
       }
       .cursor { position: absolute; width: 56px; height: 56px; opacity: 0; z-index: 50; }
 
-      /* ============ SCENE 4 — NOTEBOOK & EXPORTS ============ */
+      /* ============ SCENE 4 — RANGE (three platforms, one key) ============ */
+      .plats { position: absolute; left: 100px; right: 100px; top: 300px; display: flex; gap: 50px; }
+      .pc { flex: none; width: 540px; }
+      .pc-shot { position: relative; height: 304px; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+      .pc-shot > .still { position: absolute; inset: 0; }
+      .pc-vf { position: absolute; inset: 22px; opacity: 0; }
+      .pc-vf::before, .pc-vf::after {
+        content: ""; position: absolute; width: 70px; height: 70px; border: 0 solid var(--amber);
+      }
+      .pc-vf::before { left: 0; top: 0; border-width: 10px 0 0 10px; border-top-left-radius: 10px; }
+      .pc-vf::after { right: 0; bottom: 0; border-width: 0 10px 10px 0; border-bottom-right-radius: 10px; }
+      .pc-shot > .flash { z-index: 2; }
+      .pc-time {
+        position: absolute; left: 22px; bottom: 22px; padding: 8px 18px; border-radius: 999px;
+        background: rgba(0,0,0,0.75); font: 700 30px/1.1 var(--mono); color: #fff; opacity: 0;
+      }
+      .pc-time::before { content: "● "; color: var(--red); }
+      .pc-meta { margin-top: 22px; display: flex; align-items: center; gap: 16px; }
+      .chip {
+        padding: 4px 18px; border-radius: 999px; border: 2px solid var(--line); background: var(--ink-900);
+        font-size: 28px; font-weight: 700; color: var(--ink-100); line-height: 1.3;
+      }
+      .pc-kind { font-size: 28px; color: var(--ink-300); }
+      .pc-title { margin-top: 14px; font-size: 44px; font-weight: 800; line-height: 1.2; }
+      .pc-line { margin-top: 8px; font-size: 30px; line-height: 1.4; color: var(--ink-300); }
+      .s4-keys { position: absolute; left: 0; right: 0; top: 856px; display: flex; justify-content: center; gap: 22px; }
+      .s4-keys .key { width: 104px; height: 104px; border-radius: 20px; font-size: 56px; box-shadow: 0 8px 0 #0f0d0b, 0 14px 30px rgba(0,0,0,0.6); }
+
+      /* ============ SCENE 5 — NOTEBOOK & EXPORTS ============ */
       .nb { position: absolute; left: 100px; top: 250px; width: 900px; }
       .nb-bar {
         display: flex; align-items: center; gap: 22px; padding: 18px 26px; border-radius: 14px;
@@ -153,6 +213,7 @@
       }
       .c-thumb { flex: none; width: 240px; height: 135px; border-radius: 10px; }
       .c-text { min-width: 0; }
+      .c-src { font-size: 28px; line-height: 1.3; color: var(--ink-300); }
       .c-time { font: 700 32px/1.3 var(--mono); color: var(--amber); }
       .c-body { font-size: 32px; line-height: 1.35; color: var(--ink-100); }
       .outs { position: absolute; left: 1080px; top: 250px; width: 740px; height: 760px; }
@@ -161,51 +222,42 @@
         background: #f6f1e9; color: #1d1a16; box-shadow: 0 24px 60px rgba(0,0,0,0.6); opacity: 0;
       }
       .line-card .lc-img { height: 214px; border-radius: 12px; }
-      .line-card .lc-time { margin-top: 14px; font: 800 30px/1.2 var(--mono); color: #b3141c; }
+      .line-card .lc-time { margin-top: 14px; font: 800 30px/1.2 var(--mono); color: var(--red-ink); }
       .line-card .lc-quote { margin-top: 8px; font-size: 30px; font-weight: 700; line-height: 1.35; }
-      .line-card .lc-title { margin-top: 10px; font-size: 24px; color: #5a534a; }
+      .line-card .lc-title { margin-top: 10px; font-size: 28px; color: #5a534a; }
       .tile {
         position: absolute; left: 450px; width: 290px; padding: 26px; border-radius: 20px;
-        background: var(--ink-800); border: 2px solid #4a443c; opacity: 0;
+        background: var(--ink-800); border: 2px solid var(--line); opacity: 0;
       }
       .tile .t-icon { font: 800 52px/1 var(--mono); color: var(--amber); }
       .tile .t-name { margin-top: 14px; font-size: 34px; font-weight: 800; }
-      .tile .t-sub { margin-top: 6px; font-size: 26px; color: var(--ink-300); }
+      .tile .t-sub { margin-top: 6px; font-size: 28px; color: var(--ink-300); }
       .tile.html { top: 0; } .tile.md { top: 236px; }
-      .tag { position: absolute; left: 0; top: 560px; font-size: 26px; color: var(--ink-300); opacity: 0; }
+      .tag { position: absolute; left: 0; top: 560px; font-size: 28px; color: var(--ink-300); opacity: 0; }
       .jump {
         position: absolute; left: 0; top: 640px; padding: 18px 30px; border-radius: 999px;
         background: var(--red); color: #fff; font-size: 36px; font-weight: 800; opacity: 0;
       }
 
-      /* ============ SCENE 5 — HEART ============ */
-      .s5 { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-      .s5-mark { display: flex; align-items: center; gap: 44px; }
-      .s5-icon {
-        position: relative; width: 190px; height: 190px; border-radius: 42px;
-        background: linear-gradient(160deg, #2a241c, #14110d); box-shadow: inset 0 0 0 3px #3a3229, 0 20px 50px rgba(0,0,0,0.6);
-      }
-      /* A film frame with a red record dot: "this moment". */
-      .s5-icon::before {
-        content: ""; position: absolute; left: 30px; top: 50px; width: 130px; height: 90px;
-        border: 9px solid var(--amber); border-radius: 12px;
-      }
-      .s5-icon::after {
-        content: ""; position: absolute; left: 122px; top: 34px; width: 46px; height: 46px; border-radius: 50%;
-        background: var(--red); box-shadow: 0 0 0 7px #14110d;
-      }
-      .s5-word { font: 800 180px/1 "Inter", "PingFang TC", system-ui, sans-serif; letter-spacing: -0.02em; }
-      .s5-tag { margin-top: 60px; font-size: 64px; font-weight: 700; }
-      .s5-foot { margin-top: 44px; font-size: 32px; color: var(--ink-300); }
-      .s5-strip {
-        position: absolute; left: 0; right: 0; bottom: 70px; height: 26px; opacity: 0.5;
+      /* ============ SCENE 6 — HEART (brand close) ============ */
+      .s6-shot { position: absolute; inset: 0; filter: brightness(0.85); }
+      .s6-lock { position: absolute; left: 0; right: 0; top: 170px; display: flex; flex-direction: column; align-items: center; }
+      .s6-icon { display: block; width: 220px; height: 220px; overflow: visible; }
+      .ic-br { fill: none; stroke: var(--amber); stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+      .ic-dot { fill: var(--red); }
+      .ic-edge { fill: none; stroke: #3a3229; stroke-width: 3; }
+      .s6-word { margin-top: 44px; font-size: 180px; line-height: 1; font-weight: 800; letter-spacing: -0.01em; }
+      .s6-tag { margin-top: 48px; font-size: 64px; line-height: 1.25; font-weight: 700; }
+      .s6-plat { margin-top: 40px; font-size: 40px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-100); }
+      .s6-foot { margin-top: 18px; font-size: 32px; color: var(--ink-300); }
+      .strip {
+        position: absolute; left: 0; width: 2040px; bottom: 70px; height: 26px; opacity: 0.5;
         background: repeating-linear-gradient(90deg, var(--hole) 0 22px, transparent 22px 50px);
       }
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="30" data-width="1920" data-height="1080">
-
+    <div id="root" data-composition-id="main" data-start="0" data-duration="33.5" data-width="1920" data-height="1080">
       <!-- ============ SCENE 1 — HOOK ============ -->
       <div id="s1" class="scene">
         <div id="s1-a" class="s1-frame still still-rain"></div>
@@ -215,37 +267,34 @@
         <div class="s1-bar bottom"></div>
         <div class="s1-time"><i>16:43</i><span id="t41">16:41</span><span id="t42">16:42</span><span id="t43">16:43</span></div>
         <div id="s1-sub" class="s1-sub">如果那天我有說出口就好了。</div>
-        <div class="s1-line">
-          <h1 id="s1-l1">那一句，<br />打到你。</h1>
-        </div>
-        <div class="s1-line">
-          <h3 id="s1-l2">下一秒，<br />劇情就把它<span class="hl">帶走了</span>。</h3>
-        </div>
+        <div class="s1-line"><h1 id="s1-l1">那一句，<br />打到你。</h1></div>
+        <div class="s1-line"><h3 id="s1-l2">下一秒，<br />劇情就把它<span class="hl">帶走了</span>。</h3></div>
       </div>
 
       <!-- ============ SCENE 2 — TWIST ============ -->
       <div id="s2" class="scene">
-        <div class="backdrop still still-rain"></div>
+        <div id="s2-back" class="backdrop still still-rain"></div>
         <div id="s2-head" class="head">
-          <div class="eyebrow">畫面 · 秒數 · 台詞 · 心得</div>
+          <div class="eyebrow">先截圖、再暫停：畫面、秒數、台詞自動帶入</div>
           <h2>按一下，<span class="hl">這一刻</span>就留下來。</h2>
         </div>
         <div id="s2-keys" class="keys">
           <div class="key">⌥</div><div class="key">⇧</div><div class="key">N</div>
+          <div id="s2-or" class="or">或</div><div id="s2-qbtn" class="qbtn">記下這一刻</div>
         </div>
-        <div id="s2-panel" class="panel" style="top: 300px">
+        <div id="s2-panel" class="panel" style="top: 290px">
           <div class="p-top">
             <div class="p-thumb"><div class="still still-rain"></div></div>
             <div class="p-info">
-              <div class="p-title">雨停之前</div>
-              <div class="p-time"><span>16:43</span></div>
+              <div class="p-title">雨停之前</div><div class="p-time"><span>16:43</span></div>
               <div class="field">如果那天我有說出口就好了。</div>
             </div>
           </div>
-          <div class="field note" id="s2-note"><span class="ch">這</span><span class="ch">句</span><span class="ch">要</span><span class="ch">寫</span><span class="ch">進</span><span class="ch">下</span><span class="ch">一</span><span class="ch">篇</span><span class="ch">文</span><span class="ch">章</span><span class="ch">，</span><span class="ch">後</span><span class="ch">悔</span><span class="ch">比</span><span class="ch">錯</span><span class="ch">過</span><span class="ch">更</span><span class="ch">痛</span><span class="caret"></span></div>
-          <div class="p-hint">Enter 存檔並繼續播放　·　Esc 取消</div>
+          <div class="field note" id="s2-note"><span id="s2-typed" class="typed" data-layout-allow-overflow>這句要寫進下一篇文章，後悔比錯過更痛</span><span class="caret"></span></div>
+          <div class="p-foot"><div class="p-hint">Enter 存檔並繼續播放　·　Esc 取消</div><div id="s2-enter" class="enter">Enter</div></div>
         </div>
-        <div id="s2-flash" class="flash"></div>
+        <div id="s2-saved" class="saved"><div>已存檔，繼續播放</div></div>
+        <div id="s2-flash" class="flash" data-layout-allow-occlusion></div>
       </div>
 
       <!-- ============ SCENE 3 — MECHANIC ============ -->
@@ -266,70 +315,106 @@
         <div id="s3-viewing" class="viewing">正在看 15:25 那一則，可以直接修改</div>
         <div id="s3-panel" class="panel" style="top: 556px; padding: 30px 40px">
           <div class="p-top">
-            <div class="p-thumb" style="width: 480px; height: 270px">
-              <div id="s3-th-now" class="still still-rain"></div>
-              <div id="s3-th-old" class="still still-roof" style="opacity: 0"></div>
-            </div>
+            <div class="p-thumb" style="width: 480px; height: 270px"><div id="s3-th-now" class="still still-rain"></div><div id="s3-th-old" class="still still-roof" style="opacity: 0"></div></div>
             <div class="p-info">
               <div class="p-title">雨停之前</div>
-              <div class="p-time"><span id="s3-tn">16:43</span><span id="s3-to" style="opacity: 0">15:25</span></div>
-              <div class="field" style="min-height: 120px">
-                <span id="s3-bn">這句要寫進下一篇文章，後悔比錯過更痛</span>
-                <span id="s3-bo" class="alt" style="opacity: 0">轉折點，記下來寫文</span>
-              </div>
+              <div class="p-time" data-layout-allow-overlap><span id="s3-tn">16:43</span><span id="s3-to" style="opacity: 0">15:25</span></div>
+              <div class="field" style="min-height: 120px" data-layout-allow-overlap><span id="s3-bn">這句要寫進下一篇文章，後悔比錯過更痛</span><span id="s3-bo" class="alt" style="opacity: 0">轉折點，記下來寫文</span></div>
             </div>
           </div>
         </div>
         <svg id="s3-cursor" class="cursor" viewBox="0 0 24 24" style="left: 1100px; top: 900px"><path d="M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.4-6.6L4 20z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round" /></svg>
       </div>
 
-      <!-- ============ SCENE 4 — RANGE ============ -->
+      <!-- ============ SCENE 4 — RANGE: three platforms, one key (platform names are plain text) ============ -->
       <div id="s4" class="scene">
         <div id="s4-head" class="head">
+          <div class="eyebrow">影集 · 影片 · 電影</div>
+          <h2>換個平台，<span class="hl">同一個按鍵</span>。</h2>
+        </div>
+        <div class="plats">
+          <div id="pc1" class="pc">
+            <div class="pc-shot"><div class="still still-rain"></div><div class="pc-vf" data-layout-allow-overflow></div><div class="pc-time">16:43</div><div class="flash" data-layout-allow-occlusion></div></div>
+            <div class="pc-meta"><span class="chip">Netflix</span><span class="pc-kind">影集</span></div>
+            <div class="pc-title">雨停之前</div><div class="pc-line">「如果那天我有說出口就好了。」</div>
+          </div>
+          <div id="pc2" class="pc">
+            <div class="pc-shot"><div class="still still-studio"></div><div class="pc-vf" data-layout-allow-overflow></div><div class="pc-time">3:12</div><div class="flash" data-layout-allow-occlusion></div></div>
+            <div class="pc-meta"><span class="chip">YouTube</span><span class="pc-kind">影片</span></div>
+            <div class="pc-title">深夜錄音室</div><div class="pc-line">「下雨的時候，我才敢想你。」</div>
+          </div>
+          <div id="pc3" class="pc">
+            <div class="pc-shot"><div class="still still-plat"></div><div class="pc-vf" data-layout-allow-overflow></div><div class="pc-time">1:02:37</div><div class="flash" data-layout-allow-occlusion></div></div>
+            <div class="pc-meta"><span class="chip">Disney+</span><span class="pc-kind">電影</span></div>
+            <div class="pc-title">最後一班車</div><div class="pc-line">「有些車，錯過就不會再來了。」</div>
+          </div>
+        </div>
+        <div id="s4-keys" class="s4-keys"><div class="key">⌥</div><div class="key">⇧</div><div class="key">N</div></div>
+      </div>
+
+      <!-- ============ SCENE 5 — SHARE ============ -->
+      <div id="s5" class="scene">
+        <div id="s5-head" class="head">
           <div class="eyebrow">筆記本：勾選，然後分享</div>
           <h2>寫文章、傳給家人、<span class="hl">回到那一秒</span>。</h2>
         </div>
         <div class="nb">
           <div class="nb-bar">
-            <div class="nb-count"><span id="s4-c0" class="zero">勾選筆記後可以分享</span><span id="s4-c3" class="three">已選 3 則</span></div>
-            <div class="nb-btn">複製圖卡</div>
+            <div class="nb-count"><span id="s5-c0" class="zero">勾選筆記後可以分享</span><span id="s5-c3" class="three">已選 3 則</span></div>
+            <div class="nb-btn">下載圖卡</div>
           </div>
-          <div class="card" id="s4-k1"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-lab"></div><div class="c-text"><div class="c-time">12:05</div><div class="c-body">他其實早就知道</div></div><div class="sel"></div></div>
-          <div class="card" id="s4-k2"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-roof"></div><div class="c-text"><div class="c-time">15:25</div><div class="c-body">轉折點，記下來寫文</div></div><div class="sel"></div></div>
-          <div class="card" id="s4-k3"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-rain"></div><div class="c-text"><div class="c-time">16:43</div><div class="c-body">後悔比錯過更痛</div></div><div class="sel"></div></div>
+          <div class="card" id="s5-k1"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-rain"></div><div class="c-text"><div class="c-src">Netflix · 雨停之前</div><div class="c-time">16:43</div><div class="c-body">後悔比錯過更痛</div></div><div class="sel"></div></div>
+          <div class="card" id="s5-k2"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-studio"></div><div class="c-text"><div class="c-src">YouTube · 深夜錄音室</div><div class="c-time">3:12</div><div class="c-body">這段副歌要存起來</div></div><div class="sel"></div></div>
+          <div class="card" id="s5-k3"><div class="box"><div class="tick">✓</div></div><div class="c-thumb still still-plat"></div><div class="c-text"><div class="c-src">Disney+ · 最後一班車</div><div class="c-time">1:02:37</div><div class="c-body">錯過，就是錯過了</div></div><div class="sel"></div></div>
         </div>
         <div class="outs">
-          <div id="s4-line" class="line-card">
-            <div class="lc-img still still-rain"></div>
-            <div class="lc-time">16:43</div>
-            <div class="lc-quote">「如果那天我有說出口就好了。」</div>
-            <div class="lc-title">雨停之前 · 後悔比錯過更痛</div>
-          </div>
-          <div id="s4-html" class="tile html"><div class="t-icon">&lt;/&gt;</div><div class="t-name">網頁檔</div><div class="t-sub">手機點開就能看</div></div>
-          <div id="s4-md" class="tile md"><div class="t-icon">MD</div><div class="t-name">Markdown</div><div class="t-sub">直接貼進部落格</div></div>
-          <div id="s4-tag" class="tag">LINE 圖卡　·　網頁檔　·　Markdown</div>
-          <div id="s4-jump" class="jump">▶ 點秒數，跳回 16:43</div>
+          <div id="s5-line" class="line-card" data-layout-allow-overlap><div class="lc-img still still-rain"></div><div class="lc-time">16:43</div><div class="lc-quote">「如果那天我有說出口就好了。」</div><div class="lc-title">雨停之前 · 後悔比錯過更痛</div></div>
+          <div id="s5-html" class="tile html"><div class="t-icon">&lt;/&gt;</div><div class="t-name">網頁檔</div><div class="t-sub">手機點開就能看</div></div>
+          <div id="s5-md" class="tile md"><div class="t-icon">MD</div><div class="t-name">Markdown</div><div class="t-sub">直接貼進部落格</div></div>
+          <div id="s5-tag" class="tag">LINE 圖卡　·　網頁檔　·　Markdown</div>
+          <div id="s5-jump" class="jump">▶ 點秒數，跳回 16:43</div>
         </div>
-        <svg id="s4-cursor" class="cursor" viewBox="0 0 24 24" style="left: 700px; top: 980px"><path d="M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.4-6.6L4 20z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round" /></svg>
+        <svg id="s5-cursor" class="cursor" viewBox="0 0 24 24" style="left: 700px; top: 980px"><path d="M4 2l15 11-6.5 1.2L16 21l-3 1.4-3.4-6.6L4 20z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round" /></svg>
       </div>
 
-      <!-- ============ SCENE 5 — HEART ============ -->
-      <div id="s5" class="scene">
-        <div class="s5">
-          <div class="s5-mark">
-            <div id="s5-icon" class="s5-icon"></div>
-            <div id="s5-word" class="s5-word">ResonNote</div>
-          </div>
-          <div id="s5-tag" class="s5-tag">共鳴筆記：這一秒<span class="hl">打動你</span>，就把它留下來。</div>
-          <div id="s5-foot" class="s5-foot">支援 Netflix · Chrome 擴充功能 · 筆記只存在你的電腦裡</div>
+      <!-- ============ SCENE 6 — HEART: the viewfinder closes into the app icon ============ -->
+      <div id="s6" class="scene">
+        <div id="s6-shot" class="s6-shot still still-rain"></div>
+        <div class="s6-lock">
+          <!-- docs/brand/icon.svg drawn at 220px (1 icon unit = 1.71875px) so GSAP x/y on the brackets are screen px. -->
+          <svg id="s6-icon" class="s6-icon" viewBox="0 0 220 220" aria-label="ResonNote">
+            <defs><linearGradient id="s6-tilegrad" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#2a241c" /><stop offset="1" stop-color="#14110d" /></linearGradient></defs>
+            <g id="s6-tile"><g transform="scale(1.71875)"><rect width="128" height="128" rx="28" fill="url(#s6-tilegrad)" /><rect class="ic-edge" x="1.5" y="1.5" width="125" height="125" rx="26.5" /></g></g>
+            <g id="s6-dot"><circle class="ic-dot" cx="110" cy="110" r="34.375" /></g>
+            <g id="s6-btl"><path class="ic-br" transform="scale(1.71875)" d="M28 62V28h34" /></g>
+            <g id="s6-bbr"><path class="ic-br" transform="scale(1.71875)" d="M100 66v34H66" /></g>
+          </svg>
+          <div id="s6-word" class="s6-word">ResonNote</div>
+          <div id="s6-tag" class="s6-tag">共鳴筆記：這一秒<span class="hl">打動你</span>，就把它留下來。</div>
+          <div id="s6-plat" class="s6-plat">Netflix · YouTube · Disney+</div>
+          <div id="s6-foot" class="s6-foot">Chrome 擴充功能 · 開源 · 筆記只存在你的瀏覽器裡</div>
         </div>
-        <div id="s5-strip" class="s5-strip" data-layout-allow-overflow></div>
+        <div id="s6-flash" class="flash" data-layout-allow-occlusion></div>
+        <div id="s6-strip" class="strip" data-layout-allow-overflow></div>
       </div>
     </div>
 
     <script>
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
+      // Scene wrapper: display:none outside its window so validate never measures a hidden scene.
+      function scene(id, start, end) {
+        tl.set(id, { opacity: 0, display: "none" }, 0);
+        tl.set(id, { display: "block" }, start - 0.1);
+        tl.to(id, { opacity: 1, duration: 0.45 }, start);
+        if (end === null) return;
+        tl.to(id, { opacity: 0, duration: 0.45, ease: "power1.in" }, end - 0.45);
+        tl.set(id, { display: "none" }, end + 0.05);
+      }
+      const flash = (sel, at, peak) => {
+        tl.to(sel, { opacity: peak, duration: 0.07 }, at);
+        tl.to(sel, { opacity: 0, duration: 0.33 }, at + 0.07);
+      };
 
       /* ================= SCENE 1 (Hook) 0.0 → 5.2 ================= */
       tl.set("#s1", { display: "block", opacity: 1 }, 0);
@@ -346,97 +431,118 @@
       tl.set("#t42", { opacity: 0 }, 2.9);
       tl.set("#t43", { opacity: 1 }, 2.9);
       // The story moves on: subtitle drifts away, the next shot takes over.
-      tl.to("#s1-l1", { opacity: 0, y: -20, duration: 0.4, ease: "power1.in" }, 2.8);
+      tl.to("#s1-l1", { opacity: 0, y: -20, duration: 0.35, ease: "power1.in" }, 2.6);
       tl.to("#s1-sub", { opacity: 0, x: 220, filter: "blur(10px)", duration: 0.8, ease: "power2.in" }, 2.9);
       tl.to("#s1-b", { opacity: 1, duration: 0.8, ease: "power1.inOut" }, 3.0);
-      tl.to("#s1-l2", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 3.3);
+      tl.to("#s1-l2", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 3.0);
       tl.to("#s1", { opacity: 0, duration: 0.5, ease: "power1.in" }, 4.8);
       tl.set("#s1", { display: "none" }, 5.35);
 
-      /* ================= SCENE 2 (Twist) 5.2 → 11.6 ================= */
-      tl.set("#s2", { opacity: 0, display: "none" }, 0);
+      /* ================= SCENE 2 (Twist) 5.2 → 12.1 ================= */
+      scene("#s2", 5.2, 12.1);
       tl.set("#s2-panel", { opacity: 0, y: 40, scale: 0.96 }, 0);
-      tl.set("#s2-head", { opacity: 0, y: 20 }, 0);
-      tl.set("#s2-keys .key", { opacity: 0, y: 30 }, 0);
-      tl.set("#s2-note .ch", { opacity: 0 }, 0);
-      tl.set("#s2", { display: "block" }, 5.1);
-      tl.to("#s2", { opacity: 1, duration: 0.4 }, 5.2);
-      tl.to("#s2-keys .key", { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: "back.out(1.6)" }, 5.4);
-      tl.to("#s2-keys .key", { y: 12, duration: 0.12, ease: "power1.in" }, 6.2);
-      tl.to("#s2-flash", { opacity: 0.85, duration: 0.08 }, 6.3);
-      tl.to("#s2-flash", { opacity: 0, duration: 0.35 }, 6.38);
-      tl.to("#s2-keys", { opacity: 0, duration: 0.25 }, 6.4);
-      tl.to("#s2-panel", { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" }, 6.5);
-      tl.to("#s2-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 6.8);
-      tl.to("#s2-note .ch", { opacity: 1, duration: 0.01, stagger: 0.12 }, 7.4);
-      tl.to("#s2", { opacity: 0, duration: 0.45, ease: "power1.in" }, 11.2);
-      tl.set("#s2", { display: "none" }, 11.7);
+      tl.set(["#s2-head", "#s2-saved"], { opacity: 0, y: 20 }, 0);
+      tl.set(["#s2-keys .key", "#s2-or", "#s2-qbtn"], { opacity: 0, y: 30 }, 0);
+      tl.set("#s2-typed", { width: 0 }, 0);
+      tl.set("#s2-back", { filter: "blur(14px) brightness(0.32)" }, 0);
+      tl.to("#s2-keys .key", { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: "back.out(1.6)" }, 5.25);
+      tl.to(["#s2-or", "#s2-qbtn"], { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: "power2.out" }, 5.4);
+      tl.to("#s2-keys .key", { y: 12, duration: 0.12, ease: "power1.in" }, 6.75);
+      flash("#s2-flash", 6.85, 0.85); // shutter: capture the frame first, then pause
+      tl.to("#s2-keys", { opacity: 0, duration: 0.25 }, 6.95);
+      tl.to("#s2-panel", { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" }, 7.0);
+      tl.to("#s2-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 7.3);
+      tl.to("#s2-typed", { width: 18 * 40, duration: 1.8, ease: "steps(18)" }, 7.8); // 18 glyphs at 40px
+      // Enter saves and the video plays on.
+      tl.to("#s2-enter", { color: "#ffb547", borderColor: "#ffb547", duration: 0.2 }, 9.7);
+      tl.to("#s2-enter", { y: 6, duration: 0.1, yoyo: true, repeat: 1, ease: "power1.inOut" }, 9.85);
+      tl.to(["#s2-panel", "#s2-head"], { opacity: 0, duration: 0.3, ease: "power1.in" }, 10.0);
+      tl.to("#s2-back", { filter: "blur(0px) brightness(0.62)", duration: 0.7, ease: "power2.out" }, 10.05);
+      tl.to("#s2-saved", { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 10.3);
 
-      /* ================= SCENE 3 (Mechanic) 11.6 → 18.2 ================= */
-      tl.set("#s3", { opacity: 0, display: "none" }, 0);
+      /* ================= SCENE 3 (Mechanic) 12.1 → 17.5 ================= */
+      scene("#s3", 12.1, 17.5);
       tl.set("#s3-film", { opacity: 0, x: 120 }, 0);
       tl.set("#s3-head", { opacity: 0, y: 20 }, 0);
       tl.set("#s3-cursor", { opacity: 0, x: 0, y: 0 }, 0);
-      tl.set("#s3", { display: "block" }, 11.5);
-      tl.to("#s3", { opacity: 1, duration: 0.45 }, 11.6);
-      tl.to("#s3-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 11.8);
-      tl.to("#s3-film", { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" }, 12.1);
+      tl.to("#s3-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 12.3);
+      tl.to("#s3-film", { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" }, 12.5);
       // Cursor glides to the 15:25 frame and clicks it.
-      tl.to("#s3-cursor", { opacity: 1, duration: 0.3 }, 13.3);
-      tl.to("#s3-cursor", { x: -420, y: -560, duration: 1.0, ease: "power2.inOut" }, 13.4);
-      tl.to("#s3-cursor", { scale: 0.82, duration: 0.1, yoyo: true, repeat: 1 }, 14.5);
-      tl.to("#s3-ring2", { opacity: 1, duration: 0.2 }, 14.6);
-      tl.to("#s3-ringnow", { opacity: 0, duration: 0.2 }, 14.6);
-      tl.to("#s3-th-old", { opacity: 1, duration: 0.35 }, 14.65);
-      tl.to(["#s3-tn", "#s3-bn"], { opacity: 0, duration: 0.25 }, 14.65);
-      tl.to(["#s3-to", "#s3-bo"], { opacity: 1, duration: 0.3 }, 14.75);
-      tl.to("#s3-viewing", { opacity: 1, duration: 0.35 }, 14.8);
-      tl.to("#s3-cursor", { opacity: 0, duration: 0.4 }, 16.0);
-      tl.to("#s3", { opacity: 0, duration: 0.45, ease: "power1.in" }, 17.8);
-      tl.set("#s3", { display: "none" }, 18.3);
+      tl.to("#s3-cursor", { opacity: 1, duration: 0.3 }, 13.4);
+      tl.to("#s3-cursor", { x: -420, y: -560, duration: 0.9, ease: "power2.inOut" }, 13.5);
+      tl.to("#s3-cursor", { scale: 0.82, duration: 0.1, yoyo: true, repeat: 1 }, 14.45);
+      tl.to("#s3-ring2", { opacity: 1, duration: 0.2 }, 14.55);
+      tl.to("#s3-ringnow", { opacity: 0, duration: 0.2 }, 14.55);
+      tl.to("#s3-th-old", { opacity: 1, duration: 0.35 }, 14.6);
+      tl.to(["#s3-tn", "#s3-bn"], { opacity: 0, duration: 0.25 }, 14.6);
+      tl.to(["#s3-to", "#s3-bo"], { opacity: 1, duration: 0.3 }, 14.7);
+      tl.to("#s3-viewing", { opacity: 1, duration: 0.35 }, 14.75);
+      tl.to("#s3-cursor", { opacity: 0, duration: 0.4 }, 15.8);
 
-      /* ================= SCENE 4 (Range) 18.2 → 24.6 ================= */
-      tl.set("#s4", { opacity: 0, display: "none" }, 0);
-      tl.set("#s4-head", { opacity: 0, y: 20 }, 0);
-      tl.set(".nb", { opacity: 0, x: -40 }, 0);
-      tl.set("#s4-cursor", { opacity: 0, x: 0, y: 0 }, 0);
-      tl.set("#s4", { display: "block" }, 18.1);
-      tl.to("#s4", { opacity: 1, duration: 0.45 }, 18.2);
-      tl.to("#s4-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 18.35);
-      tl.to(".nb", { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 18.5);
-      tl.to("#s4-cursor", { opacity: 1, duration: 0.25 }, 19.0);
-      [["#s4-k1", -160], ["#s4-k2", 15], ["#s4-k3", 190]].forEach(([card, dy], i) => {
-        const at = 19.1 + i * 0.5;
-        tl.to("#s4-cursor", { x: -60, y: dy - 470, duration: 0.35, ease: "power2.inOut" }, at);
-        tl.to(card + " .tick", { opacity: 1, duration: 0.12 }, at + 0.38);
-        tl.to(card + " .sel", { opacity: 1, duration: 0.15 }, at + 0.38);
+      /* ================= SCENE 4 (Range) 17.5 → 22.6 ================= */
+      scene("#s4", 17.5, 22.6);
+      tl.set(["#s4-head", "#s4-keys"], { opacity: 0, y: 20 }, 0);
+      tl.set(".pc", { opacity: 0, y: 40 }, 0);
+      tl.set(".pc-vf", { opacity: 0, scale: 1.14 }, 0);
+      tl.set(".pc-time", { opacity: 0, y: 10 }, 0);
+      tl.to("#s4-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 17.65);
+      tl.to(".pc", { opacity: 1, y: 0, duration: 0.5, stagger: 0.15, ease: "power2.out" }, 17.8);
+      tl.to("#s4-keys", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 18.15);
+      // Same three keys on every platform: each press frames and stamps one card.
+      ["#pc1", "#pc2", "#pc3"].forEach((card, i) => {
+        const at = 18.65 + i * 0.75;
+        tl.to("#s4-keys .key", { y: 8, duration: 0.1, yoyo: true, repeat: 1, ease: "power1.in" }, at);
+        tl.to(card + " .pc-vf", { opacity: 1, scale: 1, duration: 0.25, ease: "power3.out" }, at + 0.1);
+        flash(card + " .flash", at + 0.1, 0.6);
+        tl.to(card + " .pc-time", { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }, at + 0.22);
       });
-      tl.to("#s4-c0", { opacity: 0, duration: 0.15 }, 20.1);
-      tl.to("#s4-c3", { opacity: 1, duration: 0.2 }, 20.15);
-      tl.to("#s4-cursor", { opacity: 0, duration: 0.3 }, 20.4);
-      tl.fromTo("#s4-line", { opacity: 0, x: -200, rotation: -8 }, { opacity: 1, x: 0, rotation: -3, duration: 0.6, ease: "back.out(1.4)" }, 20.4);
-      tl.fromTo("#s4-html", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 20.7);
-      tl.fromTo("#s4-md", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 20.9);
-      tl.to("#s4-tag", { opacity: 1, duration: 0.4 }, 21.4);
-      tl.fromTo("#s4-jump", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 22.0);
-      tl.to("#s4-jump", { scale: 1.05, duration: 0.3, yoyo: true, repeat: 1, ease: "sine.inOut" }, 22.7);
-      tl.to("#s4", { opacity: 0, duration: 0.45, ease: "power1.in" }, 24.2);
-      tl.set("#s4", { display: "none" }, 24.7);
 
-      /* ================= SCENE 5 (Heart) 24.6 → 30.0 ================= */
-      tl.set("#s5", { opacity: 0, display: "none" }, 0);
-      tl.set("#s5-icon", { opacity: 0, scale: 0.7 }, 0);
-      tl.set("#s5-word", { opacity: 0, x: -16 }, 0);
-      tl.set(["#s5-tag", "#s5-foot"], { opacity: 0, y: 24 }, 0);
-      tl.set("#s5-strip", { x: 0 }, 0);
-      tl.set("#s5", { display: "block" }, 24.5);
-      tl.to("#s5", { opacity: 1, duration: 0.5 }, 24.6);
-      tl.to("#s5-icon", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 24.8);
-      tl.to("#s5-word", { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" }, 25.0);
-      tl.to("#s5-tag", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 25.6);
-      tl.to("#s5-foot", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 26.6);
-      tl.to("#s5-strip", { x: -100, duration: 5.4, ease: "none" }, 24.6);
-      tl.to({}, { duration: 0.1 }, 29.9);
+      /* ================= SCENE 5 (Share) 22.6 → 28.1 ================= */
+      scene("#s5", 22.6, 28.1);
+      tl.set("#s5-head", { opacity: 0, y: 20 }, 0);
+      tl.set(".nb", { opacity: 0, x: -40 }, 0);
+      tl.set("#s5-cursor", { opacity: 0, x: 0, y: 0 }, 0);
+      tl.to("#s5-head", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 22.75);
+      tl.to(".nb", { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 22.9);
+      tl.to("#s5-cursor", { opacity: 1, duration: 0.25 }, 23.3);
+      [["#s5-k1", -160], ["#s5-k2", 15], ["#s5-k3", 190]].forEach(([card, dy], i) => {
+        const at = 23.4 + i * 0.42;
+        tl.to("#s5-cursor", { x: -60, y: dy - 470, duration: 0.3, ease: "power2.inOut" }, at);
+        tl.to([card + " .tick", card + " .sel"], { opacity: 1, duration: 0.14 }, at + 0.32);
+      });
+      tl.to("#s5-c0", { opacity: 0, duration: 0.15 }, 24.75);
+      tl.to("#s5-c3", { opacity: 1, duration: 0.2 }, 24.8);
+      tl.to("#s5-cursor", { opacity: 0, duration: 0.3 }, 24.85);
+      tl.fromTo("#s5-line", { opacity: 0, x: -200, rotation: -8 }, { opacity: 1, x: 0, rotation: -3, duration: 0.6, ease: "back.out(1.4)" }, 24.8);
+      tl.fromTo("#s5-html", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 25.0);
+      tl.fromTo("#s5-md", { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 25.2);
+      tl.to("#s5-tag", { opacity: 1, duration: 0.4 }, 25.5);
+      tl.fromTo("#s5-jump", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 25.9);
+      tl.to("#s5-jump", { scale: 1.05, duration: 0.3, yoyo: true, repeat: 1, ease: "sine.inOut" }, 26.5);
+
+      /* ================= SCENE 6 (Heart) 28.1 → 33.5 ================= */
+      // A viewfinder frames the moment and closes into the icon: the brackets become 「」,
+      // the picture shrinks into the dot, and the dot lights up red with a shutter flash.
+      const DOT_AT = "960px 280px"; // icon centre on screen (lockup top 170 + 110)
+      scene("#s6", 28.1, null);
+      tl.set("#s6-shot", { opacity: 1, clipPath: "circle(1300px at " + DOT_AT + ")" }, 0);
+      tl.set("#s6-btl", { x: -758, y: -98 }, 0);
+      tl.set("#s6-bbr", { x: 758, y: 618 }, 0);
+      tl.set(["#s6-tile", "#s6-strip"], { opacity: 0 }, 0);
+      tl.set("#s6-dot", { opacity: 0, scale: 0.4, svgOrigin: "110 110" }, 0);
+      tl.set(["#s6-word", "#s6-tag", "#s6-plat", "#s6-foot"], { opacity: 0, y: 24 }, 0);
+      tl.to(["#s6-btl", "#s6-bbr"], { x: 0, y: 0, duration: 0.95, ease: "power3.inOut" }, 28.55);
+      tl.to("#s6-shot", { clipPath: "circle(34px at " + DOT_AT + ")", duration: 0.95, ease: "power3.inOut" }, 28.55);
+      tl.to("#s6-shot", { opacity: 0, duration: 0.15 }, 29.45);
+      tl.to("#s6-dot", { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.2)" }, 29.45);
+      flash("#s6-flash", 29.47, 0.55);
+      tl.to("#s6-tile", { opacity: 1, duration: 0.45, ease: "power2.out" }, 29.6);
+      tl.to("#s6-word", { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 29.8);
+      tl.to("#s6-tag", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 30.15);
+      tl.to(["#s6-plat", "#s6-foot"], { opacity: 1, y: 0, duration: 0.5, stagger: 0.2, ease: "power2.out" }, 30.45);
+      tl.to("#s6-strip", { opacity: 0.5, duration: 0.6 }, 29.8);
+      tl.fromTo("#s6-strip", { x: 0 }, { x: -100, duration: 5.4, ease: "none" }, 28.1);
+      tl.to({}, { duration: 0.1 }, 33.4);
 
       window.__timelines["main"] = tl;
     </script>
