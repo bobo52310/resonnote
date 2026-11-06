@@ -26,6 +26,34 @@ function imagePaths(notes: Note[]): Map<string, string> {
   return paths;
 }
 
+/**
+ * Plain text as Markdown text. Titles and captions come from the streaming site (on YouTube the
+ * uploader writes them), and the notes may be pasted into a blog engine that lets raw HTML and
+ * `javascript:` links through. So `&`, `<` and `>` become entities (no tag can start, in any
+ * Markdown flavour), and `\`, `` ` ``, `[` and `]` are backslash-escaped (no link, image or code
+ * span can start, and an escape cannot be undone by a backslash before it). Rendered, the text
+ * reads exactly as it was written.
+ */
+function escapeText(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replace(/[\\`[\]]/g, '\\$&');
+}
+
+/**
+ * A link target we build from a stored note: the characters that would end it early or start
+ * markup (spaces, control characters, parentheses, angle and square brackets, `\`, `` ` ``) are
+ * percent-encoded. Real watch links have none of them, so they come out unchanged.
+ */
+function linkTarget(url: string): string {
+  return url.replace(
+    /[\x00-\x20\x7f()<>[\]\\`]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+  );
+}
+
 function noteBlocks(note: Note, imagePath: string | null): string[] {
   const time = formatTime(note.timeMs);
   const blocks = [`## ${time}`];
@@ -34,13 +62,13 @@ function noteBlocks(note: Note, imagePath: string | null): string[] {
     blocks.push(
       note.subtitle
         .split(/\r?\n/)
-        .map((line) => `> ${line}`)
+        .map((line) => `> ${escapeText(line)}`)
         .join('\n'),
     );
   }
-  if (note.body !== '') blocks.push(note.body);
-  const link = PLATFORM_INFO[note.platform].watchUrl(note.videoId, note.timeMs);
-  blocks.push(`[${watchLinkText(note.platform, note.timeMs)}](${link})`);
+  if (note.body !== '') blocks.push(escapeText(note.body));
+  const link = linkTarget(PLATFORM_INFO[note.platform].watchUrl(note.videoId, note.timeMs));
+  blocks.push(`[${escapeText(watchLinkText(note.platform, note.timeMs))}](${link})`);
   return blocks;
 }
 
@@ -48,12 +76,14 @@ function noteBlocks(note: Note, imagePath: string | null): string[] {
  * Markdown for the blog: one `# heading` per title/episode, one `## m:ss` section per note.
  * `hasImage(id)` decides whether the image line is written; blocks are separated by one
  * blank line and the text ends with a single newline. Empty input gives an empty string.
+ * Titles, captions and thoughts are written as text, never as markup (see `escapeText`).
  */
 export function buildMarkdown(notes: Note[], hasImage: (id: string) => boolean): string {
   const paths = imagePaths(notes);
   const blocks: string[] = [];
   for (const group of groupByHeading(notes)) {
-    blocks.push(`# ${group.heading}`);
+    // A heading is one line: a line break in a title would end it and start other blocks.
+    blocks.push(`# ${escapeText(group.heading.replace(/\s*[\r\n]+\s*/g, ' '))}`);
     for (const note of group.notes) {
       blocks.push(...noteBlocks(note, hasImage(note.id) ? (paths.get(note.id) ?? null) : null));
     }
