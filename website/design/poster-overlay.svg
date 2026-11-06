@@ -17,11 +17,33 @@
   <text x="1660" y="168" font-family="Menlo, monospace" font-size="32" font-weight="700" fill="#f5f2ef">16:43</text>
 
   <!-- Brand -->
+  <!-- docs/brand/icon.svg (vector twin of the Codex-designed icon) at 64px. -->
+  <defs>
+    <linearGradient id="mark-tile" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#3a3125"/>
+      <stop offset="1" stop-color="#17120d"/>
+    </linearGradient>
+    <linearGradient id="mark-amber" gradientUnits="userSpaceOnUse" x1="28" y1="20" x2="100" y2="108">
+      <stop offset="0" stop-color="#ffc657"/>
+      <stop offset="1" stop-color="#ffa31c"/>
+    </linearGradient>
+    <radialGradient id="mark-dot" cx="0.5" cy="0.5" r="0.5" fx="0.36" fy="0.32">
+      <stop offset="0" stop-color="#ff8a73"/>
+      <stop offset="0.45" stop-color="#fb4535"/>
+      <stop offset="1" stop-color="#dc3022"/>
+    </radialGradient>
+    <radialGradient id="mark-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.55" stop-color="#f2483a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f2483a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
   <g transform="translate(1020 300) scale(0.5)">
-    <rect width="128" height="128" rx="28" fill="#1c1813"/>
-    <path d="M28 62V28h34" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M100 66v34H66" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="64" cy="64" r="20" fill="#f2483a"/>
+    <rect width="128" height="128" rx="28" fill="url(#mark-tile)"/>
+    <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#4a3f30" stroke-opacity="0.7" stroke-width="3"/>
+    <path d="M28 62V28h34" fill="none" stroke="url(#mark-amber)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M100 66v34H66" fill="none" stroke="url(#mark-amber)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="64" cy="64" r="28" fill="url(#mark-glow)"/>
+    <circle cx="64" cy="64" r="20" fill="url(#mark-dot)"/>
   </g>
   <text x="1100" y="345" font-family="Noto Sans TC" font-size="36" font-weight="700" fill="#d9d2c7" letter-spacing="2">ResonNote 共鳴筆記</text>
 
