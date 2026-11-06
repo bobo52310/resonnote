@@ -201,6 +201,47 @@ describe('parseBackupZip note validation', () => {
     expect(stored.evil).toBeUndefined();
     expect('evil' in stored).toBe(false);
   });
+
+  it('accepts the ids the extension makes (crypto.randomUUID) and other plain ids', () => {
+    const ids = [crypto.randomUUID(), '4b3a1c2e-9f00-4d6b-8a21-0123456789ab', 'note-1', 'a', 'A_b-9', 'x'.repeat(64)];
+    const notes = ids.map((id) => makeNote(id));
+    expect(parseBackupZip(createBackupZip(notes, new Map())).notes.map((n) => n.id)).toEqual(ids);
+  });
+
+  it.each([
+    ['../../../evil'],
+    ['..'],
+    ['a/b'],
+    ['a\\b'],
+    ['/etc/passwd'],
+    ['C:evil'],
+    ['a b'],
+    ['a.jpg'],
+    ['%2e%2e'],
+    ['筆記'],
+    [''],
+    ['x'.repeat(65)],
+  ])('rejects a note whose id could be a path or is not a plain id (%j)', (id) => {
+    const zip = zipWithRawNote((raw) => (raw.id = id));
+    expect(() => parseBackupZip(zip)).toThrow(BackupFormatError);
+  });
+
+  it('restores nothing from a backup with a note id that is a path', async () => {
+    const evil = makeNote('../../../evil');
+    const zip = createBackupZip([makeNote('good'), evil], new Map([['../../../evil', jpeg(1)]]));
+    await expect(restoreBackup(zip)).rejects.toThrow(BackupFormatError);
+    expect(await listNotes()).toEqual([]);
+  });
+
+  it('ignores image entries whose name is not a plain id', () => {
+    const zip = zipSync({
+      'notes.json': strToU8(JSON.stringify({ version: 1, notes: [makeNote('a')] })),
+      'images/a.jpg': jpeg(1),
+      'images/../a.jpg': jpeg(2),
+      'images/x/../../b.jpg': jpeg(3),
+    });
+    expect([...parseBackupZip(zip).images.keys()]).toEqual(['a']);
+  });
 });
 
 describe('mergeNotes', () => {
@@ -343,6 +384,15 @@ describe('exportAllBackup', () => {
     expect(parsed.notes.map((n) => n.id).sort()).toEqual(['a', 'b']);
     expect([...parsed.images.keys()]).toEqual(['a']);
     expect(Array.from(parsed.images.get('a')!)).toEqual(Array.from(jpeg(1, 2, 3)));
+  });
+
+  it('writes no image entry outside images/ for a stored id that is a path (restored before ids were checked)', async () => {
+    await putNote(makeNote('../../../evil'));
+    await putImage('../../../evil', toBuffer(jpeg(1)));
+    await putNote(makeNote('good'));
+    await putImage('good', toBuffer(jpeg(2)));
+    const files = unzipSync(await exportAllBackup());
+    expect(Object.keys(files).sort()).toEqual(['images/good.jpg', 'notes.json']);
   });
 
   it('produces an empty but valid backup when there are no notes', async () => {

@@ -204,4 +204,31 @@ describe('buildMarkdownZip', () => {
     const files = unzipSync(buildMarkdownZip([makeNote('a')], new Map([['zzz', jpeg(9)]])));
     expect(Object.keys(files)).toEqual(['notes.md']);
   });
+
+  it('never names an entry outside images/, even for a note id that is a path', () => {
+    const notes = [
+      makeNote('../../../evil', { timeMs: 1000 }),
+      makeNote('a', { timeMs: 2000 }),
+      makeNote('..\\..\\win', { timeMs: 3000 }),
+    ];
+    const images = new Map([
+      ['../../../evil', jpeg(1)],
+      ['a', jpeg(2)],
+      ['..\\..\\win', jpeg(3)],
+    ]);
+    const files = unzipSync(buildMarkdownZip(notes, images));
+
+    const names = Object.keys(files).sort();
+    expect(names).toHaveLength(4);
+    for (const name of names) expect(name).toMatch(/^(notes\.md|images\/[A-Za-z0-9_.-]+\.jpg)$/);
+    expect(names.some((name) => name.includes('..'))).toBe(false);
+    expect(names).toContain('images/a.jpg');
+    // every image line points at an entry that is there, with the right picture
+    const md = strFromU8(entry(files, 'notes.md'));
+    const linked = [...md.matchAll(/!\[[^\]]*\]\((images\/[^)]+)\)/g)].map((m) => m[1]!);
+    expect(linked.sort()).toEqual(names.filter((name) => name !== 'notes.md'));
+    const evilLine = md.split('\n').find((line) => line.startsWith('![0:01]'))!;
+    const evilPath = /\((images\/[^)]+)\)/.exec(evilLine)![1]!;
+    expect([...entry(files, evilPath)]).toEqual([...jpeg(1)]);
+  });
 });

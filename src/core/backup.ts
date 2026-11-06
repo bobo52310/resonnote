@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { browser } from 'wxt/browser';
 import { getImage, listNotes, putImage, putNote } from './db';
+import { isPlainNoteId } from './note-id';
 import { isPlatform } from '../platforms/registry';
 import type { ImageSource, Note } from './types';
 
@@ -24,12 +25,17 @@ function imagePath(id: string): string {
   return `${IMAGE_PREFIX}${id}${IMAGE_SUFFIX}`;
 }
 
-/** Builds the backup zip: `notes.json` plus one `images/<id>.jpg` per entry in `images`. */
+/**
+ * Builds the backup zip: `notes.json` plus one `images/<id>.jpg` per entry in `images`. An image
+ * whose id is not a plain one (only a backup restored before ids were checked could have stored
+ * it) is left out, so no entry name can climb out of `images/` when the zip is unpacked.
+ */
 export function createBackupZip(notes: Note[], images: Map<string, Uint8Array>): Uint8Array {
   const files: Zippable = {
     [NOTES_FILE]: strToU8(JSON.stringify({ version: BACKUP_VERSION, notes })),
   };
   for (const [id, bytes] of images) {
+    if (!isPlainNoteId(id)) continue;
     // JPEG data is already compressed, so store it as-is.
     files[imagePath(id)] = [bytes, { level: 0 }];
   }
@@ -62,13 +68,14 @@ function isString(value: unknown): value is string {
 /**
  * Validates one entry of `notes.json` against the Note type and rebuilds it from
  * known fields only, so unknown keys never reach IndexedDB. Returns null if invalid.
+ * The id must be a plain one: it names the note's picture in the exported zips.
  */
 function toNote(value: unknown): Note | null {
   if (!isRecord(value)) return null;
   const image = value.image;
   if (
     !isString(value.id) ||
-    value.id === '' ||
+    !isPlainNoteId(value.id) ||
     !isPlatform(value.platform) ||
     !isString(value.videoId) ||
     !isString(value.title) ||
@@ -145,7 +152,7 @@ export function parseBackupZip(data: Uint8Array): {
     if (!path.startsWith(IMAGE_PREFIX) || !path.endsWith(IMAGE_SUFFIX)) continue;
     const id = path.slice(IMAGE_PREFIX.length, path.length - IMAGE_SUFFIX.length);
     // Copy: stored zip entries can be views over the whole input buffer.
-    if (id) images.set(id, bytes.slice());
+    if (isPlainNoteId(id)) images.set(id, bytes.slice());
   }
   return { notes, images };
 }
