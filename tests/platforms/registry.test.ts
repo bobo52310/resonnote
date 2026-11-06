@@ -6,7 +6,7 @@ import {
   PLATFORM_INFO,
   watchLinkText,
 } from '../../src/platforms/registry';
-import config from '../../wxt.config';
+import { createManifest } from '../../wxt.config';
 
 const NETFLIX_URL = 'https://www.netflix.com/watch/83053998?t=600';
 const YOUTUBE_URL = 'https://www.youtube.com/watch?v=arj7oStGLkU&t=60s';
@@ -67,8 +67,8 @@ describe('PLATFORM_INFO', () => {
   });
 
   it('has a host permission in the manifest for every tab pattern (tabs.query by url needs it)', () => {
-    const manifest = (config as { manifest?: { host_permissions?: string[] } }).manifest;
-    const granted = manifest?.host_permissions ?? [];
+    const manifest = createManifest('production');
+    const granted = manifest.host_permissions ?? [];
     expect(granted).toEqual(
       expect.arrayContaining([
         'https://www.netflix.com/*',

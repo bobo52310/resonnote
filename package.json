@@ -22,9 +22,12 @@
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
+    "build:store": "wxt build --mode store",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
+    "zip:store": "wxt zip --mode store",
     "zip:firefox": "wxt zip -b firefox",
+    "check:store-manifest": "node scripts/check-store-manifest.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "wxt prepare"

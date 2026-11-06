@@ -6,7 +6,7 @@ import {
   handleTrigger,
   reloadTitle,
 } from '../../src/background/trigger';
-import config from '../../wxt.config';
+import { createManifest } from '../../wxt.config';
 
 const WATCH_URL = 'https://www.netflix.com/watch/83053998?t=600';
 const YOUTUBE_URL = 'https://www.youtube.com/watch?v=arj7oStGLkU&t=60s';
@@ -272,7 +272,7 @@ describe('the reload badge (page opened before the extension was loaded)', () =>
   });
 
   it('restores the same title as the manifest default', () => {
-    const manifest = (config as { manifest?: { action?: { default_title?: string } } }).manifest;
-    expect(manifest?.action?.default_title).toBe(DEFAULT_ACTION_TITLE);
+    const manifest = createManifest('production');
+    expect(manifest.action?.default_title).toBe(DEFAULT_ACTION_TITLE);
   });
 });
