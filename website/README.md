@@ -28,4 +28,6 @@ pnpm check     # astro check（型別與 .astro 檢查）
 
 - 介紹影片放 `public/media/intro.mp4`（16:9、1920×1080，無聲循環），封面是 `public/media/intro-poster.webp`（同尺寸）。build 時才判斷影片在不在：沒有影片就只顯示封面圖、不請求影片檔，所以放好影片後要重新 build（推上 git 就會重新部署）。
 - 目前的 `intro-poster.webp` 是佔位圖，可直接用正式封面覆蓋。
+- 影片和封面的網址在 build 時會加上內容 hash（`?v=`），換檔後不必清 Cloudflare 快取。
+- 根目錄 README 的影片是上傳到 GitHub 的附件（`github.com/user-attachments/assets/…`），因為 GitHub 只會把附件網址轉成播放器，repo 裡的 mp4 不會。換影片時：在任一 issue 的留言框貼上或拖入新的 mp4（不用送出），複製產生的網址替換 README 裡的舊網址，再清空留言框。
 - `public/images/`、`og.png`、favicon 由 `scripts/build-assets.sh` 從 `docs/brand/` 與宣傳影片劇照產生（需要 ImageMagick、rsvg-convert、cwebp 與 Noto Sans TC 字型），不在 `pnpm build` 裡跑。劇照是 AI 生成的原創畫面，劇名為虛構。
