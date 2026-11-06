@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx --yes hyperframes@0.8.214 preview",
-    "check": "npx --yes hyperframes@0.8.214 lint && npx --yes hyperframes@0.8.214 validate && npx --yes hyperframes@0.8.214 inspect",
-    "render": "npx --yes hyperframes@0.8.214 render"
+    "dev": "npx --yes hyperframes@0.9.19 preview",
+    "check": "npx --yes hyperframes@0.9.19 lint && npx --yes hyperframes@0.9.19 validate && npx --yes hyperframes@0.9.19 inspect",
+    "render": "npx --yes hyperframes@0.9.19 render"
   }
 }
