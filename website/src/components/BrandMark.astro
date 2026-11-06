@@ -1,8 +1,9 @@
 ---
 /**
- * The ResonNote mark (docs/brand/icon.svg): corner brackets that are both a viewfinder and
- * Chinese quote marks, around a red "this moment" dot. `animated` closes the brackets and
- * lights the dot once.
+ * The ResonNote mark: corner brackets that are both a viewfinder and Chinese quote marks,
+ * around a red "this moment" dot. The raster icon (docs/brand/icon-1024.png) was designed
+ * with Codex; this is its vector twin, with the colours sampled from it, so the hero can
+ * animate it. `animated` closes the brackets and lights the dot once.
  */
 interface Props {
   size?: number;
@@ -10,7 +11,7 @@ interface Props {
   class?: string;
 }
 const { size = 32, animated = false, class: className = '' } = Astro.props;
-const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
+const id = animated ? 'mark-hero' : 'mark';
 ---
 
 <svg
@@ -22,17 +23,31 @@ const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
   focusable="false"
 >
   <defs>
-    <linearGradient id={gradientId} x1="0" y1="0" x2="0.4" y2="1">
-      <stop offset="0" stop-color="#2a241c"></stop>
-      <stop offset="1" stop-color="#14110d"></stop>
+    <linearGradient id={`${id}-tile`} x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#3a3125"></stop>
+      <stop offset="1" stop-color="#17120d"></stop>
     </linearGradient>
+    <linearGradient id={`${id}-amber`} gradientUnits="userSpaceOnUse" x1="28" y1="20" x2="100" y2="108">
+      <stop offset="0" stop-color="#ffc657"></stop>
+      <stop offset="1" stop-color="#ffa31c"></stop>
+    </linearGradient>
+    <radialGradient id={`${id}-dot`} cx="0.5" cy="0.5" r="0.5" fx="0.36" fy="0.32">
+      <stop offset="0" stop-color="#ff8a73"></stop>
+      <stop offset="0.45" stop-color="#fb4535"></stop>
+      <stop offset="1" stop-color="#dc3022"></stop>
+    </radialGradient>
+    <radialGradient id={`${id}-glow`} cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.55" stop-color="#f2483a" stop-opacity="0.22"></stop>
+      <stop offset="1" stop-color="#f2483a" stop-opacity="0"></stop>
+    </radialGradient>
   </defs>
-  <rect width="128" height="128" rx="28" fill={`url(#${gradientId})`}></rect>
-  <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#3a3229" stroke-width="3"></rect>
-  <path class="bracket bracket-a" d="M28 62V28h34" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
-  <path class="bracket bracket-b" d="M100 66v34H66" fill="none" stroke="#ffb547" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  <rect width="128" height="128" rx="28" fill={`url(#${id}-tile)`}></rect>
+  <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#4a3f30" stroke-opacity="0.7" stroke-width="3"></rect>
+  <path class="bracket bracket-a" d="M28 62V28h34" fill="none" stroke={`url(#${id}-amber)`} stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path class="bracket bracket-b" d="M100 66v34H66" fill="none" stroke={`url(#${id}-amber)`} stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle class="glow" cx="64" cy="64" r="28" fill={`url(#${id}-glow)`}></circle>
   {animated && <circle class="halo" cx="64" cy="64" r="20" fill="none" stroke="#f2483a" stroke-width="4"></circle>}
-  <circle class="dot" cx="64" cy="64" r="20" fill="#f2483a"></circle>
+  <circle class="dot" cx="64" cy="64" r="20" fill={`url(#${id}-dot)`}></circle>
 </svg>
 
 <style>
@@ -42,6 +57,7 @@ const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
   }
   .brand-mark .bracket,
   .brand-mark .dot,
+  .brand-mark .glow,
   .brand-mark .halo {
     transform-box: fill-box;
     transform-origin: center;
@@ -56,7 +72,8 @@ const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
     .is-animated .bracket-b {
       animation: close-b 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
     }
-    .is-animated .dot {
+    .is-animated .dot,
+    .is-animated .glow {
       animation: light 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.85s both;
     }
     .is-animated .halo {
@@ -78,7 +95,7 @@ const gradientId = animated ? 'mark-tile-hero' : 'mark-tile';
   @keyframes light {
     from {
       transform: scale(0);
-      fill: #5a2a24;
+      filter: brightness(0.4);
     }
     60% {
       transform: scale(1.18);
