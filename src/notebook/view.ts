@@ -6,7 +6,7 @@ import {
   restoreBackup,
   setLastBackupAt,
 } from '../core/backup';
-import type { deleteNote, getImage, listNotes, putNote } from '../core/db';
+import type { deleteNote, getImage, listNotes, updateNote } from '../core/db';
 import { formatTime } from '../core/format';
 import type { Note } from '../core/types';
 import { mountCardActions } from '../export/card-actions';
@@ -17,7 +17,8 @@ import { groupNotes, type NoteGroup } from './group';
 
 export interface NotebookDeps {
   listNotes: typeof listNotes;
-  putNote: typeof putNote;
+  /** Saves an edited body: changes only the given fields of the stored note, never re-creates it. */
+  updateNote: typeof updateNote;
   deleteNote: typeof deleteNote;
   getImage: typeof getImage;
   /** Takes the user back to the note's moment on its platform. */
@@ -31,6 +32,7 @@ const CONFIRM_DELETE_MS = 3000;
 const SAVE_DEBOUNCE_MS = 500;
 const EMPTY_TEXT = '還沒有筆記。在 Netflix、YouTube 或 Disney+ 播放時按 ⌥⇧N 記下第一則。';
 const MSG_NOT_A_BACKUP = '這不是 ResonNote 的備份檔，或檔案已損壞';
+const MSG_DELETED_ELSEWHERE = '這則筆記已經在別處刪除，剛寫的心得沒有存';
 
 interface ViewState {
   deps: NotebookDeps;
@@ -43,6 +45,8 @@ interface ViewState {
   loadSeq: number;
   /** Body writes that have started but not finished. */
   pendingSaves: number;
+  /** Called (and dropped) once no body write is running any more. */
+  savesSettled: Array<() => void>;
   disposed: boolean;
   /** Takes the page-level listeners (pagehide, visibilitychange) off again. */
   removeListeners: () => void;
@@ -284,15 +288,28 @@ async function saveBody(
 
   // Update the on-screen copy first: the export buttons must see what is on screen even while
   // the write is still running.
-  const updated: Note = {
-    ...current,
-    body,
-    updatedAt: state.deps.now().toISOString(),
-  };
+  const updatedAt = state.deps.now().toISOString();
+  const updated: Note = { ...current, body, updatedAt };
   state.notes.set(id, updated);
   state.pendingSaves++;
   try {
-    await state.deps.putNote(updated);
+    // Only the body is written, onto the stored note as it is now: the copy on screen may be
+    // older than what the overlay stored since (a fixed subtitle), or than a delete made there.
+    const before = await state.deps.updateNote(id, { body, updatedAt });
+    if (state.disposed) return;
+    if (before === undefined) {
+      // Deleted elsewhere while it was on screen. Writing it again would bring it back without
+      // its picture, so it leaves the page instead.
+      if (state.notes.get(id) === updated) {
+        const article = textarea.closest<HTMLElement>('.note');
+        if (article) dropFromScreen(state, article);
+      }
+      state.notify(MSG_DELETED_ELSEWHERE);
+    } else if (before.updatedAt !== current.updatedAt && state.notes.get(id) === updated) {
+      // Changed elsewhere since the page was drawn. The copy keeps the version the screen shows,
+      // so the page no longer matches the database and is redrawn once the user stops writing.
+      state.notes.set(id, { ...updated, updatedAt: current.updatedAt });
+    }
   } catch (error) {
     console.error('[resonnote] could not save the note', error);
     // Roll back, so the next blur tries again.
@@ -300,6 +317,9 @@ async function saveBody(
     state.notify(`儲存失敗：${errorMessage(error)}`);
   } finally {
     state.pendingSaves--;
+    if (state.pendingSaves === 0) {
+      for (const resolve of state.savesSettled.splice(0)) resolve();
+    }
   }
 }
 
@@ -325,7 +345,13 @@ async function removeNote(state: ViewState, article: HTMLElement, button: HTMLBu
     button.disabled = false;
     return;
   }
+  dropFromScreen(state, article);
+}
 
+/** Takes a note that is no longer stored off the page: its card, selection and picture URL. */
+function dropFromScreen(state: ViewState, article: HTMLElement): void {
+  const id = article.dataset['noteId'];
+  if (id === undefined) return;
   state.notes.delete(id);
   const url = state.thumbUrls.get(id);
   if (url !== undefined) {
@@ -639,6 +665,7 @@ export async function renderNotebook(
     timers: new Set(),
     loadSeq: 0,
     pendingSaves: 0,
+    savesSettled: [],
     disposed: false,
     removeListeners: () => {},
     groupsEl,
@@ -744,6 +771,13 @@ export function notesSignature(notes: Iterable<Pick<Note, 'id' | 'updatedAt'>>):
 export function shownSignature(root: HTMLElement): string | null {
   const state = states.get(root);
   return state ? notesSignature(state.notes.values()) : null;
+}
+
+/** Resolves once no body write of the notebook drawn in `root` is running (at once if none is). */
+export function whenSavesSettled(root: HTMLElement): Promise<void> {
+  const state = states.get(root);
+  if (!state || state.pendingSaves === 0) return Promise.resolve();
+  return new Promise((resolve) => state.savesSettled.push(resolve));
 }
 
 /**

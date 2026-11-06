@@ -43,8 +43,12 @@ export interface OverlayOptions {
   subtitle: string;
   missing: Missing[];
   onOpenNotebook: () => void;
-  /** An earlier note (opened from the film strip) was edited in the overlay and should be stored. */
-  onEditPrevious?: (id: string, changes: { subtitle: string; body: string }) => void;
+  /**
+   * An earlier note (opened from the film strip) was edited in the overlay and should be stored.
+   * `changes` holds only the fields that were changed: the other one may have been edited in the
+   * notebook since the strip was filled, and must not be written back from the overlay's copy.
+   */
+  onEditPrevious?: (id: string, changes: { subtitle?: string; body?: string }) => void;
   /**
    * An earlier note (in the panel, after a second click on 刪除這一則) should be deleted. The
    * overlay has already dropped it from the strip. Without this there is no delete button.
@@ -533,15 +537,22 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     deleteButton.classList.remove('confirming');
   };
 
-  /** Hands edits of the earlier note in the panel to the caller, if there are any. */
+  /** Hands edits of the earlier note in the panel to the caller (the changed fields only), if any. */
   const commitViewed = (): void => {
     if (viewed === null) return;
+    const changes: { subtitle?: string; body?: string } = {};
     const subtitle = subtitleEl.value.trimEnd();
     const body = noteEl.value.trimEnd();
-    if (subtitle === viewed.subtitle.trimEnd() && body === viewed.body.trimEnd()) return;
-    viewed.subtitle = subtitle;
-    viewed.body = body;
-    opts.onEditPrevious?.(viewed.id, { subtitle, body });
+    if (subtitle !== viewed.subtitle.trimEnd()) {
+      changes.subtitle = subtitle;
+      viewed.subtitle = subtitle;
+    }
+    if (body !== viewed.body.trimEnd()) {
+      changes.body = body;
+      viewed.body = body;
+    }
+    if (changes.subtitle === undefined && changes.body === undefined) return;
+    opts.onEditPrevious?.(viewed.id, changes);
   };
 
   /** Puts `target` (null: this moment) in the panel; edits of the earlier one are kept if `keep`. */

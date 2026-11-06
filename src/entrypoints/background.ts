@@ -45,6 +45,20 @@ function isSaveMessage(message: Record<string, unknown>): message is SaveMessage
   );
 }
 
+type UpdateMessage = Extract<ToBackground, { type: 'resonnote/update' }>;
+
+/** An edit from the overlay: an id and at least one of subtitle and body, each absent or text. */
+function isUpdateMessage(message: Record<string, unknown>): message is UpdateMessage {
+  const { subtitle, body } = message;
+  return (
+    message['type'] === 'resonnote/update' &&
+    typeof message['id'] === 'string' &&
+    (subtitle === undefined || typeof subtitle === 'string') &&
+    (body === undefined || typeof body === 'string') &&
+    (subtitle !== undefined || body !== undefined)
+  );
+}
+
 function isJumpMessage(message: Record<string, unknown>): message is JumpMessage {
   return (
     message['type'] === 'resonnote/jump' &&
@@ -151,18 +165,15 @@ export default defineBackground(() => {
       return true;
     }
 
-    if (
-      message['type'] === 'resonnote/update' &&
-      typeof message['id'] === 'string' &&
-      typeof message['subtitle'] === 'string' &&
-      typeof message['body'] === 'string'
-    ) {
-      void handleUpdate({
+    if (isUpdateMessage(message)) {
+      // Rebuilt from the known fields only.
+      const update: UpdateMessage = {
         type: 'resonnote/update',
-        id: message['id'],
-        subtitle: message['subtitle'],
-        body: message['body'],
-      }).then(sendResponse);
+        id: message.id,
+      };
+      if (message.subtitle !== undefined) update.subtitle = message.subtitle;
+      if (message.body !== undefined) update.body = message.body;
+      void handleUpdate(update).then(sendResponse);
       return true;
     }
 

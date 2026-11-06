@@ -8,7 +8,10 @@ import {
   getImage,
   getNote,
   listNotes,
+  putImage,
   putNote,
+  updateNote,
+  type NoteChanges,
 } from '../../src/core/db';
 import type { Note } from '../../src/core/types';
 import { notesSignature, refreshIfChanged, refreshOnReturn } from '../../src/notebook/refresh';
@@ -40,7 +43,7 @@ function makeNote(id: string, overrides: Partial<Note> = {}): Note {
 function realDeps(overrides: Partial<NotebookDeps> = {}): NotebookDeps {
   return {
     listNotes,
-    putNote,
+    updateNote,
     deleteNote,
     getImage,
     jump: () => {},
@@ -279,9 +282,9 @@ describe('refreshIfChanged: never while the user is writing', () => {
       release = resolve;
     });
     const deps = realDeps({
-      putNote: vi.fn(async (note: Note) => {
+      updateNote: vi.fn(async (id: string, changes: NoteChanges) => {
         await gate;
-        await putNote(note);
+        return updateNote(id, changes);
       }),
     });
     await renderNotebook(root, deps);
@@ -438,5 +441,91 @@ describe('refreshOnReturn', () => {
     window.dispatchEvent(new Event('focus'));
     await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
     expect(String(warn.mock.calls[0]?.[0])).toMatch(/^\[resonnote\]/);
+  });
+});
+
+describe('a box edited while the note changes elsewhere', () => {
+  let stop: (() => void) | undefined;
+
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+  });
+
+  it('does not bring back a note deleted elsewhere (overlay film strip) while it was on screen', async () => {
+    await putImage('a', new Uint8Array([0xff, 0xd8, 1]).buffer);
+    await putNote(makeNote('a', { timeMs: 1 }));
+    await putNote(makeNote('b', { timeMs: 2 }));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    const textarea = textareaOf('a');
+    textarea.focus();
+
+    // the background deletes it on a request from the overlay on a Netflix tab
+    await deleteNote('a');
+    textarea.value = '之後才在筆記本打的字';
+    textarea.dispatchEvent(new Event('blur'));
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="a"]')).toBeNull());
+
+    expect(await getNote('a')).toBeUndefined();
+    expect(await getImage('a')).toBeUndefined();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('已經在別處刪除');
+    expect(root.querySelector('[data-note-id="b"]')).not.toBeNull();
+  });
+
+  it('keeps a subtitle fixed elsewhere (overlay) when the body is saved from a box drawn before', async () => {
+    await putNote(makeNote('a', { subtitle: '舊台詞' }));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+
+    await putNote(makeNote('a', { subtitle: '小視窗改好的台詞', updatedAt: '2026-10-27T00:00:00.000Z' }));
+    await editBody('a', '筆記本補的心得');
+
+    const stored = await getNote('a');
+    expect(stored?.subtitle).toBe('小視窗改好的台詞');
+    expect(stored?.body).toBe('筆記本補的心得');
+    expect(stored?.updatedAt).toBe(NOW.toISOString());
+  });
+
+  it('redraws with the stored subtitle once the user leaves the box', async () => {
+    await putNote(makeNote('a', { subtitle: '舊台詞' }));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+    const textarea = textareaOf('a');
+    textarea.focus();
+
+    await putNote(makeNote('a', { subtitle: '小視窗改好的台詞', updatedAt: '2026-10-27T00:00:00.000Z' }));
+    // coming back to the page with the caret still in the box: no redraw yet
+    window.dispatchEvent(new Event('focus'));
+    await flush();
+    expect(textareaOf('a')).toBe(textarea);
+
+    textarea.value = '筆記本補的心得';
+    textarea.blur();
+    await vi.waitFor(() =>
+      expect(noteEl('a').querySelector('.subtitle')?.textContent).toBe('小視窗改好的台詞'),
+    );
+    expect(textareaOf('a').value).toBe('筆記本補的心得');
+    expect((await getNote('a'))?.subtitle).toBe('小視窗改好的台詞');
+  });
+
+  it('shows a note captured elsewhere once the user leaves the box that kept the redraw away', async () => {
+    await putNote(makeNote('a'));
+    const deps = realDeps();
+    await renderNotebook(root, deps);
+    stop = refreshOnReturn(root, deps);
+    const textarea = textareaOf('a');
+    textarea.focus();
+
+    await putNote(makeNote('c', { videoId: '999', title: '另一部' }));
+    window.dispatchEvent(new Event('focus'));
+    await flush();
+    await flush();
+    expect(root.querySelector('[data-note-id="c"]')).toBeNull();
+
+    // left without typing anything: there is nothing to save, but the skipped redraw is made up
+    textarea.blur();
+    await vi.waitFor(() => expect(root.querySelector('[data-note-id="c"]')).not.toBeNull());
   });
 });

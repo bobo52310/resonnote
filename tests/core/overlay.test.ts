@@ -634,12 +634,25 @@ describe('switching to an earlier note from the film strip', () => {
     frameAt('15:25').click();
     note().value = '伏筆，後來回收';
     frameAt('12:05').click();
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '伏筆，後來回收' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '伏筆，後來回收' });
     note().value = '補一句';
     press(note(), { key: 'Enter' });
-    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { subtitle: '台詞a', body: '補一句' });
+    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { body: '補一句' });
     expect(el('[data-role="time"]').textContent).toBe('16:43');
     expect(await isPending(h.result)).toBe(true);
+  });
+
+  it('reports only the field that was changed, so the other one is not written back from an old copy', () => {
+    const { onEditPrevious } = setup();
+    frameAt('15:25').click();
+    subtitle().value = '台詞b 修正';
+    frameAt('16:43').click();
+    expect(onEditPrevious).toHaveBeenLastCalledWith('b', { subtitle: '台詞b 修正' });
+
+    frameAt('12:05').click();
+    note().value = '只改心得';
+    frameAt('16:43').click();
+    expect(onEditPrevious).toHaveBeenLastCalledWith('a', { body: '只改心得' });
   });
 
   it('does not report an earlier note that was only looked at', () => {
@@ -716,7 +729,7 @@ describe('refilling the strip while an earlier note is in the panel', () => {
 
     // The panel now works on the new copy: leaving it stores the typed text.
     el<HTMLButtonElement>('[data-role="back"]').click();
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '打到一半' });
     expect(el('[data-role="time"]').textContent).toBe('16:43');
   });
 
@@ -730,7 +743,7 @@ describe('refilling the strip while an earlier note is in the panel', () => {
 
     expect(el('[data-role="time"]').textContent).toBe('16:43');
     expect(el('[data-role="viewing"]').hidden).toBe(true);
-    expect(onEditPrevious).toHaveBeenCalledWith('b', { subtitle: '台詞b', body: '打到一半' });
+    expect(onEditPrevious).toHaveBeenCalledWith('b', { body: '打到一半' });
   });
 
   it('goes back to this moment when it is refilled with nothing', () => {

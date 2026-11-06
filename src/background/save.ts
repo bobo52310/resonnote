@@ -1,4 +1,4 @@
-import { deleteNote, getNote, putImage, putNote } from '../core/db';
+import { deleteNote, putImage, putNote, updateNote, type NoteChanges } from '../core/db';
 import { dataUrlToBytes, type SaveResult, type ToBackground } from '../core/messages';
 
 /**
@@ -23,22 +23,20 @@ export async function handleSave(
 }
 
 /**
- * Stores edits made to an earlier note from the overlay. `updatedAt` moves on, so backups and
- * the notebook see the newer text. Never throws.
+ * Stores edits made to an earlier note from the overlay: only the fields the message carries,
+ * so a body edited in the notebook meanwhile is kept. A note deleted meanwhile stays deleted.
+ * `updatedAt` moves on, so backups and the notebook see the newer text. Never throws.
  */
 export async function handleUpdate(
   msg: Extract<ToBackground, { type: 'resonnote/update' }>,
   now: () => Date = () => new Date(),
 ): Promise<SaveResult> {
   try {
-    const note = await getNote(msg.id);
-    if (!note) return { ok: false, error: '找不到這則筆記' };
-    await putNote({
-      ...note,
-      subtitle: msg.subtitle.trimEnd(),
-      body: msg.body.trimEnd(),
-      updatedAt: now().toISOString(),
-    });
+    const changes: NoteChanges = { updatedAt: now().toISOString() };
+    if (msg.subtitle !== undefined) changes.subtitle = msg.subtitle.trimEnd();
+    if (msg.body !== undefined) changes.body = msg.body.trimEnd();
+    const previous = await updateNote(msg.id, changes);
+    if (!previous) return { ok: false, error: '找不到這則筆記' };
     return { ok: true };
   } catch (error) {
     console.error('[resonnote] updating the note failed', error);

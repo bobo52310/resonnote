@@ -28,8 +28,12 @@ export type ToBackground =
   | { type: 'resonnote/open-notebook' }
   | { type: 'resonnote/jump'; platform: Platform; videoId: string; timeMs: number }
   | { type: 'resonnote/recent'; platform: Platform; videoId: string; limit: number }
-  /** Edits made to an earlier note from the overlay's film strip. */
-  | { type: 'resonnote/update'; id: string; subtitle: string; body: string }
+  /**
+   * Edits made to an earlier note from the overlay's film strip: only the fields that were
+   * changed, so a field edited in the notebook meanwhile is not written back from the overlay's
+   * older copy.
+   */
+  | { type: 'resonnote/update'; id: string; subtitle?: string; body?: string }
   /** An earlier note deleted from the overlay's film strip. */
   | { type: 'resonnote/delete'; id: string }
   /** The on-page 「記下這一刻」 button: same as the shortcut, for the tab that sent it. */

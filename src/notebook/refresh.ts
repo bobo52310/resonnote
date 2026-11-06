@@ -4,6 +4,7 @@ import {
   notesSignature,
   renderNotebook,
   shownSignature,
+  whenSavesSettled,
   type NotebookDeps,
 } from './view';
 
@@ -42,6 +43,10 @@ export async function refreshIfChanged(root: HTMLElement, deps: NotebookDeps): P
  * where the page is never hidden and `visibilitychange` alone would not fire. Returns a function
  * that stops listening.
  *
+ * A check made while the caret is in a box is skipped (see `refreshIfChanged`), and the caret
+ * often still is when the user comes back, so the check is made again when a box is left, once
+ * its text has been written.
+ *
  * Both events can arrive together; a check that is still running is not joined by a second one
  * (two redraws in a row would drop the checked notes the first one restored).
  */
@@ -49,6 +54,7 @@ export function refreshOnReturn(root: HTMLElement, deps: NotebookDeps): () => vo
   const doc = root.ownerDocument;
   const win = doc.defaultView;
   let running = false;
+  let stopped = false;
 
   const check = () => {
     if (running) return;
@@ -62,11 +68,24 @@ export function refreshOnReturn(root: HTMLElement, deps: NotebookDeps): () => vo
   const onVisibility = () => {
     if (doc.visibilityState === 'visible') check();
   };
+  const onLeaveBox = (e: FocusEvent) => {
+    if (!(e.target instanceof Element) || e.target.tagName !== 'TEXTAREA') return;
+    // After the box's own blur handler has started the write, and focus has landed elsewhere
+    // (on another box, which keeps the redraw away again).
+    setTimeout(() => {
+      void whenSavesSettled(root).then(() => {
+        if (!stopped) check();
+      });
+    }, 0);
+  };
 
   doc.addEventListener('visibilitychange', onVisibility);
   win?.addEventListener('focus', check);
+  root.addEventListener('focusout', onLeaveBox);
   return () => {
+    stopped = true;
     doc.removeEventListener('visibilitychange', onVisibility);
     win?.removeEventListener('focus', check);
+    root.removeEventListener('focusout', onLeaveBox);
   };
 }
