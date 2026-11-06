@@ -3,12 +3,24 @@
  * Intro video in a film frame. The video file is optional: until public/media/intro.mp4 exists,
  * the poster is shown as a plain image, so the page never requests a missing file.
  */
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const POSTER = '/media/intro-poster.webp';
-const VIDEO = '/media/intro.mp4';
-const hasVideo = existsSync(join(process.cwd(), 'public', VIDEO));
+const inPublic = (path: string) => join(process.cwd(), 'public', path);
+/**
+ * Adds a content hash to the URL. /media/* is cached at the edge for a day, so a replaced
+ * video or poster would otherwise keep being served from the old copy.
+ */
+const versioned = (path: string) => {
+  const hash = createHash('sha256').update(readFileSync(inPublic(path))).digest('hex');
+  return `${path}?v=${hash.slice(0, 10)}`;
+};
+
+const VIDEO_FILE = '/media/intro.mp4';
+const POSTER = versioned('/media/intro-poster.webp');
+const hasVideo = existsSync(inPublic(VIDEO_FILE));
+const VIDEO = hasVideo ? versioned(VIDEO_FILE) : '';
 const label = 'ResonNote 介紹影片（約 30 秒，無聲）';
 ---
 
