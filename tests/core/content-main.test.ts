@@ -3,6 +3,11 @@ import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { isToContent, runContentScript, type ContentScriptOptions } from '../../src/core/content-main';
 import type { ToBackground } from '../../src/core/messages';
 import type { PlatformAdapter } from '../../src/platforms/types';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 type MessageListener = (
   message: unknown,
@@ -198,7 +203,7 @@ describe('runContentScript', () => {
   });
 
   describe('shortcut label', () => {
-    const label = () => document.querySelector('[data-resonnote-button]')!.shadowRoot!.querySelector('kbd')!.textContent;
+    const label = () => shadowOf(document.querySelector('[data-resonnote-button]'))!.querySelector('kbd')!.textContent;
 
     it('asks the background for the shortcut and shows it on the button', async () => {
       start();
@@ -230,7 +235,7 @@ describe('runContentScript', () => {
       const host = document.querySelector<HTMLElement>('[data-resonnote-button]')!;
       move();
       expect(host.hasAttribute('data-visible')).toBe(true);
-      host.shadowRoot!.querySelector('button')!.click();
+      shadowOf(host)!.querySelector('button')!.click();
       await vi.waitFor(() => expect(sent).toContainEqual({ type: 'resonnote/trigger' }));
     });
 

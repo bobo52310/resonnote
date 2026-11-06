@@ -153,7 +153,8 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
 
   const host = doc.createElement('div');
   host.setAttribute(HOST_ATTRIBUTE, '');
-  const root = host.attachShadow({ mode: 'open' });
+  // Closed, like the note overlay's: the page's scripts have no business inside.
+  const root = host.attachShadow({ mode: 'closed' });
   const style = doc.createElement('style');
   style.textContent = BUTTON_CSS;
   const button = doc.createElement('button');
@@ -167,7 +168,9 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
   root.append(style, button);
 
   for (const type of STOPPED_EVENTS) host.addEventListener(type, (e) => e.stopPropagation());
-  button.addEventListener('click', () => {
+  button.addEventListener('click', (e) => {
+    // Only a real click: a page script's click() or dispatchEvent() must not start a capture.
+    if (!e.isTrusted) return;
     hide();
     opts.onPress();
   });

@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { IDLE_HIDE_MS, mountQuickButton, type QuickButtonHandle } from '../../src/core/quick-button';
+import { recordShadowRoots } from '../helpers/shadow-roots';
+import { forged, treatEventsAsUserInput } from '../helpers/user-input';
+
+const shadowOf = recordShadowRoots();
+treatEventsAsUserInput();
 
 let handle: QuickButtonHandle | null = null;
 let onPress: Mock<() => void>;
@@ -7,7 +12,7 @@ let watch = true;
 let busy = false;
 
 const host = () => document.querySelector<HTMLElement>('[data-resonnote-button]');
-const button = () => host()!.shadowRoot!.querySelector('button')!;
+const button = () => shadowOf(host())!.querySelector('button')!;
 const visible = () => host()?.hasAttribute('data-visible') ?? false;
 const moveMouse = () => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
@@ -120,6 +125,19 @@ describe('quick button', () => {
     }
   });
 
+  it('does not start a capture on a click made by a page script', () => {
+    moveMouse();
+    button().dispatchEvent(forged(new MouseEvent('click', { bubbles: true, composed: true })));
+    host()!.dispatchEvent(forged(new MouseEvent('click', { bubbles: true, composed: true })));
+    expect(onPress).not.toHaveBeenCalled();
+    expect(visible()).toBe(true);
+  });
+
+  it('keeps its shadow root closed to the page', () => {
+    expect(host()!.shadowRoot).toBeNull();
+    expect(shadowOf(host())).not.toBeNull();
+  });
+
   it('says what it does, with the shortcut once known', () => {
     expect(button().textContent).toContain('記下這一刻');
     expect(button().getAttribute('aria-label')).toBe('記下這一刻');
@@ -148,7 +166,7 @@ describe('quick button hidden for a screenshot', () => {
     expect(hiddenNow()).toBe(true);
     expect(host()!.style.getPropertyPriority('visibility')).toBe('important');
     // `visibility` is not among the properties the button's stylesheet fades.
-    const css = host()!.shadowRoot!.querySelector('style')!.textContent!;
+    const css = shadowOf(host())!.querySelector('style')!.textContent!;
     expect(css.match(/transition:([^;]*);/)?.[1]).not.toContain('visibility');
   });
 

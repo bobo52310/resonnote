@@ -400,7 +400,10 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
 
   const host = doc.createElement('div');
   host.setAttribute(HOST_ATTRIBUTE, '');
-  const root = host.attachShadow({ mode: 'open' });
+  // Closed: the page's own scripts (and the third-party scripts it loads) share this DOM, and
+  // with an open root they could read the note being typed and the earlier notes in the strip.
+  // Their events never get past the `isTrusted` checks below either.
+  const root = host.attachShadow({ mode: 'closed' });
 
   const style = doc.createElement('style');
   style.textContent = OVERLAY_CSS;
@@ -482,7 +485,9 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   const notebookLink = create('button', 'link', 'open-notebook');
   notebookLink.type = 'button';
   notebookLink.textContent = '開啟筆記本';
-  notebookLink.addEventListener('click', () => opts.onOpenNotebook());
+  notebookLink.addEventListener('click', (e) => {
+    if (e.isTrusted) opts.onOpenNotebook();
+  });
   footer.appendChild(notebookLink);
   panel.appendChild(footer);
 
@@ -586,7 +591,9 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     markCurrent();
     noteEl.focus();
   };
-  backButton.addEventListener('click', () => switchTo(null, true));
+  backButton.addEventListener('click', (e) => {
+    if (e.isTrusted) switchTo(null, true);
+  });
 
   // --- film strip -----------------------------------------------------------
   /**
@@ -633,12 +640,14 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
         const words = note === null ? '這一刻' : wordsOf(note);
         showCaption(at, words);
       });
-      frame.addEventListener('click', () => switchTo(note, true));
+      frame.addEventListener('click', (e) => {
+        if (e.isTrusted) switchTo(note, true);
+      });
       frame.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         e.stopPropagation();
-        switchTo(note, true);
+        if (e.isTrusted) switchTo(note, true);
       });
       if (frames.childElementCount > 0) {
         const arrow = create('span', 'arrow');
@@ -685,9 +694,9 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   };
 
   if (deleteButton !== null) {
-    deleteButton.addEventListener('click', () => {
+    deleteButton.addEventListener('click', (e) => {
       const target = viewed;
-      if (target === null) return;
+      if (target === null || !e.isTrusted) return;
       if (confirmTimer === null) {
         deleteButton.textContent = DELETE_CONFIRM_LABEL;
         deleteButton.classList.add('confirming');
@@ -704,6 +713,8 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
   // --- keyboard -----------------------------------------------------------
   panel.addEventListener('keydown', (e) => {
     e.stopPropagation();
+    // A key a page script made up neither saves, cancels nor switches notes.
+    if (!e.isTrusted) return;
     const composing = isComposingKey(e);
 
     if (e.key === 'Escape') {
@@ -738,24 +749,26 @@ export function openOverlay(opts: OverlayOptions): OverlayHandle {
     host.addEventListener(type, (e) => e.stopPropagation());
   }
   // Clicking the dimmed backdrop must not move focus to <body>, where
-  // keystrokes would reach Netflix again. A listener on the shadow host sees
-  // `e.target` retargeted to the host for events that started inside the
-  // shadow tree, so `e.target === host` would also be true for the textareas
-  // and buttons and would block focus, caret and selection there. The first
-  // entry of the composed path is the real origin.
-  const onBackdrop = (e: Event) => {
-    const origin = e.composedPath()[0];
-    return !(origin instanceof Node) || !panel.contains(origin);
-  };
+  // keystrokes would reach Netflix again. A listener on the shadow host cannot
+  // tell a press on the backdrop (the host itself) from one inside the panel:
+  // `e.target` is retargeted to the host, and with a closed shadow root
+  // `composedPath()` leaves out the whole tree, so it starts at the host too.
+  // Events from inside pass the shadow root on their way out, and are noted
+  // there; the shadow root's listeners run before the host's.
+  const fromInside = new WeakSet<Event>();
+  for (const type of ['mousedown', 'click'] as const) {
+    root.addEventListener(type, (e) => fromInside.add(e));
+  }
+  const onBackdrop = (e: Event) => !fromInside.has(e);
   // A click on the dimmed backdrop cancels, like Esc. Only when the press also started there:
   // a text selection dragged from a box out onto the backdrop must not throw the note away.
   let pressedOnBackdrop = false;
   host.addEventListener('mousedown', (e) => {
-    pressedOnBackdrop = onBackdrop(e);
+    pressedOnBackdrop = e.isTrusted && onBackdrop(e);
     if (pressedOnBackdrop) e.preventDefault();
   });
   host.addEventListener('click', (e) => {
-    if (pressedOnBackdrop && onBackdrop(e)) {
+    if (e.isTrusted && pressedOnBackdrop && onBackdrop(e)) {
       // Leaving the overlay keeps what was changed in an earlier note, like switching does.
       commitViewed();
       settle({ action: 'cancel' });
