@@ -146,6 +146,23 @@ describe('quick button', () => {
     expect(button().getAttribute('aria-label')).toBe('記下這一刻（⌥⇧N）');
   });
 
+  it('can show a notice in place of its label, for good', () => {
+    handle!.setShortcut('⌥⇧N');
+    handle!.showNotice('ResonNote 已更新，請重新整理這個分頁');
+    expect(visible()).toBe(true);
+    expect(button().textContent).toContain('ResonNote 已更新，請重新整理這個分頁');
+    expect(button().textContent).not.toContain('⌥⇧N');
+    expect(button().getAttribute('aria-label')).toBe('ResonNote 已更新，請重新整理這個分頁');
+    // a late shortcut answer does not bring the old label back
+    handle!.setShortcut('⌥⇧N');
+    expect(button().textContent).not.toContain('⌥⇧N');
+    // it fades like the button does, and comes back with the notice on the next move
+    vi.advanceTimersByTime(IDLE_HIDE_MS);
+    expect(visible()).toBe(false);
+    moveMouse();
+    expect(button().textContent).toContain('ResonNote 已更新，請重新整理這個分頁');
+  });
+
   it('is removed by destroy', () => {
     handle!.destroy();
     handle = null;

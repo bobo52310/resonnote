@@ -29,6 +29,11 @@ export interface QuickButtonHandle {
   /** Shows the shortcut beside the label (for example 「⌥⇧N」); '' hides it. */
   setShortcut(shortcut: string): void;
   /**
+   * Puts `message` in place of the label and the shortcut, for good, and shows the button at
+   * once. For a script that can no longer do what the button says (its extension went away).
+   */
+  showNotice(message: string): void;
+  /**
    * Makes the button vanish at once (no fade, whatever the mouse does) so a screenshot cannot
    * catch it, even half-faded. Returns the function that lets it show again; calling that more
    * than once is harmless.
@@ -235,7 +240,10 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
   // Counts the screenshots in flight, so an overlapping restore cannot show it under another one.
   let screenshotHides = 0;
 
+  /** Set once a notice has replaced the label; the label does not come back after that. */
+  let notice: string | null = null;
   const updateLabel = (shortcut: string) => {
+    if (notice !== null) return;
     kbd.textContent = shortcut;
     button.setAttribute('aria-label', shortcut === '' ? '記下這一刻' : `記下這一刻（${shortcut}）`);
   };
@@ -243,6 +251,14 @@ export function mountQuickButton(opts: QuickButtonOptions): QuickButtonHandle {
 
   return {
     setShortcut: updateLabel,
+    showNotice(message) {
+      notice = message;
+      label.textContent = message;
+      kbd.textContent = '';
+      button.title = message;
+      button.setAttribute('aria-label', message);
+      reveal();
+    },
     hideForScreenshot() {
       screenshotHides++;
       // `visibility` is not part of the fade transition, so this takes effect on the next paint.

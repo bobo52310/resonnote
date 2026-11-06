@@ -72,6 +72,27 @@ function hidingTheButtonToo(
   };
 }
 
+/** Shown on the on-page button once this script has lost its extension. */
+const MSG_RELOAD_TAB = 'ResonNote 已更新，請重新整理這個分頁';
+
+/**
+ * False once this script has lost its extension. When the extension is updated, reloaded or
+ * removed, the scripts already running in open tabs stay on the page (with their button) but can
+ * no longer reach it, and Chrome does not inject the new version into those tabs: only reloading
+ * the tab brings a working script.
+ */
+function extensionReachable(): boolean {
+  try {
+    return Boolean(browser.runtime?.id);
+  } catch {
+    return false;
+  }
+}
+
+function lostTheExtension(error: unknown): boolean {
+  return !extensionReachable() || String(error).includes('Extension context invalidated');
+}
+
 /**
  * The part of the content script that is the same on every platform: the capture controller,
  * the background messages, the on-page button. Streaming sites are single-page apps, so the
@@ -86,9 +107,24 @@ export function runContentScript(opts: ContentScriptOptions): void {
   const quickButton = mountQuickButton({
     doc: document,
     onPress: () => {
-      browser.runtime.sendMessage<ToBackground>({ type: 'resonnote/trigger' }).catch((error: unknown) => {
+      // Without this the press would do nothing at all, with only a line in the console.
+      const askForReload = () => quickButton.showNotice(MSG_RELOAD_TAB);
+      if (!extensionReachable()) {
+        askForReload();
+        return;
+      }
+      const warn = (error: unknown) =>
         console.warn('[resonnote] the note button could not reach the extension', error);
-      });
+      try {
+        browser.runtime.sendMessage<ToBackground>({ type: 'resonnote/trigger' }).catch((error: unknown) => {
+          warn(error);
+          if (lostTheExtension(error)) askForReload();
+        });
+      } catch (error) {
+        // Chrome throws at once, not through the promise, where the extension context is gone.
+        warn(error);
+        askForReload();
+      }
     },
     isWatchPage: () => opts.watchVideoId() !== null,
     isBusy: () => controller.isBusy(),
