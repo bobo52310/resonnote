@@ -1,6 +1,6 @@
 # ResonNote 產品網站
 
-<https://resonnote.pages.dev> 的原始碼：Astro 7 + Tailwind CSS 4 的純靜態單頁，跟擴充功能本體是各自獨立的專案（不是 pnpm workspace 成員）。
+<https://resonnote.bobochen.dev> 的原始碼：Astro 7 + Tailwind CSS 4 的純靜態網站（首頁加 `/privacy/` 隱私權政策頁），跟擴充功能本體是各自獨立的專案（不是 pnpm workspace 成員）。
 
 ## 本機開發
 
@@ -20,6 +20,9 @@ pnpm check     # astro check（型別與 .astro 檢查）
 - Build output directory：`dist`
 - 環境變數：`NODE_VERSION=24`、`PNPM_VERSION=12.10.1`
 - `public/_headers` 會原樣部署（安全標頭與 `/_astro/*` 長快取）。
+- 網址是自訂網域 `resonnote.bobochen.dev`（在 Cloudflare Pages 專案的 Custom domains 綁定）；換網域時要同步改 `astro.config.mjs` 的 `site`、`src/site.ts` 的 `url` 與 `public/robots.txt`。
+- 安裝區塊的下載連結指向 `releases/latest`，發新版不用改網站。
+- 隱私權政策（`src/pages/privacy.astro`）的內容要跟根目錄 README 的「隱私」段與程式碼一致；擴充功能的權限或網路請求有變時一起更新，並改頁內的生效日期。
 
 ## 影片與圖片
 

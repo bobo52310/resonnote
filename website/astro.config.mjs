@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // Static site for Cloudflare Pages (native git integration, no adapter).
 export default defineConfig({
-  site: 'https://resonnote.pages.dev',
+  site: 'https://resonnote.bobochen.dev',
   integrations: [sitemap()],
   vite: {
     // Use this project's tsconfig only. Without it, Vite also picks up the extension's

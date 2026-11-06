@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://resonnote.pages.dev/sitemap-index.xml
+Sitemap: https://resonnote.bobochen.dev/sitemap-index.xml
