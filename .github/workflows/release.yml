@@ -1,0 +1,53 @@
+name: Release
+
+# Pushing a version tag (v0.1.0) builds the Chrome zip and publishes it as a GitHub Release.
+# The zip keeps the manifest key, so unpacked installs keep their extension ID and their notes.
+# The Chrome Web Store zip (pnpm zip:store) is built by hand and is never attached here.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check the tag matches the package.json version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in package.json"
+            exit 1
+          fi
+
+      - run: pnpm compile
+      - run: pnpm test
+      - run: pnpm zip
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes_file="docs/releases/$GITHUB_REF_NAME.md"
+          if [ -f "$notes_file" ]; then
+            notes=(--notes-file "$notes_file")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "$GITHUB_REF_NAME" .output/resonnote-*-chrome.zip \
+            --title "ResonNote $GITHUB_REF_NAME" \
+            "${notes[@]}"
